@@ -1,0 +1,195 @@
+2026-06-05 16:18:27,314 | INFO | Assistant starting...
+2026-06-05 16:18:51,627 | INFO | Received command: hello
+2026-06-05 16:19:04,545 | INFO | Received command: test
+2026-06-05 16:19:13,473 | INFO | Assistant shutting down.
+2026-06-05 16:22:58,731 | INFO | Assistant starting...
+2026-06-05 16:22:58,734 | INFO | All startup checks passed
+2026-06-05 16:23:57,610 | INFO | Assistant shutting down.
+2026-06-05 16:24:00,005 | INFO | Assistant starting...
+2026-06-05 16:24:00,011 | INFO | All startup checks passed
+2026-06-05 16:24:27,477 | INFO | Assistant shutting down.
+2026-06-05 16:24:29,899 | INFO | Assistant starting...
+2026-06-05 16:24:29,902 | WARNING | Startup checks failed: Vault Found
+2026-06-05 16:51:34,815 | INFO | Assistant shutting down.
+2026-06-05 17:02:46 | INFO     | Assistant starting — Milestone 2
+2026-06-05 17:02:48 | INFO     | [Router] Provider ready: groq
+2026-06-05 17:02:52 | INFO     | [Router] Provider ready: google
+2026-06-05 17:02:52 | INFO     | All startup checks passed
+2026-06-05 17:03:32 | INFO     | User: Hello
+2026-06-05 17:03:32 | INFO     | [Router] Using provider: groq
+2026-06-05 17:03:32 | INFO     | [Groq] Sending request — model: llama3-70b-8192, messages: 2
+2026-06-05 17:03:32 | ERROR    | [Groq] Unexpected error: Error code: 400 - {'error': {'message': 'The model `llama3-70b-8192` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.', 'type': 'invalid_request_error', 'code': 'model_decommissioned'}}
+2026-06-05 17:03:32 | ERROR    | [Router] groq error: Groq error: Error code: 400 - {'error': {'message': 'The model `llama3-70b-8192` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.', 'type': 'invalid_request_error', 'code': 'model_decommissioned'}}
+2026-06-05 17:03:32 | INFO     | [Router] Using provider: google
+2026-06-05 17:03:32 | INFO     | [Google] Sending request — model: gemini-1.5-flash, messages: 1
+2026-06-05 17:03:33 | WARNING  | [Google] Rate limit hit: 404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.
+2026-06-05 17:03:33 | WARNING  | [Router] google rate-limited, trying next provider.
+2026-06-05 17:03:33 | ERROR    | Provider error: All providers failed. Last error: Google AI rate limit reached. The assistant will wait and retry.
+2026-06-05 17:07:18 | INFO     | Assistant shutting down.
+2026-06-06 04:17:28 | INFO     | Assistant starting — Milestone 2
+2026-06-06 04:17:30 | INFO     | [Router] Provider ready: groq
+2026-06-06 04:17:32 | INFO     | [Router] Provider ready: google
+2026-06-06 04:17:32 | INFO     | All startup checks passed
+2026-06-06 04:17:45 | INFO     | User: Hello
+2026-06-06 04:17:45 | INFO     | [Router] Using provider: groq
+2026-06-06 04:17:45 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-06 04:17:45 | INFO     | [Groq] Response received — 74 characters
+2026-06-06 04:17:45 | INFO     | Assistant replied (74 chars)
+2026-06-06 04:59:53 | INFO     | Assistant shutting down.
+2026-06-06 04:59:57 | INFO     | Assistant starting — Milestone 2
+2026-06-06 04:59:58 | INFO     | [Router] Provider ready: groq
+2026-06-06 05:00:00 | INFO     | [Router] Provider ready: google
+2026-06-06 05:00:00 | INFO     | All startup checks passed
+2026-06-06 05:00:13 | INFO     | User: tools
+2026-06-06 05:00:13 | INFO     | [Router] Using provider: groq
+2026-06-06 05:00:13 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-06 05:00:14 | INFO     | [Groq] Response received — 523 characters
+2026-06-06 05:00:14 | INFO     | Assistant replied (523 chars)
+2026-06-06 05:01:01 | INFO     | Assistant shutting down.
+2026-06-06 05:01:14 | INFO     | Assistant starting — Milestone 3
+2026-06-06 05:01:14 | INFO     | [Router] Provider ready: groq
+2026-06-06 05:01:16 | INFO     | [Router] Provider ready: google
+2026-06-06 05:01:16 | INFO     | [Registry] Registered tool: read_note
+2026-06-06 05:01:16 | INFO     | [Registry] Registered tool: search_vault
+2026-06-06 05:01:16 | INFO     | [Registry] Registered tool: list_vault
+2026-06-06 05:01:16 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-06 05:01:16 | INFO     | All startup checks passed
+2026-06-06 05:02:11 | INFO     | [Registry] Running tool: list_vault
+2026-06-06 05:02:11 | INFO     | [list_vault] Listed '(vault root)' — 202 notes
+2026-06-06 05:02:11 | INFO     | [Vault] 'list_vault' result injected into conversation history
+2026-06-06 05:04:05 | INFO     | [Registry] Running tool: list_vault
+2026-06-06 05:04:05 | INFO     | [list_vault] Listed '06 - Projects' — 19 notes
+2026-06-06 05:04:05 | INFO     | [Vault] 'list_vault' result injected into conversation history
+2026-06-06 05:04:56 | INFO     | [Registry] Running tool: search_vault
+2026-06-06 05:04:57 | INFO     | [search_vault] 'Mass Heater' — 4 files matched, showing 4
+2026-06-06 05:04:57 | INFO     | [Vault] 'search_vault' result injected into conversation history
+2026-06-06 05:07:54 | INFO     | [Registry] Running tool: list_vault
+2026-06-06 05:07:54 | INFO     | [list_vault] Listed '04 - Study and Teach/Scripture/NT/23 - 1 John' — 21 notes
+2026-06-06 05:07:54 | INFO     | [Vault] 'list_vault' result injected into conversation history
+2026-06-06 05:08:37 | INFO     | [Registry] Running tool: read_note
+2026-06-06 05:08:37 | INFO     | [read_note] Read 04 - Study and Teach\Scripture\NT\23 - 1 John\1 John 3 ESV.md (3046 chars)
+2026-06-06 05:08:37 | INFO     | [Vault] 'read_note' result injected into conversation history
+2026-06-06 05:09:13 | INFO     | [Registry] Running tool: read_note
+2026-06-06 05:09:13 | INFO     | [read_note] Read 04 - Study and Teach\Scripture\NT\23 - 1 John\1 John 1 ESV.md (1416 chars)
+2026-06-06 05:09:13 | INFO     | [Vault] 'read_note' result injected into conversation history
+2026-06-06 05:09:41 | INFO     | [Registry] Running tool: get_linked_notes
+2026-06-06 05:09:42 | INFO     | [get_linked_notes] '1 John 1 ESV.md' → 2 linked notes loaded, 0 missing
+2026-06-06 05:09:42 | INFO     | [Vault] 'get_linked_notes' result injected into conversation history
+2026-06-06 05:12:11 | INFO     | User: summarize what I have on 1 John 1
+2026-06-06 05:12:11 | INFO     | [Router] Using provider: groq
+2026-06-06 05:12:11 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 16
+2026-06-06 05:12:12 | ERROR    | [Groq] Unexpected error: Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.3-70b-versatile` in organization `org_01kt4esssnensvg284m7s8zyqw` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Requested 12204, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2026-06-06 05:12:12 | ERROR    | [Router] groq error: Groq error: Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.3-70b-versatile` in organization `org_01kt4esssnensvg284m7s8zyqw` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Requested 12204, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2026-06-06 05:12:12 | INFO     | [Router] Using provider: google
+2026-06-06 05:12:12 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 15
+2026-06-06 05:12:17 | INFO     | [Google] Response received — 1434 characters
+2026-06-06 05:12:17 | INFO     | Assistant replied (1434 chars)
+2026-06-06 05:28:06 | INFO     | Assistant shutting down.
+2026-06-06 05:28:11 | INFO     | Assistant starting — Milestone 3
+2026-06-06 05:28:12 | INFO     | [Router] Provider ready: groq
+2026-06-06 05:28:14 | INFO     | [Router] Provider ready: google
+2026-06-06 05:28:14 | INFO     | [Registry] Registered tool: read_note
+2026-06-06 05:28:14 | INFO     | [Registry] Registered tool: search_vault
+2026-06-06 05:28:14 | INFO     | [Registry] Registered tool: list_vault
+2026-06-06 05:28:14 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-06 05:28:14 | INFO     | All startup checks passed
+2026-06-06 05:28:40 | INFO     | User: read 1 John 1 ESV.md
+2026-06-06 05:28:40 | INFO     | [Router] Using provider: groq
+2026-06-06 05:28:40 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-06 05:28:41 | INFO     | [Groq] Response received — 402 characters
+2026-06-06 05:28:41 | INFO     | Assistant replied (402 chars)
+2026-06-06 05:29:01 | INFO     | [Registry] Running tool: read_note
+2026-06-06 05:29:01 | INFO     | [read_note] Read 04 - Study and Teach\Scripture\NT\23 - 1 John\1 John 1 ESV.md (1416 chars)
+2026-06-06 05:29:01 | INFO     | [Vault] 'read_note' result injected into conversation history
+2026-06-06 05:29:41 | INFO     | User: read 1 John 1 ESV.md
+2026-06-06 05:29:41 | INFO     | [Router] Using provider: groq
+2026-06-06 05:29:41 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 6
+2026-06-06 05:29:42 | INFO     | [Groq] Response received — 1635 characters
+2026-06-06 05:29:42 | INFO     | Assistant replied (1635 chars)
+2026-06-06 05:30:06 | INFO     | User: test
+2026-06-06 05:30:06 | INFO     | [Router] Using provider: groq
+2026-06-06 05:30:06 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 8
+2026-06-06 05:30:07 | INFO     | [Groq] Response received — 201 characters
+2026-06-06 05:30:07 | INFO     | Assistant replied (201 chars)
+2026-06-06 05:59:40 | INFO     | Assistant shutting down.
+2026-06-06 10:05:23 | INFO     | Assistant starting — Milestone 4
+2026-06-06 10:05:24 | INFO     | [Router] Provider ready: groq
+2026-06-06 10:05:26 | INFO     | [Router] Provider ready: google
+2026-06-06 10:05:26 | INFO     | [Registry] Registered tool: read_note
+2026-06-06 10:05:26 | INFO     | [Registry] Registered tool: search_vault
+2026-06-06 10:05:26 | INFO     | [Registry] Registered tool: list_vault
+2026-06-06 10:05:26 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-06 10:05:26 | INFO     | [Registry] Registered tool: create_note
+2026-06-06 10:05:26 | INFO     | [Registry] Registered tool: update_note
+2026-06-06 10:05:26 | INFO     | [Memory] Created User-Profile.md template
+2026-06-06 10:05:26 | INFO     | [Memory] Created Learned-Facts.md template
+2026-06-06 10:05:26 | INFO     | [Memory] Context loaded — 1213 chars, project='none'
+2026-06-06 10:05:26 | INFO     | All startup checks passed
+2026-06-06 10:06:28 | INFO     | [Registry] Running tool: list_vault
+2026-06-06 10:06:28 | INFO     | [list_vault] Listed '(vault root)' — 202 notes
+2026-06-06 10:06:28 | INFO     | [Vault] 'list_vault' injected into history
+2026-06-06 10:07:19 | INFO     | [Registry] Running tool: list_vault
+2026-06-06 10:07:19 | INFO     | [list_vault] Listed '04 - Study and Teach/Scripture' — 107 notes
+2026-06-06 10:07:19 | INFO     | [Vault] 'list_vault' injected into history
+2026-06-06 10:07:36 | INFO     | [Registry] Running tool: search_vault
+2026-06-06 10:07:37 | INFO     | [search_vault] 'antichrist' — 45 files matched, showing 20
+2026-06-06 10:07:37 | INFO     | [Vault] 'search_vault' injected into history
+2026-06-06 10:08:03 | INFO     | [ContextManager] 15041 tokens exceeds safe limit 4800 for groq — trimming...
+2026-06-06 10:08:03 | INFO     | [ContextManager] After vault removal: ~554 tokens — OK
+2026-06-06 10:08:03 | INFO     | User: Summarize waht you know about 1 John
+2026-06-06 10:08:03 | INFO     | [Router] Request estimated at ~567 tokens (response budget: 2048)
+2026-06-06 10:08:03 | INFO     | [ModelRegistry] Selected: groq (est. 567 input + 2048 response = 2615 tokens)
+2026-06-06 10:08:03 | INFO     | [Router] Sending to: groq
+2026-06-06 10:08:03 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 8
+2026-06-06 10:08:04 | INFO     | [Groq] Response received — 353 characters
+2026-06-06 10:08:04 | INFO     | Assistant replied (353 chars)
+2026-06-06 10:09:46 | INFO     | [Registry] Running tool: search_vault
+2026-06-06 10:09:47 | INFO     | [search_vault] '1 John' — 172 files matched, showing 20
+2026-06-06 10:09:47 | INFO     | [Vault] 'search_vault' injected into history
+2026-06-06 10:09:52 | INFO     | [ContextManager] 5004 tokens exceeds safe limit 4800 for groq — trimming...
+2026-06-06 10:09:52 | INFO     | [ContextManager] After vault removal: ~695 tokens — OK
+2026-06-06 10:09:52 | INFO     | User: Summarize waht you know about 1 John
+2026-06-06 10:09:52 | INFO     | [Router] Request estimated at ~708 tokens (response budget: 2048)
+2026-06-06 10:09:52 | INFO     | [ModelRegistry] Selected: groq (est. 708 input + 2048 response = 2756 tokens)
+2026-06-06 10:09:52 | INFO     | [Router] Sending to: groq
+2026-06-06 10:09:52 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 12
+2026-06-06 10:09:52 | INFO     | [Groq] Response received — 517 characters
+2026-06-06 10:09:52 | INFO     | Assistant replied (517 chars)
+2026-06-06 10:11:43 | INFO     | [Memory] Remembered: The AI assistant project is building toward an Obsidian plug
+2026-06-06 10:30:42 | INFO     | [Registry] Running tool: create_note
+2026-06-06 10:30:42 | INFO     | [create_note] Created: AI/Research/test-note.md## Test Note.md (51 chars)
+2026-06-06 10:32:55 | INFO     | Assistant shutting down.
+2026-06-06 10:32:55 | INFO     | [Memory] Episode saved: 2026-06-06.md
+2026-06-06 11:07:24 | INFO     | Assistant starting — Milestone 4
+2026-06-06 11:07:25 | INFO     | [Router] Provider ready: groq
+2026-06-06 11:07:26 | INFO     | [Router] Provider ready: google
+2026-06-06 11:07:26 | INFO     | [Registry] Registered tool: read_note
+2026-06-06 11:07:26 | INFO     | [Registry] Registered tool: search_vault
+2026-06-06 11:07:26 | INFO     | [Registry] Registered tool: list_vault
+2026-06-06 11:07:26 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-06 11:07:26 | INFO     | [Registry] Registered tool: create_note
+2026-06-06 11:07:26 | INFO     | [Registry] Registered tool: update_note
+2026-06-06 11:07:26 | INFO     | [Memory] Context loaded — 1312 chars, project='none'
+2026-06-06 11:07:26 | INFO     | [Memory] Episode opened: 2026-06-06.md
+2026-06-06 11:07:26 | INFO     | All startup checks passed
+2026-06-06 11:07:36 | INFO     | User: good morning
+2026-06-06 11:07:36 | INFO     | [Router] Request estimated at ~479 tokens (response budget: 2048)
+2026-06-06 11:07:36 | INFO     | [ModelRegistry] Selected: groq (est. 479 input + 2048 response = 2527 tokens)
+2026-06-06 11:07:36 | INFO     | [Router] Sending to: groq
+2026-06-06 11:07:36 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-06 11:07:36 | INFO     | [Groq] Response received — 132 characters
+2026-06-06 11:07:36 | INFO     | Assistant replied (132 chars)
+2026-06-06 11:08:25 | INFO     | [Registry] Running tool: search_vault
+2026-06-06 11:08:26 | INFO     | [search_vault] 'John' — 267 files matched, showing 20
+2026-06-06 11:08:26 | INFO     | [Vault] 'search_vault' injected into history
+2026-06-06 11:09:14 | INFO     | [ContextManager] 5882 tokens exceeds safe limit 4800 for groq — trimming...
+2026-06-06 11:09:14 | INFO     | [ContextManager] After vault removal: ~552 tokens — OK
+2026-06-06 11:09:14 | INFO     | User: summarize waht you know about John
+2026-06-06 11:09:14 | INFO     | [Router] Request estimated at ~564 tokens (response budget: 2048)
+2026-06-06 11:09:14 | INFO     | [ModelRegistry] Selected: groq (est. 564 input + 2048 response = 2612 tokens)
+2026-06-06 11:09:14 | INFO     | [Router] Sending to: groq
+2026-06-06 11:09:14 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 6
+2026-06-06 11:09:14 | INFO     | [Groq] Response received — 381 characters
+2026-06-06 11:09:14 | INFO     | Assistant replied (381 chars)
+2026-06-06 11:09:55 | INFO     | Assistant shutting down.
+2026-06-06 11:09:55 | INFO     | [Memory] Episode closed: 2026-06-06.md

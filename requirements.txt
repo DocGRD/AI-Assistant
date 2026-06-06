@@ -1,0 +1,11 @@
+# AI Assistant — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Milestone 1 (foundation)
+python-dotenv
+
+# Milestone 2 (AI providers)
+groq
+google-genai
+# NOTE: Do NOT install google-generativeai — it is deprecated and causes warnings.
+#       The new package is google-genai (no "ative" at the end).
