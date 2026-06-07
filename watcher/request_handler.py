@@ -82,6 +82,35 @@ class RequestHandler:
             )
         except ProviderError as exc:
             logger.error(f"[RequestHandler] Provider error: {exc}")
+            
+            # Write error response to note
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            error_msg = f"""⚠️ **Assistant Response — Error**
+
+**Generated:** {timestamp}
+
+Unable to process this request due to a provider error:
+
+```
+{str(exc)[:500]}
+```
+
+**Common solutions:**
+- If the note is very large, try breaking it into smaller notes
+- Wait a few minutes and try again (provider might be overloaded)
+- Check that API keys are valid in settings.json
+
+To retry: Change `assistant-status` back to `pending` and modify the note to trigger a rescan."""
+
+            try:
+                fm_dict["assistant-status"] = "error"
+                fm_dict["assistant-responded"] = timestamp
+                updated_content = FrontmatterParser.build(fm_dict, body + "\n\n## Assistant Response\n\n" + error_msg)
+                full_path.write_text(updated_content, encoding="utf-8")
+                logger.info(f"[RequestHandler] Error message written to {note_path}")
+            except Exception as write_exc:
+                logger.error(f"[RequestHandler] Could not write error: {write_exc}")
+            
             return False
 
         # Append response to note

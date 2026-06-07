@@ -137,10 +137,20 @@ class VaultWatcher:
 
             if success:
                 logger.info(f"[VaultWatcher] ✓ Processed: {rel_path}")
-                print(f"✓ [{datetime.now().strftime('%H:%M:%S')}] {rel_path}")
+                print(f"✓ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Done")
             else:
                 logger.warning(f"[VaultWatcher] ✗ Failed to process: {rel_path}")
-                print(f"✗ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Failed")
+                # Get the updated frontmatter to show the reason
+                try:
+                    updated_content = filepath.read_text(encoding="utf-8")
+                    updated_fm, _ = FrontmatterParser.extract(updated_content)
+                    status = updated_fm.get("assistant-status", "unknown")
+                    if status == "error":
+                        print(f"⚠ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Error (see note for details)")
+                    else:
+                        print(f"✗ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Failed")
+                except:
+                    print(f"✗ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Failed")
 
         except Exception as exc:
             logger.error(f"[VaultWatcher] Error checking {filepath}: {exc}")
