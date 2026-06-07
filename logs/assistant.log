@@ -193,3 +193,253 @@
 2026-06-06 11:09:14 | INFO     | Assistant replied (381 chars)
 2026-06-06 11:09:55 | INFO     | Assistant shutting down.
 2026-06-06 11:09:55 | INFO     | [Memory] Episode closed: 2026-06-06.md
+2026-06-07 05:30:45 | INFO     | Assistant starting — Milestone 4
+2026-06-07 05:30:48 | INFO     | [Router] Provider ready: groq
+2026-06-07 05:30:51 | INFO     | [Router] Provider ready: google
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: read_note
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: search_vault
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: list_vault
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: create_note
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: update_note
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: generate_research_prompt
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: import_research
+2026-06-07 05:30:51 | INFO     | [Registry] Registered tool: summarise_research
+2026-06-07 05:30:51 | INFO     | [Memory] Context loaded — 1312 chars, project='none'
+2026-06-07 05:30:51 | INFO     | [Memory] Episode opened: 2026-06-07.md
+2026-06-07 05:30:51 | INFO     | All startup checks passed
+2026-06-07 05:31:30 | INFO     | [Registry] Running tool: search_vault
+2026-06-07 05:31:32 | INFO     | [search_vault] 'rocket' — 14 files matched, showing 14
+2026-06-07 05:31:32 | INFO     | [Vault] 'search_vault' injected into history
+2026-06-07 05:32:27 | INFO     | [Registry] Running tool: generate_research_prompt
+2026-06-07 05:32:27 | INFO     | [generate_research_prompt] Generated prompt for: rocket mass heaters implimentation techneques
+2026-06-07 05:37:23 | INFO     | [Registry] Running tool: import_research
+2026-06-07 05:37:23 | INFO     | [import_research] Created: AI/Research/2026-06-07--core-definition-a-rocket-mass-heater-is.md
+2026-06-07 05:38:22 | INFO     | [Registry] Running tool: import_research
+2026-06-07 05:38:22 | INFO     | [import_research] Created: AI/Research/2026-06-07--core-definition-a-rocket-mass-heater-is-1.md
+2026-06-07 05:39:25 | INFO     | User: vault:sunnarise AI/Research/2026-06-07--core-definition-a-rocket-mass-heater-is-...
+2026-06-07 05:39:25 | INFO     | [Router] Request estimated at ~2629 tokens (response budget: 2048)
+2026-06-07 05:39:25 | INFO     | [ModelRegistry] Selected: groq (est. 2629 input + 2048 response = 4677 tokens)
+2026-06-07 05:39:25 | INFO     | [Router] Sending to: groq
+2026-06-07 05:39:25 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 4
+2026-06-07 05:39:26 | INFO     | [Groq] Response received — 546 characters
+2026-06-07 05:39:26 | INFO     | Assistant replied (546 chars)
+2026-06-07 05:47:24 | INFO     | Assistant shutting down.
+2026-06-07 05:47:24 | INFO     | [Memory] Episode closed: 2026-06-07.md
+2026-06-07 05:47:30 | INFO     | Assistant starting — Milestone 4
+2026-06-07 05:47:31 | INFO     | [Router] Provider ready: groq
+2026-06-07 05:47:33 | INFO     | [Router] Provider ready: google
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: read_note
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: search_vault
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: list_vault
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: create_note
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: update_note
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: generate_research_prompt
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: import_research
+2026-06-07 05:47:33 | INFO     | [Registry] Registered tool: summarise_research
+2026-06-07 05:47:33 | INFO     | [Memory] Context loaded — 1312 chars, project='none'
+2026-06-07 05:47:33 | INFO     | [Memory] Episode opened: 2026-06-07.md
+2026-06-07 05:47:33 | INFO     | All startup checks passed
+2026-06-07 05:48:42 | INFO     | User: vault:sunnarise AI/Research/2026-06-07--core-definition-a-rocket-mass-heater-is....
+2026-06-07 05:48:42 | INFO     | [Router] Request estimated at ~497 tokens (response budget: 2048)
+2026-06-07 05:48:42 | INFO     | [ModelRegistry] Selected: groq (est. 497 input + 2048 response = 2545 tokens)
+2026-06-07 05:48:42 | INFO     | [Router] Sending to: groq
+2026-06-07 05:48:42 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 05:48:43 | INFO     | [Groq] Response received — 319 characters
+2026-06-07 05:48:43 | INFO     | Assistant replied (319 chars)
+2026-06-07 05:49:56 | INFO     | [Registry] Running tool: read_note
+2026-06-07 05:49:56 | INFO     | [read_note] Read AI\Research\2026-06-07--core-definition-a-rocket-mass-heater-is.md (7840 chars)
+2026-06-07 05:49:56 | INFO     | [Vault] 'read_note' injected into history
+2026-06-07 05:50:10 | INFO     | User: summarise that
+2026-06-07 05:50:10 | INFO     | [Router] Request estimated at ~2576 tokens (response budget: 2048)
+2026-06-07 05:50:10 | INFO     | [ModelRegistry] Selected: groq (est. 2576 input + 2048 response = 4624 tokens)
+2026-06-07 05:50:10 | INFO     | [Router] Sending to: groq
+2026-06-07 05:50:10 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 6
+2026-06-07 05:50:11 | INFO     | [Groq] Response received — 1223 characters
+2026-06-07 05:50:11 | INFO     | Assistant replied (1223 chars)
+2026-06-07 05:52:28 | INFO     | User: create a note in 06 - Projects/Grok Projects/Rocket Mass Heater that contains yo...
+2026-06-07 05:52:28 | INFO     | [Router] Request estimated at ~2912 tokens (response budget: 2048)
+2026-06-07 05:52:28 | INFO     | [ModelRegistry] Selected: groq (est. 2912 input + 2048 response = 4960 tokens)
+2026-06-07 05:52:28 | INFO     | [Router] Sending to: groq
+2026-06-07 05:52:28 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 8
+2026-06-07 05:52:30 | INFO     | [Groq] Response received — 1332 characters
+2026-06-07 05:52:30 | INFO     | Assistant replied (1332 chars)
+2026-06-07 05:55:03 | INFO     | Assistant shutting down.
+2026-06-07 05:55:03 | INFO     | [Memory] Episode closed: 2026-06-07.md
+2026-06-07 06:05:33 | INFO     | Assistant starting — Milestone 5.5 (Watcher enabled)
+2026-06-07 06:05:34 | INFO     | [Router] Provider ready: groq
+2026-06-07 06:05:35 | INFO     | [Router] Provider ready: google
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: read_note
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: search_vault
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: list_vault
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: create_note
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: update_note
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: generate_research_prompt
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: import_research
+2026-06-07 06:05:35 | INFO     | [Registry] Registered tool: summarise_research
+2026-06-07 06:05:35 | INFO     | [Memory] Context loaded — 1312 chars, project='none'
+2026-06-07 06:05:35 | INFO     | [Memory] Episode opened: 2026-06-07.md
+2026-06-07 06:05:35 | INFO     | All startup checks passed
+2026-06-07 06:05:35 | INFO     | [Router] Provider ready: groq
+2026-06-07 06:05:36 | INFO     | [Router] Provider ready: google
+2026-06-07 06:05:36 | INFO     | [Main] Vault watcher started in background thread
+2026-06-07 06:55:57 | INFO     | [Router] Request estimated at ~239 tokens (response budget: 2048)
+2026-06-07 06:55:57 | INFO     | [ModelRegistry] Selected: groq (est. 239 input + 2048 response = 2287 tokens)
+2026-06-07 06:55:57 | INFO     | [Router] Sending to: groq
+2026-06-07 06:55:57 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 06:55:59 | INFO     | [Groq] Response received — 1631 characters
+2026-06-07 07:34:38 | INFO     | [Router] Request estimated at ~7246 tokens (response budget: 2048)
+2026-06-07 07:34:38 | INFO     | [ModelRegistry] groq: input exceeds TPM limit (7246 > 6000) — skipping
+2026-06-07 07:34:38 | INFO     | [ModelRegistry] Selected: google (est. 7246 input + 2048 response = 9294 tokens)
+2026-06-07 07:34:38 | INFO     | [Router] Sending to: google
+2026-06-07 07:34:38 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 1
+2026-06-07 07:34:45 | INFO     | [Google] Response received — 3045 characters
+2026-06-07 07:40:40 | INFO     | [Router] Request estimated at ~78256 tokens (response budget: 2048)
+2026-06-07 07:40:40 | INFO     | [ModelRegistry] groq: input exceeds TPM limit (78256 > 6000) — skipping
+2026-06-07 07:40:40 | INFO     | [ModelRegistry] Selected: google (est. 78256 input + 2048 response = 80304 tokens)
+2026-06-07 07:40:40 | INFO     | [Router] Sending to: google
+2026-06-07 07:40:40 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 1
+2026-06-07 07:40:53 | INFO     | [Google] Response received — 3059 characters
+2026-06-07 07:49:21 | INFO     | [Router] Request estimated at ~75222 tokens (response budget: 2048)
+2026-06-07 07:49:21 | INFO     | [ModelRegistry] groq: input exceeds TPM limit (75222 > 6000) — skipping
+2026-06-07 07:49:21 | INFO     | [ModelRegistry] Selected: google (est. 75222 input + 2048 response = 77270 tokens)
+2026-06-07 07:49:21 | INFO     | [Router] Sending to: google
+2026-06-07 07:49:21 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 1
+2026-06-07 07:49:24 | ERROR    | [Google] Unexpected error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-07 07:49:24 | ERROR    | [Router] google error: Google AI error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-07 07:49:24 | INFO     | [ModelRegistry] Error recorded — provider=google type=other tokens≈75222
+2026-06-07 07:49:24 | INFO     | [Router] Sending to: groq
+2026-06-07 07:49:24 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 07:49:25 | ERROR    | [Groq] Unexpected error: Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.3-70b-versatile` in organization `org_01kt4esssnensvg284m7s8zyqw` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Requested 82271, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2026-06-07 07:49:25 | WARNING  | [Router] groq context-too-large: Groq error: Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.3-70b-versatile` in organization `org_01kt4esssnensvg284m7s8zyqw` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Requested 82271, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2026-06-07 07:49:25 | INFO     | [ModelRegistry] Error recorded — provider=groq type=context_too_large tokens≈75222
+2026-06-07 08:02:17 | INFO     | [Main] Stopping watcher...
+2026-06-07 08:02:17 | INFO     | Assistant shutting down.
+2026-06-07 08:02:17 | INFO     | [Main] Waiting for watcher thread to stop...
+2026-06-07 08:02:18 | INFO     | [Memory] Episode closed: 2026-06-07.md
+2026-06-07 08:02:23 | INFO     | Assistant starting — Milestone 5.5 (Watcher enabled)
+2026-06-07 08:02:23 | INFO     | [Router] Provider ready: groq
+2026-06-07 08:02:25 | INFO     | [Router] Provider ready: google
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: read_note
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: search_vault
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: list_vault
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: create_note
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: update_note
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: generate_research_prompt
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: import_research
+2026-06-07 08:02:25 | INFO     | [Registry] Registered tool: summarise_research
+2026-06-07 08:02:25 | INFO     | [Memory] Context loaded — 1312 chars, project='none'
+2026-06-07 08:02:25 | INFO     | [Memory] Episode opened: 2026-06-07.md
+2026-06-07 08:02:25 | INFO     | All startup checks passed
+2026-06-07 08:02:25 | INFO     | [Router] Provider ready: groq
+2026-06-07 08:02:26 | INFO     | [Router] Provider ready: google
+2026-06-07 08:02:26 | INFO     | [Main] Vault watcher started in background thread
+2026-06-07 08:02:26 | INFO     | [Router] Request estimated at ~131 tokens (response budget: 2048)
+2026-06-07 08:02:26 | INFO     | [ModelRegistry] Selected: groq (est. 131 input + 2048 response = 2179 tokens)
+2026-06-07 08:02:26 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:26 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:27 | INFO     | [Groq] Response received — 409 characters
+2026-06-07 08:02:27 | INFO     | [Router] Request estimated at ~129 tokens (response budget: 2048)
+2026-06-07 08:02:27 | INFO     | [ModelRegistry] Selected: groq (est. 129 input + 2048 response = 2177 tokens)
+2026-06-07 08:02:27 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:27 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:27 | INFO     | [Groq] Response received — 595 characters
+2026-06-07 08:02:27 | INFO     | [Router] Request estimated at ~187 tokens (response budget: 2048)
+2026-06-07 08:02:27 | INFO     | [ModelRegistry] Selected: groq (est. 187 input + 2048 response = 2235 tokens)
+2026-06-07 08:02:27 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:27 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:28 | INFO     | [Groq] Response received — 294 characters
+2026-06-07 08:02:28 | INFO     | [Router] Request estimated at ~263 tokens (response budget: 2048)
+2026-06-07 08:02:28 | INFO     | [ModelRegistry] Selected: groq (est. 263 input + 2048 response = 2311 tokens)
+2026-06-07 08:02:28 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:28 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:28 | INFO     | [Groq] Response received — 587 characters
+2026-06-07 08:02:28 | INFO     | [Router] Request estimated at ~243 tokens (response budget: 2048)
+2026-06-07 08:02:28 | INFO     | [ModelRegistry] Selected: groq (est. 243 input + 2048 response = 2291 tokens)
+2026-06-07 08:02:28 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:28 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:29 | INFO     | [Groq] Response received — 590 characters
+2026-06-07 08:02:29 | INFO     | [Router] Request estimated at ~316 tokens (response budget: 2048)
+2026-06-07 08:02:29 | INFO     | [ModelRegistry] Selected: groq (est. 316 input + 2048 response = 2364 tokens)
+2026-06-07 08:02:29 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:29 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:38 | INFO     | [Groq] Response received — 802 characters
+2026-06-07 08:02:38 | INFO     | [Router] Request estimated at ~414 tokens (response budget: 2048)
+2026-06-07 08:02:38 | INFO     | [ModelRegistry] Selected: groq (est. 414 input + 2048 response = 2462 tokens)
+2026-06-07 08:02:38 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:38 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:39 | INFO     | [Groq] Response received — 890 characters
+2026-06-07 08:02:39 | INFO     | [Router] Request estimated at ~219 tokens (response budget: 2048)
+2026-06-07 08:02:39 | INFO     | [ModelRegistry] Selected: groq (est. 219 input + 2048 response = 2267 tokens)
+2026-06-07 08:02:39 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:39 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:44 | INFO     | [Groq] Response received — 419 characters
+2026-06-07 08:02:44 | INFO     | [Router] Request estimated at ~219 tokens (response budget: 2048)
+2026-06-07 08:02:44 | INFO     | [ModelRegistry] Selected: groq (est. 219 input + 2048 response = 2267 tokens)
+2026-06-07 08:02:44 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:44 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:44 | INFO     | [Groq] Response received — 539 characters
+2026-06-07 08:02:44 | INFO     | [Router] Request estimated at ~224 tokens (response budget: 2048)
+2026-06-07 08:02:44 | INFO     | [ModelRegistry] Selected: groq (est. 224 input + 2048 response = 2272 tokens)
+2026-06-07 08:02:44 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:44 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:47 | INFO     | [Groq] Response received — 473 characters
+2026-06-07 08:02:47 | INFO     | [Router] Request estimated at ~209 tokens (response budget: 2048)
+2026-06-07 08:02:47 | INFO     | [ModelRegistry] Selected: groq (est. 209 input + 2048 response = 2257 tokens)
+2026-06-07 08:02:47 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:47 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:47 | INFO     | [Groq] Response received — 365 characters
+2026-06-07 08:02:47 | INFO     | [Router] Request estimated at ~205 tokens (response budget: 2048)
+2026-06-07 08:02:47 | INFO     | [ModelRegistry] Selected: groq (est. 205 input + 2048 response = 2253 tokens)
+2026-06-07 08:02:47 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:47 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:48 | INFO     | [Groq] Response received — 482 characters
+2026-06-07 08:02:48 | INFO     | [Router] Request estimated at ~150 tokens (response budget: 2048)
+2026-06-07 08:02:48 | INFO     | [ModelRegistry] Selected: groq (est. 150 input + 2048 response = 2198 tokens)
+2026-06-07 08:02:48 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:48 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:48 | INFO     | [Groq] Response received — 239 characters
+2026-06-07 08:02:48 | INFO     | [Router] Request estimated at ~145 tokens (response budget: 2048)
+2026-06-07 08:02:48 | INFO     | [ModelRegistry] Selected: groq (est. 145 input + 2048 response = 2193 tokens)
+2026-06-07 08:02:48 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:48 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:49 | INFO     | [Groq] Response received — 701 characters
+2026-06-07 08:02:49 | INFO     | [Router] Request estimated at ~230 tokens (response budget: 2048)
+2026-06-07 08:02:49 | INFO     | [ModelRegistry] Selected: groq (est. 230 input + 2048 response = 2278 tokens)
+2026-06-07 08:02:49 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:49 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:53 | INFO     | [Groq] Response received — 502 characters
+2026-06-07 08:02:53 | INFO     | [Router] Request estimated at ~248 tokens (response budget: 2048)
+2026-06-07 08:02:53 | INFO     | [ModelRegistry] Selected: groq (est. 248 input + 2048 response = 2296 tokens)
+2026-06-07 08:02:53 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:53 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:56 | INFO     | [Groq] Response received — 563 characters
+2026-06-07 08:02:56 | INFO     | [Router] Request estimated at ~380 tokens (response budget: 2048)
+2026-06-07 08:02:56 | INFO     | [ModelRegistry] Selected: groq (est. 380 input + 2048 response = 2428 tokens)
+2026-06-07 08:02:56 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:56 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:02:56 | INFO     | [Groq] Response received — 783 characters
+2026-06-07 08:02:56 | INFO     | [Router] Request estimated at ~599 tokens (response budget: 2048)
+2026-06-07 08:02:56 | INFO     | [ModelRegistry] Selected: groq (est. 599 input + 2048 response = 2647 tokens)
+2026-06-07 08:02:56 | INFO     | [Router] Sending to: groq
+2026-06-07 08:02:56 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:03:02 | INFO     | [Groq] Response received — 1120 characters
+2026-06-07 08:03:02 | INFO     | [Router] Request estimated at ~443 tokens (response budget: 2048)
+2026-06-07 08:03:02 | INFO     | [ModelRegistry] Selected: groq (est. 443 input + 2048 response = 2491 tokens)
+2026-06-07 08:03:02 | INFO     | [Router] Sending to: groq
+2026-06-07 08:03:02 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-07 08:03:05 | WARNING  | [Groq] Rate limit hit: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kt4esssnensvg284m7s8zyqw` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 11231, Requested 2475. Please try again in 8.529999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2026-06-07 08:03:05 | WARNING  | [Router] groq rate-limited.
+2026-06-07 08:03:05 | INFO     | [ModelRegistry] Error recorded — provider=groq type=rate_limit tokens≈443
+2026-06-07 08:03:05 | INFO     | [Router] Sending to: google
+2026-06-07 08:03:05 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 1
+2026-06-07 08:03:07 | ERROR    | [Google] Unexpected error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-07 08:03:07 | ERROR    | [Router] google error: Google AI error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-07 08:03:07 | INFO     | [ModelRegistry] Error recorded — provider=google type=other tokens≈443
+2026-06-07 08:18:43 | INFO     | [Main] Stopping watcher...
+2026-06-07 08:18:43 | INFO     | Assistant shutting down.
+2026-06-07 08:18:43 | INFO     | [Main] Waiting for watcher thread to stop...
+2026-06-07 08:18:45 | INFO     | [Memory] Episode closed: 2026-06-07.md
