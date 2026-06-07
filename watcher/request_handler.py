@@ -4,9 +4,10 @@ Request Handler — Process vault watcher requests.
 Workflow:
     1. Receive: note path + request from frontmatter
     2. Load: full note content
-    3. Call: ProviderRouter.generate() with note as context
-    4. Append: response to note under "## Assistant Response"
-    5. Update: frontmatter status to done + timestamp
+    3. Estimate: token count, chunk if necessary
+    4. Call: ProviderRouter.generate() with content (chunked if needed)
+    5. Append: response to note under "## Assistant Response"
+    6. Update: frontmatter status to done + timestamp
 """
 
 import logging
@@ -15,8 +16,10 @@ from pathlib import Path
 
 from providers.provider_router import ProviderRouter
 from providers.base_provider import Message, ProviderError
+from providers.model_registry import estimate_tokens
 from memory.context_manager import ContextManager
 from watcher.frontmatter_parser import FrontmatterParser
+from watcher.content_chunker import ContentChunker
 
 logger = logging.getLogger("watcher")
 
@@ -29,6 +32,7 @@ class RequestHandler:
         self._router = router
         self._system_prompt = system_prompt or self._default_system_prompt()
         self._ctx_mgr = ContextManager(router.registry)
+        self._chunker = ContentChunker(max_tokens=3000)  # Leave room for response
 
     def process(self, note_path: str, request: str, project: str | None = None) -> bool:
         """
@@ -64,22 +68,29 @@ class RequestHandler:
         logger.info(f"[RequestHandler] Processing request in {note_path}")
         logger.info(f"[RequestHandler] Request: {request[:100]}")
 
-        # Build message context: include the note content for context
-        history = [
-            Message(
-                role="user",
-                content=f"[Vault Note Context]\n\nFile: {note_path}\n\n{body}\n\n---\n\nRequest: {request}",
-            )
-        ]
-
+        # Estimate token count and chunk if necessary
+        token_count = estimate_tokens([], body)
+        logger.info(f"[RequestHandler] Content size: ~{token_count} tokens")
+        
         try:
-            # Call the provider
-            reply = self._router.generate(
-                messages=history,
-                system_prompt=self._system_prompt,
-                max_tokens=2048,
-                temperature=0.7,
-            )
+            if token_count > 3000:
+                logger.info(f"[RequestHandler] Content too large, chunking into smaller pieces...")
+                chunks = self._chunker.chunk_content(body)
+                logger.info(f"[RequestHandler] Chunked into {len(chunks)} pieces")
+                reply = self._process_chunks(chunks, request, note_path)
+            else:
+                # Single request for smaller content
+                history = [
+                    Message(
+                        role="user",
+                        content=f"[Vault Note Context]\n\nFile: {note_path}\n\n{body}\n\n---\n\nRequest: {request}",
+                    )
+                ]
+                reply = self._call_provider(history)
+
+            if reply is None:
+                # Provider error — write error message to note
+                raise ProviderError("All providers failed or were unavailable")
         except ProviderError as exc:
             logger.error(f"[RequestHandler] Provider error: {exc}")
             
@@ -133,6 +144,64 @@ To retry: Change `assistant-status` back to `pending` and modify the note to tri
         except Exception as exc:
             logger.error(f"[RequestHandler] Could not write response: {exc}")
             return False
+
+    def _process_chunks(self, chunks: list[str], request: str, note_path: str) -> str | None:
+        """
+        Process multiple chunks and combine results.
+        
+        Returns:
+            Combined response, or None if error
+        """
+        chunk_responses = []
+        
+        for i, chunk in enumerate(chunks, 1):
+            logger.info(f"[RequestHandler] Processing chunk {i}/{len(chunks)}")
+            history = [
+                Message(
+                    role="user",
+                    content=f"[Part {i} of {len(chunks)}]\n\n{chunk}\n\n---\n\nRequest: {request}",
+                )
+            ]
+            reply = self._call_provider(history)
+            if reply is None:
+                return None  # Provider error
+            chunk_responses.append(reply)
+        
+        # If single chunk, return as-is
+        if len(chunk_responses) == 1:
+            return chunk_responses[0]
+        
+        # Combine multiple chunk responses
+        combined_prompt = f"""Please combine these {len(chunk_responses)} responses into a cohesive summary:
+
+"""
+        for i, response in enumerate(chunk_responses, 1):
+            combined_prompt += f"\n### Part {i} Summary:\n{response}\n"
+        
+        combined_prompt += "\nNow provide a unified summary combining all parts:"
+        
+        history = [Message(role="user", content=combined_prompt)]
+        final_reply = self._call_provider(history)
+        return final_reply
+
+    def _call_provider(self, history: list[Message]) -> str | None:
+        """
+        Call the provider and handle errors.
+        
+        Returns:
+            Response text, or None if error
+        """
+        try:
+            reply = self._router.generate(
+                messages=history,
+                system_prompt=self._system_prompt,
+                max_tokens=2048,
+                temperature=0.7,
+            )
+            return reply
+        except ProviderError as exc:
+            logger.error(f"[RequestHandler] Provider error: {exc}")
+            return None
 
     def _default_system_prompt(self) -> str:
         """Default system prompt for watcher requests."""
