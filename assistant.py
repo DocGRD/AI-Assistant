@@ -6,7 +6,6 @@ A crash or force-quit loses nothing that was already appended.
 """
 
 import logging
-import sys
 from datetime import datetime as _dt
 from pathlib import Path
 
@@ -187,16 +186,9 @@ def handle_vault_command(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    # Parse command line arguments
-    watch_mode = "--watch" in sys.argv
-    
     config = ConfigManager()
     logger = setup_logger(config.get("log_level", "INFO"), verbose=False)
-    
-    if watch_mode:
-        logger.info("Assistant starting in WATCH mode — Milestone 5.5")
-    else:
-        logger.info("Assistant starting — Milestone 4")
+    logger.info("Assistant starting — Milestone 5.5 (Watcher enabled)")
 
     router = ProviderRouter(config.all())
 
@@ -227,24 +219,19 @@ def main() -> None:
         print("  Google (free): https://aistudio.google.com/app/apikey\n")
         return
 
-    # ── Watch mode: run vault watcher instead of chat loop ────────────────────────
-    if watch_mode:
-        if not vault_path or not Path(vault_path).exists():
-            print("Vault path not set or missing — watcher cannot start.\n")
-            return
-        try:
-            watcher = VaultWatcher(config.all(), poll_interval=config.get("watcher_poll_interval", 5))
-            watcher.run()
-        except KeyboardInterrupt:
-            print("\n[Watcher interrupted by user]\n")
-        except Exception as exc:
-            logger.error(f"Watcher error: {exc}")
-            print(f"Watcher error: {exc}\n")
+    # ── Run vault watcher (Milestone 5.5) ──────────────────────────────────────
+    if not vault_path or not Path(vault_path).exists():
+        print("Vault path not set or missing — watcher cannot start.\n")
         return
-
-    # ── Normal chat mode ──────────────────────────────────────────────────────────
-    history:    list[Message] = []
-    tools_used: list[str]     = []
+    try:
+        watcher = VaultWatcher(config.all(), poll_interval=config.get("watcher_poll_interval", 5))
+        watcher.run()
+    except KeyboardInterrupt:
+        print("\n[Watcher interrupted by user]\n")
+    except Exception as exc:
+        logger.error(f"Watcher error: {exc}")
+        print(f"Watcher error: {exc}\n")
+    return
 
     print("Type your message and press Enter.")
     print("Vault read   : vault:read | vault:search | vault:list | vault:links")
