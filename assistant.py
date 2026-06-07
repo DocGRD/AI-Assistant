@@ -6,6 +6,7 @@ A crash or force-quit loses nothing that was already appended.
 """
 
 import logging
+import threading
 from datetime import datetime as _dt
 from pathlib import Path
 
@@ -219,19 +220,26 @@ def main() -> None:
         print("  Google (free): https://aistudio.google.com/app/apikey\n")
         return
 
-    # ── Run vault watcher (Milestone 5.5) ──────────────────────────────────────
-    if not vault_path or not Path(vault_path).exists():
-        print("Vault path not set or missing — watcher cannot start.\n")
-        return
-    try:
-        watcher = VaultWatcher(config.all(), poll_interval=config.get("watcher_poll_interval", 5))
-        watcher.run()
-    except KeyboardInterrupt:
-        print("\n[Watcher interrupted by user]\n")
-    except Exception as exc:
-        logger.error(f"Watcher error: {exc}")
-        print(f"Watcher error: {exc}\n")
-    return
+    # ── Start vault watcher in background thread (Milestone 5.5) ─────────────────
+    watcher: VaultWatcher | None = None
+    watcher_thread: threading.Thread | None = None
+    
+    if vault_path and Path(vault_path).exists():
+        try:
+            watcher = VaultWatcher(config.all(), poll_interval=config.get("watcher_poll_interval", 5))
+            watcher_thread = threading.Thread(target=watcher.run, daemon=True)
+            watcher_thread.start()
+            logger.info("[Main] Vault watcher started in background thread")
+            print("\n[Vault watcher active in background]\n")
+        except Exception as exc:
+            logger.error(f"[Main] Failed to start watcher: {exc}")
+            print(f"Warning: Watcher failed to start: {exc}\n")
+    else:
+        logger.warning("[Main] Vault path not available — watcher disabled")
+
+    # ── Normal chat loop ──────────────────────────────────────────────────────────
+    history:    list[Message] = []
+    tools_used: list[str]     = []
 
     print("Type your message and press Enter.")
     print("Vault read   : vault:read | vault:search | vault:list | vault:links")
@@ -252,7 +260,11 @@ def main() -> None:
 
         # ── Exit ──────────────────────────────────────────────────────────
         if user_input.lower() in ("exit", "quit"):
-            print("Writing session footer...")
+            print("Shutting down...")
+            # Stop the watcher before exit
+            if watcher:
+                watcher.stop()
+                logger.info("[Main] Stopping watcher...")
             break
 
         # ── Clear ─────────────────────────────────────────────────────────
@@ -393,6 +405,11 @@ def main() -> None:
     # Shutdown: write footer (error summary + tools used)
     # ------------------------------------------------------------------
     logger.info("Assistant shutting down.")
+
+    # Wait for watcher thread to finish (max 2 seconds)
+    if watcher_thread and watcher_thread.is_alive():
+        logger.info("[Main] Waiting for watcher thread to stop...")
+        watcher_thread.join(timeout=2)
 
     if memory:
         memory.close_episode(
