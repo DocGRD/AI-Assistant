@@ -1,19 +1,17 @@
 """
 Tool: summarise_research
-Summarises a research note and appends conclusions to project memory.
+Loads a research note into context and asks the assistant to summarise it.
 
 Input: Relative path to a research note (e.g. "AI/Research/2026-06-06-hydroponic-barley.md")
 
 The tool will:
     - Read the research note from the vault
-    - Send it to the AI provider for summarisation
-    - Extract bullet-point conclusions
-    - Append summary to relevant project memory note
-    - Return confirmation
+    - Inject it into the AI context window
+    - Ask the assistant to create a bullet-point summary
+    - Return formatted content + summary request for the assistant to respond to
 """
 
 import logging
-import re
 from pathlib import Path
 
 from tools.base_tool import BaseTool, ToolResult
@@ -22,7 +20,7 @@ logger = logging.getLogger("assistant")
 
 
 class SummariseResearchTool(BaseTool):
-    """Summarises research notes and updates project memory."""
+    """Loads research notes into context and prompts assistant to summarise."""
 
     def __init__(self, vault_path: str):
         self._vault = Path(vault_path)
@@ -36,7 +34,7 @@ class SummariseResearchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Summarise a research note and append findings to project memory."
+        return "Load a research note into context and ask the assistant to summarise it."
 
     def run(self, input_data: str) -> ToolResult:
         note_path = input_data.strip()
@@ -63,46 +61,33 @@ class SummariseResearchTool(BaseTool):
         except Exception as exc:
             return ToolResult(success=False, output=f"Could not read note: {exc}")
 
-        # Extract filename for metadata
         filename = full_path.name
         
-        logger.info(f"[summarise_research] Processing: {filename}")
+        logger.info(f"[summarise_research] Loaded: {filename}")
+        
+        # Format the content with a clear request for the assistant to summarise
+        formatted_output = f"""## Research Note: {filename}
+
+{content}
+
+---
+
+**Summary Request:**
+Please provide a concise bullet-point summary of this research, focusing on:
+- **Key Facts:** The main findings or conclusions
+- **Practical Applications:** How this knowledge can be used
+- **Project Implications:** What this means for the current project
+
+After you provide the summary, I can save it to the project memory using:
+`vault:update AI/Memory/Projects/<project-name>.md`"""
+
         return ToolResult(
             success=True,
-            output=f"""✓ Research note loaded: {filename}
-
-**Note:** Summarise_research requires provider interaction to generate conclusions.
-This tool is called with the note content. The assistant will send it to the AI provider
-for summarisation and append the results to project memory.
-
-**Research note summary:**
-{self._extract_preview(content)}
-
-*Ready for assistant to summarise and append to project memory.*""",
+            output=formatted_output,
             metadata={
                 "path": note_path,
                 "filename": filename,
                 "content_length": len(content),
-                "content_preview": self._extract_preview(content),
             },
         )
 
-    def _extract_preview(self, content: str) -> str:
-        """Extract a brief preview of the research content."""
-        lines = content.strip().splitlines()
-        
-        # Skip title and metadata lines, get first few content lines
-        preview_lines = []
-        skip_count = 0
-        for i, line in enumerate(lines):
-            if line.startswith("#") or line.startswith("**") or line.startswith("---"):
-                skip_count += 1
-                continue
-            if line.strip() and len(preview_lines) < 5:
-                preview_lines.append(line.strip())
-        
-        preview = "\n".join(preview_lines)
-        if len(preview) > 300:
-            preview = preview[:300] + "..."
-        
-        return preview

@@ -131,7 +131,7 @@ VAULT_COMMANDS = {
 }
 
 # Read tools inject their output into the AI context window
-READ_TOOLS = {"read_note", "search_vault", "list_vault", "get_linked_notes"}
+READ_TOOLS = {"read_note", "search_vault", "list_vault", "get_linked_notes", "summarise_research"}
 
 
 def handle_vault_command(
