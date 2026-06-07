@@ -11,6 +11,9 @@ from tools.list_vault import ListVaultTool
 from tools.get_linked_notes import GetLinkedNotesTool
 from tools.create_note import CreateNoteTool
 from tools.update_note import UpdateNoteTool
+from tools.research_prompt import ResearchPromptTool
+from tools.import_research import ImportResearchTool
+from tools.summarise_research import SummariseResearchTool
 
 logger = logging.getLogger("assistant")
 
@@ -31,6 +34,9 @@ class ToolRegistry:
             GetLinkedNotesTool(self._vault_path),
             CreateNoteTool(self._vault_path),
             UpdateNoteTool(self._vault_path),
+            ResearchPromptTool(self._vault_path),
+            ImportResearchTool(self._vault_path),
+            SummariseResearchTool(self._vault_path),
         ]
         for tool in vault_tools:
             self._tools[tool.name] = tool

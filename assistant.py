@@ -119,12 +119,15 @@ def build_system_prompt(memory_context: str) -> str:
 # ---------------------------------------------------------------------------
 
 VAULT_COMMANDS = {
-    "vault:read":   ("read_note",        "Usage: vault:read <note name or path>"),
-    "vault:search": ("search_vault",     "Usage: vault:search <query>"),
-    "vault:list":   ("list_vault",       "Usage: vault:list [subfolder]"),
-    "vault:links":  ("get_linked_notes", "Usage: vault:links <note name or path>"),
-    "vault:create": ("create_note",      "Usage: vault:create <path>\n<content>"),
-    "vault:update": ("update_note",      "Usage: vault:update <path>\n<content to append>"),
+    "vault:read":      ("read_note",               "Usage: vault:read <note name or path>"),
+    "vault:search":    ("search_vault",            "Usage: vault:search <query>"),
+    "vault:list":      ("list_vault",              "Usage: vault:list [subfolder]"),
+    "vault:links":     ("get_linked_notes",        "Usage: vault:links <note name or path>"),
+    "vault:create":    ("create_note",             "Usage: vault:create <path>\n<content>"),
+    "vault:update":    ("update_note",             "Usage: vault:update <path>\n<content to append>"),
+    "vault:research":  ("generate_research_prompt","Usage: vault:research <question>"),
+    "vault:import":    ("import_research",         "Usage: vault:import\n<paste external AI response>"),
+    "vault:summarise": ("summarise_research",      "Usage: vault:summarise <path to research note>"),
 }
 
 # Read tools inject their output into the AI context window
@@ -309,6 +312,29 @@ def main() -> None:
             if registry is None:
                 print("[Vault tools not available — set vault_path in settings.json]\n")
                 continue
+            
+            # Special handling for vault:import — collect multiline input
+            if user_input.lower().startswith("vault:import"):
+                print("[Multiline mode — paste your research, then type '---end' on a new line]\n")
+                pasted_lines = []
+                while True:
+                    try:
+                        line = input()
+                    except (KeyboardInterrupt, EOFError):
+                        print("\n[Import cancelled]\n")
+                        break
+                    if line.strip() == "---end":
+                        break
+                    pasted_lines.append(line)
+                
+                if pasted_lines:
+                    import_input = "\n".join(pasted_lines)
+                    output = handle_vault_command("vault:import " + import_input, registry, history, memory, logger)
+                    if output is not None:
+                        tools_used.append("vault:import")
+                        print(f"\n{output}\n")
+                continue
+            
             output = handle_vault_command(user_input, registry, history, memory, logger)
             if output is not None:
                 tools_used.append(user_input.split(None, 1)[0].lower())
