@@ -443,3 +443,103 @@
 2026-06-07 08:18:43 | INFO     | Assistant shutting down.
 2026-06-07 08:18:43 | INFO     | [Main] Waiting for watcher thread to stop...
 2026-06-07 08:18:45 | INFO     | [Memory] Episode closed: 2026-06-07.md
+2026-06-09 08:17:57 | INFO     | Assistant starting — Milestone 6 (HTTP server enabled)
+2026-06-09 08:17:58 | INFO     | [Router] Provider ready: groq
+2026-06-09 08:18:02 | INFO     | [Router] Provider ready: google
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: read_note
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: search_vault
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: list_vault
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: create_note
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: update_note
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: generate_research_prompt
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: import_research
+2026-06-09 08:18:02 | INFO     | [Registry] Registered tool: summarise_research
+2026-06-09 08:18:02 | INFO     | [Memory] Context loaded — 1312 chars, project='none'
+2026-06-09 08:18:02 | INFO     | [Memory] Episode opened: 2026-06-09.md
+2026-06-09 08:18:02 | INFO     | All startup checks passed
+2026-06-09 08:18:02 | INFO     | [Router] Provider ready: groq
+2026-06-09 08:18:03 | INFO     | [Router] Provider ready: google
+2026-06-09 08:18:03 | INFO     | [Main] Vault watcher started in background thread
+2026-06-09 08:18:03 | INFO     | [Server] HTTP server started on http://127.0.0.1:8765
+2026-06-09 08:23:06 | INFO     | [Server] /chat — 'testing server'
+2026-06-09 08:23:06 | INFO     | [Router] Request estimated at ~480 tokens (response budget: 2048)
+2026-06-09 08:23:06 | INFO     | [ModelRegistry] Selected: groq (est. 480 input + 2048 response = 2528 tokens)
+2026-06-09 08:23:06 | INFO     | [Router] Sending to: groq
+2026-06-09 08:23:06 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 08:23:07 | INFO     | [Groq] Response received — 143 characters
+2026-06-09 08:23:07 | INFO     | [Server] Reply sent (143 chars)
+2026-06-09 08:24:44 | INFO     | [Server] /chat — 'what does the vault note 1 john 1  ESV say?'
+2026-06-09 08:24:44 | INFO     | [Router] Request estimated at ~534 tokens (response budget: 2048)
+2026-06-09 08:24:44 | INFO     | [ModelRegistry] Selected: groq (est. 534 input + 2048 response = 2582 tokens)
+2026-06-09 08:24:44 | INFO     | [Router] Sending to: groq
+2026-06-09 08:24:44 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 4
+2026-06-09 08:24:45 | INFO     | [Groq] Response received — 1020 characters
+2026-06-09 08:24:45 | INFO     | [Server] Reply sent (1020 chars)
+2026-06-09 08:26:19 | INFO     | [Server] /chat — 'what does the vault note 1 john 1  ESV say? use vault:read 1'
+2026-06-09 08:26:19 | INFO     | [Router] Request estimated at ~826 tokens (response budget: 2048)
+2026-06-09 08:26:19 | INFO     | [ModelRegistry] Selected: groq (est. 826 input + 2048 response = 2874 tokens)
+2026-06-09 08:26:19 | INFO     | [Router] Sending to: groq
+2026-06-09 08:26:19 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 6
+2026-06-09 08:26:20 | INFO     | [Groq] Response received — 310 characters
+2026-06-09 08:26:20 | INFO     | [Server] Reply sent (310 chars)
+2026-06-09 08:28:06 | INFO     | [Server] /chat — 'the path is 04 - Study and Teach/Scripture/NT/23 - 1 John/1 '
+2026-06-09 08:28:06 | INFO     | [Router] Request estimated at ~929 tokens (response budget: 2048)
+2026-06-09 08:28:06 | INFO     | [ModelRegistry] Selected: groq (est. 929 input + 2048 response = 2977 tokens)
+2026-06-09 08:28:06 | INFO     | [Router] Sending to: groq
+2026-06-09 08:28:06 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 8
+2026-06-09 08:28:07 | INFO     | [Groq] Response received — 564 characters
+2026-06-09 08:28:07 | INFO     | [Server] Reply sent (564 chars)
+2026-06-09 08:56:08 | INFO     | [Main] Stopping watcher...
+2026-06-09 08:56:08 | INFO     | [Server] HTTP server stopping...
+2026-06-09 08:56:08 | INFO     | [Main] HTTP server stopped
+2026-06-09 08:56:08 | INFO     | Assistant shutting down.
+2026-06-09 08:56:08 | INFO     | [Main] Waiting for watcher thread to stop...
+2026-06-09 08:56:10 | INFO     | [Memory] Episode closed: 2026-06-09.md
+2026-06-09 08:57:08 | INFO     | Assistant starting — Milestone 6 (HTTP server enabled)
+2026-06-09 08:57:09 | INFO     | [Router] Provider ready: groq
+2026-06-09 08:57:11 | INFO     | [Router] Provider ready: google
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: read_note
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: search_vault
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: list_vault
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: create_note
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: update_note
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: generate_research_prompt
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: import_research
+2026-06-09 08:57:11 | INFO     | [Registry] Registered tool: summarise_research
+2026-06-09 08:57:11 | INFO     | [Memory] Context loaded — 1312 chars, project='none'
+2026-06-09 08:57:11 | INFO     | [Memory] Episode opened: 2026-06-09.md
+2026-06-09 08:57:11 | INFO     | All startup checks passed
+2026-06-09 08:57:11 | INFO     | [Router] Provider ready: groq
+2026-06-09 08:57:12 | INFO     | [Router] Provider ready: google
+2026-06-09 08:57:12 | INFO     | [Main] Vault watcher started in background thread
+2026-06-09 08:57:12 | INFO     | [Server] HTTP server started on http://127.0.0.1:8765
+2026-06-09 08:57:13 | INFO     | [Router] Request estimated at ~122 tokens (response budget: 2048)
+2026-06-09 08:57:13 | INFO     | [ModelRegistry] Selected: groq (est. 122 input + 2048 response = 2170 tokens)
+2026-06-09 08:57:13 | INFO     | [Router] Sending to: groq
+2026-06-09 08:57:13 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 08:57:14 | INFO     | [Groq] Response received — 348 characters
+2026-06-09 09:00:12 | INFO     | [Router] Request estimated at ~128 tokens (response budget: 2048)
+2026-06-09 09:00:12 | INFO     | [ModelRegistry] Selected: groq (est. 128 input + 2048 response = 2176 tokens)
+2026-06-09 09:00:12 | INFO     | [Router] Sending to: groq
+2026-06-09 09:00:12 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 09:00:17 | INFO     | [Groq] Response received — 262 characters
+2026-06-09 09:01:07 | INFO     | [Router] Request estimated at ~151 tokens (response budget: 2048)
+2026-06-09 09:01:07 | INFO     | [ModelRegistry] Selected: groq (est. 151 input + 2048 response = 2199 tokens)
+2026-06-09 09:01:07 | INFO     | [Router] Sending to: groq
+2026-06-09 09:01:07 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 09:01:09 | INFO     | [Groq] Response received — 1163 characters
+2026-06-09 09:02:36 | INFO     | [Server] /chat — 'back live'
+2026-06-09 09:02:36 | INFO     | [Router] Request estimated at ~478 tokens (response budget: 2048)
+2026-06-09 09:02:36 | INFO     | [ModelRegistry] Selected: groq (est. 478 input + 2048 response = 2526 tokens)
+2026-06-09 09:02:36 | INFO     | [Router] Sending to: groq
+2026-06-09 09:02:36 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 09:02:38 | INFO     | [Groq] Response received — 127 characters
+2026-06-09 09:02:38 | INFO     | [Server] Reply sent (127 chars)
+2026-06-09 09:04:22 | INFO     | [Main] Stopping watcher...
+2026-06-09 09:04:22 | INFO     | [Server] HTTP server stopping...
+2026-06-09 09:04:22 | INFO     | [Main] HTTP server stopped
+2026-06-09 09:04:22 | INFO     | Assistant shutting down.
+2026-06-09 09:04:22 | INFO     | [Main] Waiting for watcher thread to stop...
+2026-06-09 09:04:24 | INFO     | [Memory] Episode closed: 2026-06-09.md

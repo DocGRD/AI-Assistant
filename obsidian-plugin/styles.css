@@ -1,0 +1,249 @@
+/* AI Assistant Plugin — Chat Sidebar Styles */
+
+.ai-assistant-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 14px;
+}
+
+/* Header */
+.ai-assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.ai-assistant-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ai-assistant-mode {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.ai-assistant-mode-http {
+  background-color: var(--color-green);
+  color: var(--text-on-accent);
+}
+
+.ai-assistant-mode-vault {
+  background-color: var(--color-orange);
+  color: var(--text-on-accent);
+}
+
+/* Status bar */
+.ai-assistant-status {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.ai-assistant-status-online {
+  color: var(--color-green);
+}
+
+.ai-assistant-status-offline {
+  color: var(--color-orange);
+}
+
+/* Messages area */
+.ai-assistant-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-assistant-history-header {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 11px;
+  margin-bottom: 4px;
+  padding: 4px;
+  border-top: 1px dashed var(--background-modifier-border);
+  border-bottom: 1px dashed var(--background-modifier-border);
+}
+
+/* Individual messages */
+.ai-assistant-message {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ai-assistant-message.ai-assistant-history {
+  opacity: 0.65;
+}
+
+.ai-assistant-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ai-assistant-body {
+  padding: 8px 10px;
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+/* User messages */
+.ai-assistant-user .ai-assistant-label {
+  text-align: right;
+}
+
+.ai-assistant-user .ai-assistant-body {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  align-self: flex-end;
+  max-width: 90%;
+}
+
+/* Assistant messages */
+.ai-assistant-assistant .ai-assistant-body {
+  background-color: var(--background-secondary);
+  max-width: 100%;
+}
+
+/* Ensure markdown renders properly inside the body */
+.ai-assistant-assistant .ai-assistant-body p:first-child {
+  margin-top: 0;
+}
+
+.ai-assistant-assistant .ai-assistant-body p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-assistant-assistant .ai-assistant-body pre {
+  background-color: var(--background-primary);
+  border-radius: 4px;
+  padding: 8px;
+  overflow-x: auto;
+}
+
+.ai-assistant-assistant .ai-assistant-body code {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+}
+
+/* Error messages */
+.ai-assistant-error .ai-assistant-label {
+  color: var(--color-red);
+}
+
+.ai-assistant-error .ai-assistant-body {
+  background-color: var(--background-modifier-error);
+  color: var(--text-error);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+/* Waiting / loading */
+.ai-assistant-waiting .ai-assistant-body {
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.ai-assistant-dots {
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+/* Input area */
+.ai-assistant-input-area {
+  border-top: 1px solid var(--background-modifier-border);
+  padding: 8px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-assistant-input {
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: var(--font-text);
+  font-size: 13px;
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.ai-assistant-input:focus {
+  border-color: var(--interactive-accent);
+}
+
+.ai-assistant-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Button row */
+.ai-assistant-btn-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ai-assistant-send-btn {
+  flex: 1;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.ai-assistant-send-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.ai-assistant-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-assistant-clear-btn,
+.ai-assistant-refresh-btn {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.ai-assistant-clear-btn:hover,
+.ai-assistant-refresh-btn:hover {
+  background-color: var(--background-modifier-border);
+  color: var(--text-normal);
+}

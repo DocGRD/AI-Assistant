@@ -1,0 +1,26 @@
+# Ignore Archive directory
+Archive/
+obsidian-plugin/node_modules/
+_pycache__/
+# Ignore log files
+*.log  
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+# Ignore build artifacts
+dist/
+build/
+# Ignore IDE specific files
+.vscode/
+.idea/
+# Ignore environment files
+.env
+# Ignore backup files
+*.bak
+# Ignore temporary files
+*.tmp
+# Ignore compiled Python files
+*.pyc
+# Ignore Obsidian plugin development files
+obsidian-plugin/dist/
+obsidian-plugin/build/
