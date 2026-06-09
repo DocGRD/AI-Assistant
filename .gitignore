@@ -24,3 +24,5 @@ build/
 # Ignore Obsidian plugin development files
 obsidian-plugin/dist/
 obsidian-plugin/build/
+# ignore settings
+config/settings.json

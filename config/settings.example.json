@@ -1,0 +1,16 @@
+{
+  "vault_path": "C:/Users/grd/Documents/Reference/GRDsyncVault",
+  "default_provider": "groq",
+  "fallback_provider": "google",
+  "memory_path": "AI",
+  "research_path": "AI/Research",
+  "log_level": "INFO",
+  "host": "127.0.0.1",
+  "port": 8765,
+  "groq_api_key": "gsk_",
+  "google_api_key": "AQ.",
+  "groq_model": "llama-3.3-70b-versatile",
+  "google_model": "gemini-2.5-flash",
+  "max_tokens": 2048,
+  "temperature": 0.7
+}

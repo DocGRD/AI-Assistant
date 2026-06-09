@@ -543,3 +543,161 @@
 2026-06-09 09:04:22 | INFO     | Assistant shutting down.
 2026-06-09 09:04:22 | INFO     | [Main] Waiting for watcher thread to stop...
 2026-06-09 09:04:24 | INFO     | [Memory] Episode closed: 2026-06-09.md
+2026-06-09 09:38:36 | INFO     | Assistant starting — Milestone 6 (HTTP server enabled)
+2026-06-09 09:38:37 | INFO     | [Router] Provider ready: groq
+2026-06-09 09:38:41 | INFO     | [Router] Provider ready: google
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: read_note
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: search_vault
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: list_vault
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: get_linked_notes
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: create_note
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: update_note
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: generate_research_prompt
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: import_research
+2026-06-09 09:38:41 | INFO     | [Registry] Registered tool: summarise_research
+2026-06-09 09:38:41 | INFO     | [Memory] Context loaded — 1312 chars, project='none'
+2026-06-09 09:38:41 | INFO     | [Memory] Episode opened: 2026-06-09.md
+2026-06-09 09:38:41 | INFO     | All startup checks passed
+2026-06-09 09:38:41 | INFO     | [Router] Provider ready: groq
+2026-06-09 09:38:42 | INFO     | [Router] Provider ready: google
+2026-06-09 09:38:42 | INFO     | [Main] Vault watcher started in background thread
+2026-06-09 09:38:42 | INFO     | [Server] HTTP server started on http://127.0.0.1:8765
+2026-06-09 09:39:31 | INFO     | [Router] Request estimated at ~128 tokens (response budget: 2048)
+2026-06-09 09:39:31 | INFO     | [ModelRegistry] Selected: groq (est. 128 input + 2048 response = 2176 tokens)
+2026-06-09 09:39:31 | INFO     | [Router] Sending to: groq
+2026-06-09 09:39:31 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 09:39:32 | INFO     | [Groq] Response received — 694 characters
+2026-06-09 11:50:31 | INFO     | [Server] /chat — 'combine the following into one detailed document.
+# Ceramic '
+2026-06-09 11:50:31 | INFO     | [Router] Request estimated at ~6612 tokens (response budget: 2048)
+2026-06-09 11:50:31 | INFO     | [ModelRegistry] groq: input exceeds TPM limit (6612 > 6000) — skipping
+2026-06-09 11:50:31 | INFO     | [ModelRegistry] Selected: google (est. 6612 input + 2048 response = 8660 tokens)
+2026-06-09 11:50:31 | INFO     | [Router] Sending to: google
+2026-06-09 11:50:31 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 1
+2026-06-09 11:50:42 | INFO     | [Google] Response received — 4522 characters
+2026-06-09 11:50:42 | INFO     | [Server] Reply sent (4522 chars)
+2026-06-09 12:51:24 | INFO     | [Server] /chat — 'reformat this into a markdown numbered list'
+2026-06-09 12:51:24 | INFO     | [ContextManager] 7746 tokens exceeds safe limit 4800 for groq — trimming...
+2026-06-09 12:51:24 | INFO     | [ContextManager] After chat trim: ~7746 tokens
+2026-06-09 12:51:24 | INFO     | [Router] Request estimated at ~7761 tokens (response budget: 2048)
+2026-06-09 12:51:24 | INFO     | [ModelRegistry] groq: input exceeds TPM limit (7761 > 6000) — skipping
+2026-06-09 12:51:24 | INFO     | [ModelRegistry] Selected: google (est. 7761 input + 2048 response = 9809 tokens)
+2026-06-09 12:51:24 | INFO     | [Router] Sending to: google
+2026-06-09 12:51:24 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 3
+2026-06-09 12:51:39 | INFO     | [Google] Response received — 395 characters
+2026-06-09 12:51:39 | INFO     | [Server] Reply sent (395 chars)
+2026-06-09 12:52:17 | INFO     | [Server] /chat — 'reformate this in to a numbered mardown list
+1
+
+A. W. Tozer '
+2026-06-09 12:52:17 | INFO     | [ContextManager] 7864 tokens exceeds safe limit 4800 for groq — trimming...
+2026-06-09 12:52:17 | INFO     | [ContextManager] After chat trim: ~7864 tokens
+2026-06-09 12:52:17 | INFO     | [Router] Request estimated at ~8616 tokens (response budget: 2048)
+2026-06-09 12:52:17 | INFO     | [ModelRegistry] groq: input exceeds TPM limit (8616 > 6000) — skipping
+2026-06-09 12:52:17 | INFO     | [ModelRegistry] Selected: google (est. 8616 input + 2048 response = 10664 tokens)
+2026-06-09 12:52:17 | INFO     | [Router] Sending to: google
+2026-06-09 12:52:17 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 5
+2026-06-09 12:52:23 | INFO     | [Google] Response received — 3168 characters
+2026-06-09 12:52:23 | INFO     | [Server] Reply sent (3168 chars)
+2026-06-09 13:08:27 | INFO     | [Router] Request estimated at ~478 tokens (response budget: 2048)
+2026-06-09 13:08:27 | INFO     | [ModelRegistry] Selected: groq (est. 478 input + 2048 response = 2526 tokens)
+2026-06-09 13:08:27 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:27 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:08:28 | INFO     | [Groq] Response received — 1106 characters
+2026-06-09 13:08:28 | INFO     | [Router] Request estimated at ~393 tokens (response budget: 2048)
+2026-06-09 13:08:28 | INFO     | [ModelRegistry] Selected: groq (est. 393 input + 2048 response = 2441 tokens)
+2026-06-09 13:08:28 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:28 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:08:29 | INFO     | [Groq] Response received — 1492 characters
+2026-06-09 13:08:29 | INFO     | [Router] Request estimated at ~321 tokens (response budget: 2048)
+2026-06-09 13:08:29 | INFO     | [ModelRegistry] Selected: groq (est. 321 input + 2048 response = 2369 tokens)
+2026-06-09 13:08:29 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:29 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:08:30 | INFO     | [Groq] Response received — 1151 characters
+2026-06-09 13:08:30 | INFO     | [Router] Request estimated at ~295 tokens (response budget: 2048)
+2026-06-09 13:08:30 | INFO     | [ModelRegistry] Selected: groq (est. 295 input + 2048 response = 2343 tokens)
+2026-06-09 13:08:30 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:30 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:08:31 | INFO     | [Groq] Response received — 1113 characters
+2026-06-09 13:08:31 | INFO     | [Router] Request estimated at ~308 tokens (response budget: 2048)
+2026-06-09 13:08:31 | INFO     | [ModelRegistry] Selected: groq (est. 308 input + 2048 response = 2356 tokens)
+2026-06-09 13:08:31 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:31 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:08:34 | INFO     | [Groq] Response received — 1174 characters
+2026-06-09 13:08:34 | INFO     | [Router] Request estimated at ~494 tokens (response budget: 2048)
+2026-06-09 13:08:34 | INFO     | [ModelRegistry] Selected: groq (est. 494 input + 2048 response = 2542 tokens)
+2026-06-09 13:08:34 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:34 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:08:47 | INFO     | [Groq] Response received — 2103 characters
+2026-06-09 13:08:47 | INFO     | [Router] Request estimated at ~592 tokens (response budget: 2048)
+2026-06-09 13:08:47 | INFO     | [ModelRegistry] Selected: groq (est. 592 input + 2048 response = 2640 tokens)
+2026-06-09 13:08:47 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:47 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:08:53 | INFO     | [Groq] Response received — 2438 characters
+2026-06-09 13:08:53 | INFO     | [Router] Request estimated at ~298 tokens (response budget: 2048)
+2026-06-09 13:08:53 | INFO     | [ModelRegistry] Selected: groq (est. 298 input + 2048 response = 2346 tokens)
+2026-06-09 13:08:53 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:53 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:08:57 | INFO     | [Groq] Response received — 1169 characters
+2026-06-09 13:08:57 | INFO     | [Router] Request estimated at ~321 tokens (response budget: 2048)
+2026-06-09 13:08:57 | INFO     | [ModelRegistry] Selected: groq (est. 321 input + 2048 response = 2369 tokens)
+2026-06-09 13:08:57 | INFO     | [Router] Sending to: groq
+2026-06-09 13:08:57 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:00 | INFO     | [Groq] Response received — 1354 characters
+2026-06-09 13:09:00 | INFO     | [Router] Request estimated at ~659 tokens (response budget: 2048)
+2026-06-09 13:09:00 | INFO     | [ModelRegistry] Selected: groq (est. 659 input + 2048 response = 2707 tokens)
+2026-06-09 13:09:00 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:00 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:05 | INFO     | [Groq] Response received — 2681 characters
+2026-06-09 13:09:05 | INFO     | [Router] Request estimated at ~239 tokens (response budget: 2048)
+2026-06-09 13:09:05 | INFO     | [ModelRegistry] Selected: groq (est. 239 input + 2048 response = 2287 tokens)
+2026-06-09 13:09:05 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:05 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:08 | INFO     | [Groq] Response received — 858 characters
+2026-06-09 13:09:08 | INFO     | [Router] Request estimated at ~827 tokens (response budget: 2048)
+2026-06-09 13:09:08 | INFO     | [ModelRegistry] Selected: groq (est. 827 input + 2048 response = 2875 tokens)
+2026-06-09 13:09:08 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:08 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:13 | INFO     | [Groq] Response received — 3283 characters
+2026-06-09 13:09:13 | INFO     | [Router] Request estimated at ~412 tokens (response budget: 2048)
+2026-06-09 13:09:13 | INFO     | [ModelRegistry] Selected: groq (est. 412 input + 2048 response = 2460 tokens)
+2026-06-09 13:09:13 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:13 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:18 | INFO     | [Groq] Response received — 1560 characters
+2026-06-09 13:09:18 | INFO     | [Router] Request estimated at ~304 tokens (response budget: 2048)
+2026-06-09 13:09:18 | INFO     | [ModelRegistry] Selected: groq (est. 304 input + 2048 response = 2352 tokens)
+2026-06-09 13:09:18 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:18 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:21 | INFO     | [Groq] Response received — 1220 characters
+2026-06-09 13:09:21 | INFO     | [Router] Request estimated at ~398 tokens (response budget: 2048)
+2026-06-09 13:09:21 | INFO     | [ModelRegistry] Selected: groq (est. 398 input + 2048 response = 2446 tokens)
+2026-06-09 13:09:21 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:21 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:25 | INFO     | [Groq] Response received — 1734 characters
+2026-06-09 13:09:25 | INFO     | [Router] Request estimated at ~406 tokens (response budget: 2048)
+2026-06-09 13:09:25 | INFO     | [ModelRegistry] Selected: groq (est. 406 input + 2048 response = 2454 tokens)
+2026-06-09 13:09:25 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:25 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:30 | INFO     | [Groq] Response received — 1617 characters
+2026-06-09 13:09:30 | INFO     | [Router] Request estimated at ~308 tokens (response budget: 2048)
+2026-06-09 13:09:30 | INFO     | [ModelRegistry] Selected: groq (est. 308 input + 2048 response = 2356 tokens)
+2026-06-09 13:09:30 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:30 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:09:33 | INFO     | [Groq] Response received — 1244 characters
+2026-06-09 13:09:33 | INFO     | [Router] Request estimated at ~7037 tokens (response budget: 2048)
+2026-06-09 13:09:33 | INFO     | [ModelRegistry] groq: input exceeds TPM limit (7037 > 6000) — skipping
+2026-06-09 13:09:33 | INFO     | [ModelRegistry] Selected: google (est. 7037 input + 2048 response = 9085 tokens)
+2026-06-09 13:09:33 | INFO     | [Router] Sending to: google
+2026-06-09 13:09:33 | INFO     | [Google] Sending request — model: gemini-2.5-flash, messages: 1
+2026-06-09 13:09:36 | ERROR    | [Google] Unexpected error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-09 13:09:36 | ERROR    | [Router] google error: Google AI error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-09 13:09:36 | INFO     | [ModelRegistry] Error recorded — provider=google type=other tokens≈7037
+2026-06-09 13:09:36 | INFO     | [Router] Sending to: groq
+2026-06-09 13:09:36 | INFO     | [Groq] Sending request — model: llama-3.3-70b-versatile, messages: 2
+2026-06-09 13:10:08 | INFO     | [Groq] Response received — 4502 characters
+2026-06-09 13:50:06 | INFO     | [Main] Stopping watcher...
+2026-06-09 13:50:06 | INFO     | [Server] HTTP server stopping...
+2026-06-09 13:50:06 | INFO     | [Main] HTTP server stopped
+2026-06-09 13:50:06 | INFO     | Assistant shutting down.
+2026-06-09 13:50:06 | INFO     | [Main] Waiting for watcher thread to stop...
+2026-06-09 13:50:08 | INFO     | [Memory] Episode closed: 2026-06-09.md

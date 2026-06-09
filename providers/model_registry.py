@@ -78,8 +78,8 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         model_id        = "gemini-2.5-flash",
         context_window  = 1_000_000,
         tpm_limit       = 250_000,    # very generous free tier
-        rpm_limit       = 15,
-        rpd_limit       = 500,        # conservative estimate; actual may be higher
+        rpm_limit       = 5,
+        rpd_limit       = 20, 
         strengths       = [
             "enormous context window (1M tokens)",
             "excellent for long documents and large vault loads",
