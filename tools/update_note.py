@@ -1,27 +1,25 @@
 """
-Tool: update_note
-Appends a new section to an existing Markdown note in the vault.
+Tool: update_note — Milestone 7.5 patch 2
 
-Input format:
-    Line 1: relative path of the note to update (e.g. "AI/Memory/Projects/AI-Assistant.md")
-    Line 2+: content to append
-
-The tool always appends — it never overwrites existing content.
-Each append is timestamped so you can see when sections were added.
-
-Example input:
-    AI/Memory/Projects/AI-Assistant.md
-    ## Milestone 4 Decision
-    Chose to use token estimation (1 token ≈ 4 chars) rather than a tokenizer library.
+Changes:
+  - _normalise_path() applied to the path before filesystem work.
+    Consistent with create_note.py patch.
 """
 
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 
 from tools.base_tool import BaseTool, ToolResult
 
 logger = logging.getLogger("assistant")
+
+
+def _normalise_path(rel_path: str) -> str:
+    p = rel_path.replace("\\", "/")
+    p = re.sub(r"/+", "/", p)
+    return p.strip().strip("/")
 
 
 class UpdateNoteTool(BaseTool):
@@ -51,6 +49,8 @@ class UpdateNoteTool(BaseTool):
         if not content:
             return ToolResult(success=False, output="No content to append (lines after the path were empty).")
 
+        rel_path = _normalise_path(rel_path)
+
         if not rel_path.endswith(".md"):
             rel_path += ".md"
 
@@ -58,14 +58,14 @@ class UpdateNoteTool(BaseTool):
 
         if not target.exists():
             return ToolResult(
-                success=False,
-                output=(
+                success = False,
+                output  = (
                     f"Note not found: {rel_path}\n"
                     "Use vault:create to create a new note."
                 )
             )
 
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        timestamp    = datetime.now().strftime("%Y-%m-%d %H:%M")
         append_block = f"\n\n---\n*Appended by AI Assistant — {timestamp}*\n\n{content}\n"
 
         try:
@@ -73,9 +73,9 @@ class UpdateNoteTool(BaseTool):
                 fh.write(append_block)
             logger.info(f"[update_note] Appended {len(append_block)} chars to: {rel_path}")
             return ToolResult(
-                success=True,
-                output=f"✓ Appended to: {rel_path}",
-                metadata={"path": rel_path, "appended_chars": len(append_block)},
+                success  = True,
+                output   = f"✓ Appended to: {rel_path}",
+                metadata = {"path": rel_path, "appended_chars": len(append_block)},
             )
         except Exception as exc:
             logger.error(f"[update_note] Failed: {exc}")

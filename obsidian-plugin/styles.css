@@ -1,4 +1,4 @@
-/* AI Assistant Plugin — Chat Sidebar Styles */
+/* AI Assistant Plugin — Chat Sidebar Styles (Milestone 7) */
 
 .ai-assistant-container {
   display: flex;
@@ -7,7 +7,7 @@
   font-size: 14px;
 }
 
-/* Header */
+/* ── Header ──────────────────────────────────────────────────────────── */
 .ai-assistant-header {
   display: flex;
   align-items: center;
@@ -39,7 +39,47 @@
   color: var(--text-on-accent);
 }
 
-/* Status bar */
+/* ── Provider toggle bar ─────────────────────────────────────────────── */
+.ai-assistant-provider-bar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ai-assistant-provider-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.ai-assistant-provider-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.ai-assistant-provider-btn.active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+/* Web UI button gets a distinct colour when active */
+.ai-assistant-provider-btn[data-provider="webui"].active {
+  background-color: var(--color-purple, #8b5cf6);
+  border-color: var(--color-purple, #8b5cf6);
+}
+
+/* ── Status bar ──────────────────────────────────────────────────────── */
 .ai-assistant-status {
   padding: 4px 12px;
   font-size: 11px;
@@ -56,7 +96,7 @@
   color: var(--color-orange);
 }
 
-/* Messages area */
+/* ── Messages area ───────────────────────────────────────────────────── */
 .ai-assistant-messages {
   flex: 1;
   overflow-y: auto;
@@ -76,7 +116,7 @@
   border-bottom: 1px dashed var(--background-modifier-border);
 }
 
-/* Individual messages */
+/* ── Individual messages ─────────────────────────────────────────────── */
 .ai-assistant-message {
   display: flex;
   flex-direction: column;
@@ -119,14 +159,8 @@
   max-width: 100%;
 }
 
-/* Ensure markdown renders properly inside the body */
-.ai-assistant-assistant .ai-assistant-body p:first-child {
-  margin-top: 0;
-}
-
-.ai-assistant-assistant .ai-assistant-body p:last-child {
-  margin-bottom: 0;
-}
+.ai-assistant-assistant .ai-assistant-body p:first-child { margin-top: 0; }
+.ai-assistant-assistant .ai-assistant-body p:last-child  { margin-bottom: 0; }
 
 .ai-assistant-assistant .ai-assistant-body pre {
   background-color: var(--background-primary);
@@ -152,7 +186,7 @@
   padding: 8px 10px;
 }
 
-/* Waiting / loading */
+/* Waiting indicator */
 .ai-assistant-waiting .ai-assistant-body {
   background-color: var(--background-secondary);
   color: var(--text-muted);
@@ -161,14 +195,65 @@
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
+  50%       { opacity: 0.2; }
 }
 
 .ai-assistant-dots {
   animation: blink 1.2s ease-in-out infinite;
 }
 
-/* Input area */
+/* ── Web Handoff block ───────────────────────────────────────────────── */
+.ai-assistant-handoff .ai-assistant-label {
+  color: var(--color-purple, #8b5cf6);
+}
+
+.ai-assistant-handoff .ai-assistant-body {
+  background-color: var(--background-secondary);
+  border: 1px solid var(--color-purple, #8b5cf6);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.ai-assistant-handoff .ai-assistant-body p {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.ai-assistant-copy-btn {
+  background-color: var(--color-purple, #8b5cf6);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: opacity 0.15s;
+}
+
+.ai-assistant-copy-btn:hover {
+  opacity: 0.85;
+}
+
+.ai-assistant-handoff-preview {
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+/* ── Input area ──────────────────────────────────────────────────────── */
 .ai-assistant-input-area {
   border-top: 1px solid var(--background-modifier-border);
   padding: 8px;
@@ -190,10 +275,17 @@
   color: var(--text-normal);
   outline: none;
   box-sizing: border-box;
+  transition: border-color 0.15s;
 }
 
 .ai-assistant-input:focus {
   border-color: var(--interactive-accent);
+}
+
+/* Handoff-return mode: highlight the textarea so user knows it's different */
+.ai-assistant-container[data-chat-mode="handoff-awaiting-response"] .ai-assistant-input {
+  border-color: var(--color-purple, #8b5cf6);
+  background-color: var(--background-secondary);
 }
 
 .ai-assistant-input:disabled {
@@ -201,7 +293,7 @@
   cursor: not-allowed;
 }
 
-/* Button row */
+/* ── Button row ──────────────────────────────────────────────────────── */
 .ai-assistant-btn-row {
   display: flex;
   gap: 6px;
@@ -218,7 +310,12 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+/* Handoff-return mode: button turns purple */
+.ai-assistant-container[data-chat-mode="handoff-awaiting-response"] .ai-assistant-send-btn {
+  background-color: var(--color-purple, #8b5cf6);
 }
 
 .ai-assistant-send-btn:hover:not(:disabled) {
@@ -246,4 +343,19 @@
 .ai-assistant-refresh-btn:hover {
   background-color: var(--background-modifier-border);
   color: var(--text-normal);
+}
+
+.ai-assistant-shutdown-btn {
+  background-color: var(--background-modifier-hover);
+  color: var(--color-red, #ef4444);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.ai-assistant-shutdown-btn:hover {
+  background-color: var(--background-modifier-error);
 }

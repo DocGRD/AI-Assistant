@@ -46,9 +46,12 @@ class BaseProvider(ABC):
             The assistant's reply as a plain string.
 
         Raises:
-            ProviderRateLimitError: if the provider throttles the request.
-            ProviderAuthError:      if the API key is missing or invalid.
-            ProviderError:          for any other provider-side failure.
+            ProviderRateLimitError:  if the provider throttles the request.
+            ProviderAuthError:       if the API key is missing or invalid.
+            ProviderWebUIHandoff:    if the WebUI virtual provider is selected.
+                                     NOT a subclass of ProviderError — callers
+                                     must handle this separately.
+            ProviderError:           for any other provider-side failure.
         """
         ...
 
@@ -60,12 +63,11 @@ class BaseProvider(ABC):
 
 
 # ---------------------------------------------------------------------------
-# Custom exceptions — lets the router handle errors without importing
-# provider-specific libraries.
+# Custom exceptions
 # ---------------------------------------------------------------------------
 
 class ProviderError(Exception):
-    """Base class for all provider errors."""
+    """Base class for all provider errors (auth, rate-limit, generic)."""
 
 
 class ProviderRateLimitError(ProviderError):
@@ -74,3 +76,23 @@ class ProviderRateLimitError(ProviderError):
 
 class ProviderAuthError(ProviderError):
     """Raised when the API key is missing or rejected."""
+
+
+class ProviderWebUIHandoff(Exception):
+    """
+    Raised by WebUIProvider when the user has chosen (or been routed to)
+    the web UI mode.  This is NOT a subclass of ProviderError — it is a
+    successful routing decision, not a failure.
+
+    The router does NOT catch this; it propagates directly to the caller
+    (terminal chat loop, HTTP server, or vault watcher) so each can handle
+    the handoff in the way appropriate for its interface.
+
+    Attributes:
+        packaged_prompt: Complete context block ready to paste into any
+                         web AI (ChatGPT, Claude, Gemini, DeepSeek, etc.)
+    """
+
+    def __init__(self, packaged_prompt: str):
+        self.packaged_prompt = packaged_prompt
+        super().__init__("Web UI handoff required")

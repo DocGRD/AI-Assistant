@@ -1,37 +1,75 @@
 """
-Assistant Core — Milestone 6 (HTTP server enabled)
+Assistant Core — Milestone 7.5 (Hardening)
 
-Episode notes are written live to the vault as each event happens.
-A crash or force-quit loses nothing that was already appended.
-The HTTP server runs as a third daemon thread alongside the watcher,
-exposing /chat, /status, and /history to the Obsidian plugin.
+Fixes applied:
+  BUG-001  Agent loop: assistant replies containing vault: commands are now
+           executed automatically. The tool result is injected back into
+           history and the model is called again for a final response.
+  BUG-002  Headless mode: --headless flag (or auto-detect via stdin.isatty())
+           skips the chat loop and keeps watcher + HTTP server running under
+           systemd with no terminal attached.
+  BUG-003  Full system_prompt (with User-Profile and memory) is now passed
+           into VaultWatcher → RequestHandler so vault-mode responses have
+           the same identity as the terminal loop.
+  BUG-004  ep_handoff() is now called in all three handoff paths: terminal
+           loop, server.py (via ep_handoff_fn), and watcher (via request_handler).
+  BUG-007  Log rotation moved to TimedRotatingFileHandler in config/logger.py.
+  BUG-008  venv check: if groq/google-genai are not importable, print a clear
+           activation instruction before crashing.
 """
 
+import sys
 import logging
 import threading
+import time
+import logging
+import re
 from datetime import datetime as _dt
 from pathlib import Path
-from typing import Optional
 
-# FIX 3: single top-level import — removed the duplicate inside main()
+logger = logging.getLogger("assistant")
+
+# BUG-008: detect missing venv early with a clear user-facing message
+def _check_venv() -> None:
+    missing = []
+    try:
+        import groq  # noqa: F401
+    except ImportError:
+        missing.append("groq")
+    try:
+        from google import genai  # noqa: F401
+    except ImportError:
+        missing.append("google-genai")
+
+    if missing:
+        print("\n" + "=" * 56)
+        print("  MISSING PACKAGES: " + ", ".join(missing))
+        print("  You may not be inside the virtual environment.")
+        print()
+        print("  Windows:  .venv\\Scripts\\Activate.ps1")
+        print("  Linux:    source .venv/bin/activate")
+        print()
+        print("  Then run: pip install -r requirements.txt")
+        print("=" * 56 + "\n")
+        sys.exit(1)
+
+_check_venv()
+
 from server import AssistantServer
 
 from config.config_manager import ConfigManager
 from config.logger import setup_logger, set_verbose, is_verbose
 from providers.provider_router import ProviderRouter
-from providers.base_provider import Message, ProviderError
+from providers.base_provider import Message, ProviderError, ProviderWebUIHandoff
 from providers.model_registry import estimate_tokens
 from memory.memory_manager import MemoryManager
 from memory.context_manager import ContextManager
 from tools.tool_registry import ToolRegistry
 from watcher.vault_watcher import VaultWatcher
-
+from agent_loop import AgentContext, run_agent_loop, extract_vault_commands
 
 # ---------------------------------------------------------------------------
 # Episode line formatters
-# FIX 1+2: Restored the four ep_* functions that are called throughout the
-# file. The submitted version defined unused EPISODE_*_PREFIX constants but
-# never completed the refactor, leaving these names undefined (NameError).
 # ---------------------------------------------------------------------------
 
 def _ts() -> str:
@@ -46,31 +84,32 @@ def ep_remember(fact: str) -> str:
     return f"- **{_ts()}** Remembered: {fact}\n"
 
 
-def ep_chat(user: str, assistant: str) -> str:
+def ep_chat(user: str, assistant: str, provider: str = "") -> str:
     reply_lines = assistant.strip().splitlines()
     indented    = "\n> ".join(reply_lines)
-    return f"\n**{_ts()} — You:** {user}\n> {indented}\n"
+    tag         = f" [{provider}]" if provider else ""
+    return f"\n**{_ts()}{tag} — You:** {user}\n> {indented}\n"
 
 
 def ep_error(detail: str) -> str:
     return f"- **{_ts()}** ⚠ {detail}\n"
 
 
+def ep_handoff(direction: str, detail: str) -> str:
+    return f"- **{_ts()}** 🌐 Web handoff {direction} — {detail}\n"
+
+
 # ---------------------------------------------------------------------------
 # Startup diagnostics
-# FIX 5: Changed config type hint from Dict[str,Any] to ConfigManager since
-# that is what is actually passed. ConfigManager has .get() so behaviour is
-# unchanged; the annotation now matches reality.
 # ---------------------------------------------------------------------------
 
 def run_startup_diagnostics(
-    config: ConfigManager,
-    router: ProviderRouter,
-    registry: Optional[ToolRegistry],
-    memory: Optional[MemoryManager],
-    logger: logging.Logger,
+    config:   "ConfigManager",
+    router:   ProviderRouter,
+    registry: ToolRegistry | None,
+    memory:   MemoryManager | None,
+    logger:   logging.Logger,
 ) -> None:
-    """Run startup diagnostics to verify system readiness."""
     checks: dict[str, bool] = {}
 
     config_path = Path(__file__).parent / "config" / "settings.json"
@@ -101,11 +140,12 @@ def run_startup_diagnostics(
 
     avail = router.available_providers
     if avail:
-        print(f"\n  Active provider  : {config.get('default_provider', 'groq').upper()}")
+        print(f"\n  Active provider  : {config.get('default_provider','groq').upper()}")
         if len(avail) > 1:
-            print(f"  Fallback provider: {config.get('fallback_provider', 'google').upper()}")
+            print(f"  Fallback provider: {config.get('fallback_provider','google').upper()}")
+        print(f"  Web UI fallback  : always available")
     else:
-        print("\n  ✗  No providers available. Add API keys to config/settings.json.")
+        print("\n  ✗  No API providers — Web UI fallback will be used.")
 
     print("\n  Assistant Online")
     print(sep + "\n")
@@ -131,44 +171,67 @@ You can interact with the vault at any time using these commands:
 - vault:search <query>             — Full-text search across all notes
 - vault:list [subfolder]           — Browse the vault folder structure
 - vault:links <note name>          — Read a note plus all notes it wikilinks to
-- vault:create <path> / <content>  — Write a new note (path on first line, content after)
-- vault:update <path> / <content>  — Append content to an existing note
+- vault:create <path>              — Write a new note (path on first line, content after)
+- vault:update <path>              — Append content to an existing note
 - vault:research <question>        — Generate an optimised prompt for an external web AI
-- vault:import                     — Import pasted response from an external AI into the vault
 - vault:summarise <path>           — Load a research note and summarise it
 
-## When to Use Your Tools (be proactive)
+## Important: how vault commands work
 
-Before answering questions about topics that might be in the vault, search or read relevant notes first. Do not answer from general knowledge when specific vault knowledge may be more accurate.
+When you include a vault: command on its own line in your reply, the system executes it automatically and shows you the result. Use the result in your next response.
 
-Before writing code or implementation plans, check AI/Memory/Projects/ and 06 - Projects/ for relevant context.
+### Path format rules
 
-After significant decisions or conclusions in a conversation, offer to save them:
+Always put the full path on the FIRST LINE after vault:create or vault:update, then put content on the lines that follow.
+
+CORRECT format:
+vault:create AI/Memory/Projects/My-Project/Index.md
+# My Project Index
+Content goes here.
+
+WRONG — do not put path and content on the same line:
+vault:create AI/Memory/Projects/My-Project/Index.md # My Project Index Content goes here.
+
+### Note naming convention
+
+Use hyphens to separate words in note names. Do NOT use spaces or forward slashes as word separators.
+
+CORRECT:
+vault:create AI/Research/rocket-stove-design.md
+vault:create AI/Memory/Projects/Rocket-Mass-Heater/Next-Steps.md
+
+WRONG — do not use slashes where you mean spaces:
+vault:create AI/Memory/Projects/Rocket/Mass/Heater/Next/Steps.md
+
+WRONG — spaces in the filename itself are acceptable in Obsidian but cause issues with the agent:
+vault:create My New Note.md
+
+Existing folders with spaces in their names (like "06 - Projects" or "Rocket Mass Heater") are fine to reference — only new note names should use hyphens.
+
+### vault:import is not available in autonomous mode
+
+Do NOT issue vault:import in your replies. It requires the user to paste content interactively and cannot run automatically. If you want to save research content you already have in context, use vault:create instead.
+
+## When to use your tools
+
+Before answering questions about topics that might be in the vault, search or read relevant notes first.
+
+Before writing code or plans, check AI/Memory/Projects/ for relevant context.
+
+After significant decisions, offer to save them:
   vault:update AI/Memory/Projects/<project-name>.md
 
-When asked to help with this AI assistant project, read AI/System/Project-State.md first — it contains the full architecture, interface contracts, and forward plan. You are being used to help build and improve yourself.
-
-When the user asks for information you don't have, offer to generate a research prompt they can paste into a web AI:
-  vault:research <question>
-
-## Examples of Proactive Behaviour
-
-- User asks about a project → search for it, read the project note, then answer from that context
-- User asks you to write a new tool → read Project-State.md to check the interface contracts first
-- User reports a bug → search the vault for related notes before diagnosing
-- A conversation produces a key decision → offer to append it to the relevant project memory note
-- User asks what you know about a topic → search the vault before saying you don't know
+When asked to help with this AI assistant project, read AI/System/Project-State.md first.
 
 ## Your Role
 
-You help with software development, Scripture study, research, planning, and knowledge management. You are concise, accurate, and practical. When you don't know something, say so clearly — then offer to search the vault or generate a research prompt for an external AI.
+You help with software development, Scripture study, research, planning, and knowledge management. You are concise, accurate, and practical. When you don't know something, say so — then search the vault or generate a research prompt.
 
 When the user types 'remember: <something>', acknowledge that the fact has been saved to Learned-Facts.md.
-When vault content is loaded into context, use it to give specific, grounded answers rather than general ones."""
+When vault content is loaded into context, use it to give specific, grounded answers."""
 
 
 def build_system_prompt(memory_context: str) -> str:
-    """Combine the base system prompt with the loaded memory context."""
     if memory_context.strip():
         return BASE_SYSTEM_PROMPT + "\n\n" + memory_context
     return BASE_SYSTEM_PROMPT
@@ -190,22 +253,19 @@ VAULT_COMMANDS = {
     "vault:summarise": ("summarise_research",       "Usage: vault:summarise <path to research note>"),
 }
 
-# Read tools inject their output into the AI context window
 READ_TOOLS = {"read_note", "search_vault", "list_vault", "get_linked_notes", "summarise_research"}
+
+VALID_PROVIDERS = ("groq", "google", "webui", "auto")
 
 
 def handle_vault_command(
-    raw: str,
-    registry: ToolRegistry,
-    history: list[Message],
-    memory: Optional[MemoryManager],
-    logger: logging.Logger,
-) -> Optional[str]:
-    """
-    Run a vault: command.
-    Returns formatted output string, or None if prefix is unrecognised.
-    Appends a one-line entry to the episode file immediately.
-    """
+    raw:          str,
+    registry:     ToolRegistry,
+    history:      list[Message],
+    memory:       MemoryManager | None,
+    logger:       logging.Logger,
+    _agent_mode:  bool = False,  # True = called from agent loop, skip duplicate history injection
+) -> str | None:
     parts  = raw.split(None, 1)
     prefix = parts[0].lower()
 
@@ -220,8 +280,8 @@ def handle_vault_command(
 
     result = registry.run(tool_name, tool_input)
 
-    # Inject content into AI context window for read operations
-    if result.success and tool_name in READ_TOOLS:
+    # Inject into history for read tools (skip in agent mode — already managed)
+    if result.success and tool_name in READ_TOOLS and not _agent_mode:
         history.append(Message(
             role    = "user",
             content = f"[Vault context loaded by tool '{tool_name}']\n\n{result.output}",
@@ -233,10 +293,99 @@ def handle_vault_command(
         logger.info(f"[Vault] '{tool_name}' injected into history")
 
     detail = tool_input.splitlines()[0][:120] if tool_input else "(vault root)"
-    if memory:
+    if memory and not _agent_mode:
         memory.append_episode(ep_vault(tool_name, detail))
 
     return f"{'✓' if result.success else '✗'} [{tool_name}]\n\n{result.output}"
+
+
+# ---------------------------------------------------------------------------
+# Web handoff terminal helpers
+# ---------------------------------------------------------------------------
+
+def _print_handoff_prompt(packaged_prompt: str) -> None:
+    sep = "=" * 60
+    print(f"\n{sep}")
+    print("  WEB HANDOFF — Copy everything between the markers")
+    print(f"{sep}\n")
+    print(packaged_prompt)
+    print(f"\n{sep}")
+    print("  END OF PROMPT — Paste into ChatGPT / Claude / Gemini / DeepSeek")
+    print(f"{sep}\n")
+
+
+def _collect_handoff_response() -> str | None:
+    print("[Paste the web AI response below, then type '---end' on a new line]\n")
+    lines = []
+    while True:
+        try:
+            line = input()
+        except (KeyboardInterrupt, EOFError):
+            print("\n[Handoff cancelled]\n")
+            return None
+        if line.strip() == "---end":
+            break
+        lines.append(line)
+    return "\n".join(lines).strip() if lines else None
+
+
+# ---------------------------------------------------------------------------
+# Headless mode — BUG-002
+# ---------------------------------------------------------------------------
+
+def _is_headless() -> bool:
+    """True when there is no interactive terminal (e.g. systemd service)."""
+    if "--headless" in sys.argv:
+        return True
+    try:
+        return not sys.stdin.isatty()
+    except Exception:
+        return True
+
+
+def run_headless(
+    watcher_thread:  threading.Thread | None,
+    http_server,
+    memory,
+    router,
+    logger:          logging.Logger,
+    shutdown_event:  threading.Event,   # NEW parameter
+) -> None:
+    """
+    T7.5.11 fix: block using a polling loop instead of threading.Event().wait().
+    Reliably interrupted by KeyboardInterrupt (Ctrl+C) on Windows and Linux.
+    Also woken by shutdown_event.set() from the /shutdown HTTP endpoint.
+    """
+    logger.info("[Headless] Running in headless mode — no terminal input")
+    print("[Headless mode active — watcher and HTTP server running]")
+    print("[Press Ctrl+C or call GET /shutdown to stop cleanly]\n")
+
+    try:
+        # Poll every 0.5s — low CPU, responsive to both Ctrl+C and /shutdown
+        while not shutdown_event.is_set():
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("\n[Headless] Ctrl+C received — shutting down...")
+        logger.info("[Headless] KeyboardInterrupt received")
+
+    logger.info("[Headless] Shutdown triggered")
+
+    if http_server:
+        http_server.stop()
+
+    if watcher_thread and watcher_thread.is_alive():
+        watcher_thread.join(timeout=3)
+
+    if memory:
+        memory.close_episode(
+            error_summary = router.session_error_summary(),
+            tools_used    = [],
+        )
+        print("[Headless] Episode footer written. Goodbye.\n")
+    else:
+        print("[Headless] Goodbye.\n")
+
+    logger.info("[Headless] Clean shutdown complete")
 
 
 # ---------------------------------------------------------------------------
@@ -246,14 +395,14 @@ def handle_vault_command(
 def main() -> None:
     config = ConfigManager()
     logger = setup_logger(config.get("log_level", "INFO"), verbose=False)
-    logger.info("Assistant starting — Milestone 6 (HTTP server enabled)")
+    logger.info("Assistant starting — Milestone 7.5 (Hardening)")
 
     router = ProviderRouter(config.all())
 
     vault_path = config.get("vault_path", "")
-    registry: Optional[ToolRegistry]  = None
-    memory:   Optional[MemoryManager] = None
-    ctx_mgr:  Optional[ContextManager]= None
+    registry:  ToolRegistry   | None = None
+    memory:    MemoryManager  | None = None
+    ctx_mgr:   ContextManager | None = None
 
     if vault_path and Path(vault_path).exists():
         registry = ToolRegistry(vault_path)
@@ -265,36 +414,30 @@ def main() -> None:
     memory_context = memory.load_context() if memory else ""
     system_prompt  = build_system_prompt(memory_context)
 
-    # Open the episode file before anything else so a crash loses nothing
     if memory:
         memory.open_episode()
 
     run_startup_diagnostics(config, router, registry, memory, logger)
 
-    if not router.available_providers:
-        print("No AI providers available. Add API keys to config/settings.json.\n")
-        print("  Groq   (free): https://console.groq.com")
-        print("  Google (free): https://aistudio.google.com/app/apikey\n")
-        return
+    history:      list[Message]  = []
+    history_lock: threading.Lock = threading.Lock()
+    shutdown_event: threading.Event = threading.Event()
+    tools_used:   list[str]      = []
 
-    # history must exist before the HTTP server is constructed —
-    # the server holds a reference to this list so both threads share it.
-    history:    list[Message] = []
-    tools_used: list[str]     = []
-
-    # ── Start vault watcher ───────────────────────────────────────────────
-    watcher: Optional[VaultWatcher]        = None
-    watcher_thread: Optional[threading.Thread] = None
+    # ── Start vault watcher (BUG-003: pass system_prompt) ─────────────────
+    watcher:        VaultWatcher | None       = None
+    watcher_thread: threading.Thread | None   = None
 
     if vault_path and Path(vault_path).exists():
         try:
             watcher = VaultWatcher(
                 config.all(),
-                poll_interval=config.get("watcher_poll_interval", 5),
+                poll_interval = config.get("watcher_poll_interval", 5),
+                system_prompt = system_prompt,   # BUG-003
             )
             watcher_thread = threading.Thread(target=watcher.run, daemon=True)
             watcher_thread.start()
-            logger.info("[Main] Vault watcher started in background thread")
+            logger.info("[Main] Vault watcher started")
             print("\n[Vault watcher active in background]\n")
         except Exception as exc:
             logger.error(f"[Main] Failed to start watcher: {exc}")
@@ -302,9 +445,8 @@ def main() -> None:
     else:
         logger.warning("[Main] Vault path not available — watcher disabled")
 
-    # ── Start HTTP server (Milestone 6) ───────────────────────────────────
-    # FIX 3: import already at top — no second import here
-    http_server: Optional[AssistantServer] = None
+    # ── Start HTTP server ──────────────────────────────────────────────────
+    http_server: AssistantServer | None = None
 
     if vault_path and Path(vault_path).exists():
         try:
@@ -313,10 +455,14 @@ def main() -> None:
                 memory        = memory,
                 registry      = registry,
                 history       = history,
+                history_lock  = history_lock,
                 config        = config.all(),
                 system_prompt = system_prompt,
                 ep_chat_fn    = ep_chat,
                 ep_error_fn   = ep_error,
+                ep_handoff_fn = ep_handoff,   # BUG-004
+                ep_vault_fn   = ep_vault,
+                shutdown_event = shutdown_event,
             )
             http_server.start()
         except Exception as exc:
@@ -325,20 +471,36 @@ def main() -> None:
     else:
         logger.warning("[Main] Vault path not available — HTTP server disabled")
 
-    # ── Print help ────────────────────────────────────────────────────────
+    # ── BUG-002: skip chat loop if headless ────────────────────────────────
+    if _is_headless():
+        run_headless(
+            watcher_thread, 
+            http_server, 
+            memory, 
+            router, 
+            logger,
+            shutdown_event,
+        )
+        return
+
+    # ── Print help ─────────────────────────────────────────────────────────
     print("Type your message and press Enter.")
     print("Vault read   : vault:read | vault:search | vault:list | vault:links")
     print("Vault write  : vault:create | vault:update")
+    print("Research     : vault:research | vault:import | vault:summarise")
     print("Memory       : remember: <fact>")
+    print("Provider     : /use groq | /use google | /use webui | /use auto")
     print("Info         : tools | models | context | status | verbose on/off")
     print("Session      : clear | exit\n")
     if http_server and http_server.is_available():
         host = config.get("host", "127.0.0.1")
         port = config.get("port", 8765)
-        print(f"Obsidian plugin: connect to http://{host}:{port}")
+        print(f"Obsidian plugin: http://{host}:{port}")
         print(f"API docs       : http://{host}:{port}/docs\n")
 
-    # ── Normal chat loop ──────────────────────────────────────────────────
+    # ── Chat loop ──────────────────────────────────────────────────────────
+    provider_override: str | None = None
+
     while True:
         try:
             user_input = input("You: ").strip()
@@ -349,36 +511,44 @@ def main() -> None:
         if not user_input:
             continue
 
-        # ── Exit ──────────────────────────────────────────────────────────
         if user_input.lower() in ("exit", "quit"):
             print("Shutting down...")
             if watcher:
                 watcher.stop()
-                logger.info("[Main] Stopping watcher...")
             if http_server:
                 http_server.stop()
-                logger.info("[Main] HTTP server stopped")
             break
 
-        # ── Clear ─────────────────────────────────────────────────────────
         if user_input.lower() == "clear":
-            history.clear()
+            with history_lock:
+                history.clear()
             print("[Conversation history cleared — episode log unaffected]\n")
             continue
 
-        # ── Verbose ───────────────────────────────────────────────────────
         if user_input.lower() in ("verbose on", "verbose off"):
             enable = user_input.lower() == "verbose on"
             set_verbose(enable)
-            state = "ON — logs appear in console" if enable else "OFF — logs in assistant.log only"
+            state = "ON — logs appear in console" if enable else "OFF — logs in file only"
             print(f"[Verbose {state}]\n")
             continue
 
-        # ── Status ────────────────────────────────────────────────────────
+        if user_input.lower().startswith("/use "):
+            target = user_input[5:].strip().lower()
+            if target not in VALID_PROVIDERS:
+                print(f"[Unknown provider '{target}'. Options: {', '.join(VALID_PROVIDERS)}]\n")
+            elif target == "auto":
+                provider_override = None
+                print("[Provider: AUTO — smart routing active]\n")
+            else:
+                provider_override = target
+                print(f"[Provider override: {target.upper()}]\n")
+            continue
+
         if user_input.lower() == "status":
             print("\n--- Status ---")
             for name, avail in router.status().items():
                 print(f"  {'✓' if avail else '✗'}  {name.capitalize()}")
+            print(f"  Provider mode: {provider_override.upper() if provider_override else 'AUTO'}")
             print(f"  Verbose: {'ON' if is_verbose() else 'OFF'}")
             if http_server and http_server.is_available():
                 host = config.get("host", "127.0.0.1")
@@ -390,12 +560,10 @@ def main() -> None:
             print("--------------\n")
             continue
 
-        # ── Models ────────────────────────────────────────────────────────
         if user_input.lower() == "models":
             print(router.capability_report())
             continue
 
-        # ── Context ───────────────────────────────────────────────────────
         if user_input.lower() == "context":
             if ctx_mgr and router.available_providers:
                 active = router.available_providers[0]
@@ -406,7 +574,6 @@ def main() -> None:
                 print("[Context manager not available]\n")
             continue
 
-        # ── Tools ─────────────────────────────────────────────────────────
         if user_input.lower() == "tools":
             if registry is None:
                 print("[Vault tools not available — set vault_path in settings.json]\n")
@@ -417,7 +584,6 @@ def main() -> None:
                 print("----------------------\n")
             continue
 
-        # ── Remember ──────────────────────────────────────────────────────
         if user_input.lower().startswith("remember:"):
             fact = user_input[len("remember:"):].strip()
             if memory:
@@ -428,7 +594,6 @@ def main() -> None:
                 print("[Memory not available — vault path not set]\n")
             continue
 
-        # ── Vault commands ────────────────────────────────────────────────
         if user_input.lower().startswith("vault:"):
             if registry is None:
                 print("[Vault tools not available — set vault_path in settings.json]\n")
@@ -463,47 +628,72 @@ def main() -> None:
                 print(f"\n{output}\n")
                 continue
 
-        # ── Normal AI chat ────────────────────────────────────────────────
-        if ctx_mgr and router.available_providers:
-            history = ctx_mgr.trim(
-                history,
-                router.available_providers[0],
-                system_prompt,
-                config.get("max_tokens", 2048),
-            )
-
-        history.append(Message(role="user", content=user_input))
+        # ── Normal AI chat — agent loop ───────────────────────────────────
         logger.info(f"User: {user_input[:80]}{'...' if len(user_input) > 80 else ''}")
 
         try:
-            reply = router.generate(
-                messages      = history,
-                system_prompt = system_prompt,
-                max_tokens    = config.get("max_tokens", 2048),
-                temperature   = config.get("temperature", 0.7),
-            )
+             agent_ctx = AgentContext(
+                 user_input        = user_input,
+                 history           = history,
+                 history_lock      = history_lock,
+                 router            = router,
+                 registry          = registry,
+                 memory            = memory,
+                 ctx_mgr           = ctx_mgr,
+                 system_prompt     = system_prompt,
+                 max_tokens        = config.get("max_tokens", 2048),
+                 temperature       = config.get("temperature", 0.7),
+                 provider_override = provider_override,
+                 ep_vault_fn       = ep_vault,
+                 ep_error_fn       = ep_error,
+                 tools_used        = tools_used,
+             )
+             reply, used_provider = run_agent_loop(agent_ctx)
+
+        except ProviderWebUIHandoff as handoff:
+            with history_lock:
+                if history and history[-1].role == "user":
+                    history.pop()
+
+            _print_handoff_prompt(handoff.packaged_prompt)
+            if memory:
+                memory.append_episode(ep_handoff("sent", user_input[:80]))   # BUG-004
+
+            pasted = _collect_handoff_response()
+            if pasted:
+                with history_lock:
+                    history.append(Message(role="user",      content=user_input))
+                    history.append(Message(role="assistant", content=pasted))
+                print(f"\nAssistant [web]: {pasted}\n")
+                if memory:
+                    memory.append_episode(ep_chat(user_input, pasted, provider="web"))
+                    memory.append_episode(ep_handoff("returned", f"{len(pasted)} chars"))   # BUG-004
+            else:
+                print("[Handoff cancelled — message not added to history]\n")
+            continue
+
         except ProviderError as exc:
             print(f"\n[Error] {exc}\n")
             logger.error(f"Provider error: {exc}")
-            history.pop()
+            with history_lock:
+                if history and history[-1].role == "user":
+                    history.pop()
             if memory:
                 memory.append_episode(ep_error(str(exc)[:120]))
             continue
 
-        history.append(Message(role="assistant", content=reply))
-        logger.info(f"Assistant replied ({len(reply)} chars)")
-        print(f"\nAssistant: {reply}\n")
+        logger.info(f"Assistant replied via {used_provider} ({len(reply)} chars)")
+        print(f"\nAssistant [{used_provider}]: {reply}\n")
 
         if memory:
-            memory.append_episode(ep_chat(user_input, reply))
+            memory.append_episode(ep_chat(user_input, reply, provider=used_provider))
 
     # ------------------------------------------------------------------
-    # Shutdown: write footer (error summary + tools used)
+    # Shutdown
     # ------------------------------------------------------------------
     logger.info("Assistant shutting down.")
 
     if watcher_thread and watcher_thread.is_alive():
-        logger.info("[Main] Waiting for watcher thread to stop...")
         watcher_thread.join(timeout=2)
 
     if memory:

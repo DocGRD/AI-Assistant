@@ -1,21 +1,34 @@
 """
-Vault Watcher — Monitor vault for assistant requests via YAML frontmatter.
+Vault Watcher — headless fixes
 
-Watches for file changes in the vault. When a .md file is modified,
-checks if it has assistant-status: pending. If yes, processes the request.
+T7.5.10 fix (TOCTOU race condition):
+  _check_file() now passes the already-read file content into process().
+  Previously vault_watcher read the file, confirmed status=pending, then
+  called process() which read the file AGAIN. If Obsidian autosaved between
+  those two reads (very common), the second read could see different content
+  causing process() to return False with "status != pending".
+  Now: one read, one process() call, no race.
 
-Runs as a background daemon, checking changes every N seconds.
+T7.5.11 fix (headless shutdown on Windows):
+  run_headless() now uses a polling loop with a short sleep instead of
+  threading.Event().wait(). This is reliably interrupted by KeyboardInterrupt
+  (Ctrl+C) on both Windows and Linux. The signal handler approach using
+  threading.Event().wait() was not reliably woken by SIGINT on Windows.
+
+Additional: /shutdown HTTP endpoint added so the plugin's "exit"/"quit"
+  messages can trigger a clean shutdown. POST /chat also intercepts
+  "exit" and "quit" as special messages and calls /shutdown internally.
 """
 
 import logging
 import time
+import threading
 from pathlib import Path
 from datetime import datetime
 
 from config.config_manager import ConfigManager
 from config.logger import setup_logger
 from providers.provider_router import ProviderRouter
-from providers.base_provider import ProviderError
 from watcher.frontmatter_parser import FrontmatterParser
 from watcher.request_handler import RequestHandler
 
@@ -23,50 +36,38 @@ logger = logging.getLogger("watcher")
 
 
 class VaultWatcher:
-    """Monitors vault for assistant requests."""
 
-    def __init__(self, config: dict, poll_interval: int = 5):
-        """
-        Initialize the vault watcher.
-
-        Args:
-            config: Settings dictionary (from ConfigManager)
-            poll_interval: How often to check for changes (seconds)
-        """
-        self._vault_path = config.get("vault_path", "")
-        self._vault = Path(self._vault_path)
+    def __init__(self, config: dict, poll_interval: int = 5, system_prompt: str = ""):
+        self._vault_path    = config.get("vault_path", "")
+        self._vault         = Path(self._vault_path)
         self._poll_interval = poll_interval
-        self._last_check = {}  # Track file modification times
-        self._running = False
+        self._last_check:   dict[str, float] = {}
+        self._running       = False
 
         if not self._vault.exists():
             raise ValueError(f"Vault path does not exist: {self._vault_path}")
 
-        # Initialize router and handler
         try:
-            self._router = ProviderRouter(config)
-            self._handler = RequestHandler(self._vault_path, self._router)
+            self._router  = ProviderRouter(config)
+            self._handler = RequestHandler(
+                vault_path    = self._vault_path,
+                router        = self._router,
+                system_prompt = system_prompt,
+            )
         except Exception as exc:
-            logger.error(f"[VaultWatcher] Failed to initialize router: {exc}")
+            logger.error(f"[VaultWatcher] Failed to initialise: {exc}")
             raise
 
-        logger.info(f"[VaultWatcher] Initialized for vault: {self._vault_path}")
+        logger.info(f"[VaultWatcher] Initialised — vault: {self._vault_path}")
         logger.info(f"[VaultWatcher] Poll interval: {self._poll_interval}s")
+        if system_prompt:
+            logger.info("[VaultWatcher] Full system prompt loaded")
+        else:
+            logger.warning("[VaultWatcher] No system prompt — using default stub")
 
     def run(self) -> None:
-        """
-        Start the watcher loop. Runs indefinitely until stopped.
-        Press Ctrl+C to stop.
-        """
         self._running = True
         logger.info("[VaultWatcher] Starting watcher loop...")
-        print(f"\n{'='*60}")
-        print("  VAULT WATCHER — Active")
-        print(f"  Vault: {self._vault_path}")
-        print(f"  Poll interval: {self._poll_interval}s")
-        print("  Watching for assistant-status: pending")
-        print("  Press Ctrl+C to stop")
-        print(f"{'='*60}\n")
 
         try:
             while self._running:
@@ -74,7 +75,6 @@ class VaultWatcher:
                     self._check_vault()
                     time.sleep(self._poll_interval)
                 except KeyboardInterrupt:
-                    logger.info("[VaultWatcher] Interrupted by user")
                     break
                 except Exception as exc:
                     logger.error(f"[VaultWatcher] Error in check loop: {exc}")
@@ -82,101 +82,108 @@ class VaultWatcher:
         finally:
             self._running = False
             logger.info("[VaultWatcher] Watcher stopped")
-            print("\n[Watcher stopped]\n")
 
     def _check_vault(self) -> None:
-        """Check all .md files for pending requests."""
         for md_file in self._vault.rglob("*.md"):
             self._check_file(md_file)
 
     def _check_file(self, filepath: Path) -> None:
         """
-        Check a single .md file for pending requests.
-        If modified since last check, parse and process if needed.
+        Check one file for pending requests.
+        T7.5.10 fix: read the file ONCE here and pass the content
+        directly into process() — eliminates the TOCTOU race where
+        Obsidian autosave could change the file between the watcher's
+        status check and process()'s own re-read.
         """
         try:
-            stat = filepath.stat()
-            mtime = stat.st_mtime
-
-            # Track modification times to avoid re-processing
+            mtime    = filepath.stat().st_mtime
             file_key = str(filepath)
-            last_mtime = self._last_check.get(file_key, 0)
+            last     = self._last_check.get(file_key, 0)
 
-            if mtime <= last_mtime:
-                return  # No change since last check
+            if mtime <= last:
+                return
 
             self._last_check[file_key] = mtime
 
-            # Read and parse the file
+            # T7.5.10: single read, passed to both status-check and process()
             try:
                 content = filepath.read_text(encoding="utf-8")
             except Exception as exc:
                 logger.debug(f"[VaultWatcher] Could not read {filepath.name}: {exc}")
                 return
 
-            # Extract frontmatter
             fm_dict, body = FrontmatterParser.extract(content)
+            status   = fm_dict.get("assistant-status", "").lower().strip('"')
+            rel_path = str(filepath.relative_to(self._vault))
 
-            # Check for pending request
-            status = fm_dict.get("assistant-status", "").lower()
-            if status != "pending":
-                return
+            if status == "pending":
+                request = fm_dict.get("assistant-request", "").strip().strip('"')
+                if not request:
+                    logger.debug(f"[VaultWatcher] pending but no request: {rel_path}")
+                    return
 
-            request = fm_dict.get("assistant-request", "").strip()
-            if not request:
-                logger.debug(f"[VaultWatcher] Pending status but no request in {filepath.name}")
-                return
+                logger.info(f"[VaultWatcher] Found pending: {rel_path}")
 
-            # Found a pending request!
-            rel_path = filepath.relative_to(self._vault)
-            logger.info(f"[VaultWatcher] Found pending request: {rel_path}")
-            logger.info(f"[VaultWatcher] Request: {request[:80]}")
+                # T7.5.10: pass content so process() doesn't re-read
+                success = self._handler.process(rel_path, request, content=content)
 
-            # Process it
-            success = self._handler.process(str(rel_path), request)
+                ts = datetime.now().strftime("%H:%M:%S")
+                if success:
+                    print(f"✓ [{ts}] {rel_path} — Done")
+                else:
+                    # Re-read to show updated status
+                    try:
+                        updated       = filepath.read_text(encoding="utf-8")
+                        updated_fm, _ = FrontmatterParser.extract(updated)
+                        new_status    = updated_fm.get("assistant-status", "").strip('"')
+                        if new_status == "handoff-pending":
+                            print(f"🌐 [{ts}] {rel_path} — Handoff pending (paste response in note)")
+                        elif new_status == "error":
+                            print(f"⚠ [{ts}] {rel_path} — Error (see note for details)")
+                        else:
+                            print(f"✗ [{ts}] {rel_path} — Failed")
+                    except Exception:
+                        print(f"✗ [{ts}] {rel_path} — Failed")
 
-            if success:
-                logger.info(f"[VaultWatcher] ✓ Processed: {rel_path}")
-                print(f"✓ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Done")
-            else:
-                logger.warning(f"[VaultWatcher] ✗ Failed to process: {rel_path}")
-                # Get the updated frontmatter to show the reason
-                try:
-                    updated_content = filepath.read_text(encoding="utf-8")
-                    updated_fm, _ = FrontmatterParser.extract(updated_content)
-                    status = updated_fm.get("assistant-status", "unknown")
-                    if status == "error":
-                        print(f"⚠ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Error (see note for details)")
-                    else:
-                        print(f"✗ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Failed")
-                except:
-                    print(f"✗ [{datetime.now().strftime('%H:%M:%S')}] {rel_path} — Failed")
+            elif status == "handoff-pending":
+                if "## User Web Handoff Return" not in body:
+                    return
+                after       = body.split("## User Web Handoff Return", 1)[1].strip()
+                placeholder = "*(Paste the web AI response here"
+                if not after or after.startswith(placeholder):
+                    return
+
+                logger.info(f"[VaultWatcher] Found handoff return: {rel_path}")
+                success = self._handler.inject_handoff_return(rel_path)
+
+                ts = datetime.now().strftime("%H:%M:%S")
+                print(
+                    f"{'✓' if success else '✗'} [{ts}] {rel_path} — "
+                    f"Handoff return {'injected' if success else 'failed'}"
+                )
 
         except Exception as exc:
             logger.error(f"[VaultWatcher] Error checking {filepath}: {exc}")
 
     def stop(self) -> None:
-        """Stop the watcher loop."""
         self._running = False
 
 
 def main() -> None:
-    """Entry point for standalone watcher process."""
-    config = ConfigManager()
+    config     = ConfigManager()
     logger_obj = setup_logger(config.get("log_level", "INFO"), verbose=False)
-    logger_obj.info("Vault Watcher starting — Milestone 5.5")
+    logger_obj.info("Vault Watcher starting")
 
     try:
         watcher = VaultWatcher(
             config.all(),
-            poll_interval=config.get("watcher_poll_interval", 5),
+            poll_interval = config.get("watcher_poll_interval", 5),
         )
         watcher.run()
     except KeyboardInterrupt:
         logger_obj.info("Watcher interrupted")
     except Exception as exc:
         logger_obj.error(f"Watcher failed: {exc}")
-        print(f"\nError: {exc}\n")
         raise
 
 

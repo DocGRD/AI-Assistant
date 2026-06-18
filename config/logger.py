@@ -1,30 +1,21 @@
 """
-Logger Setup
-Configures logging with two independent handlers:
-    - File handler   : always on, writes everything to logs/assistant.log
-    - Console handler: off by default, toggled at runtime via set_verbose()
+Logger Setup — Milestone 7.5 (BUG-007: daily log rotation)
 
-This keeps the chat UI clean while preserving full diagnostic logs on disk.
+Changes from M7:
+  - Replaced RotatingFileHandler (size-based) with TimedRotatingFileHandler
+    (rotates at midnight, keeps 7 daily backups).
+  - Log files are now named assistant.log.YYYY-MM-DD, one per day.
+  - The active file is always assistant.log; yesterday's becomes assistant.log.2026-06-09 etc.
 """
 
 import logging
-from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
-# Module-level reference so set_verbose() can reach the console handler
-# from anywhere in the codebase without passing the logger around.
 _console_handler: logging.StreamHandler | None = None
 
 
 def setup_logger(level: str = "INFO", verbose: bool = False) -> logging.Logger:
-    """
-    Return a configured logger.
-
-    Args:
-        level:   Log level string for the FILE handler ("DEBUG", "INFO", etc.)
-        verbose: If True, also print logs to the console on startup.
-                 Can be toggled later with set_verbose().
-    """
     global _console_handler
 
     log_level = getattr(logging, level.upper(), logging.INFO)
@@ -37,7 +28,6 @@ def setup_logger(level: str = "INFO", verbose: bool = False) -> logging.Logger:
     logger.setLevel(log_level)
 
     if logger.handlers:
-        # Already configured — just honour the verbose flag and return.
         set_verbose(verbose)
         return logger
 
@@ -46,15 +36,19 @@ def setup_logger(level: str = "INFO", verbose: bool = False) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # ── File handler (always on, rotates at 1 MB, keeps 3 backups) ──────
-    fh = RotatingFileHandler(log_file, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    # BUG-007: rotate at midnight, keep 7 days of logs
+    fh = TimedRotatingFileHandler(
+        log_file,
+        when        = "midnight",
+        backupCount = 7,
+        encoding    = "utf-8",
+    )
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
-    # ── Console handler (off by default) ────────────────────────────────
     _console_handler = logging.StreamHandler()
     _console_handler.setFormatter(formatter)
-    _console_handler.setLevel(logging.CRITICAL + 1)  # effectively disabled
+    _console_handler.setLevel(logging.CRITICAL + 1)
     logger.addHandler(_console_handler)
 
     if verbose:
@@ -64,24 +58,16 @@ def setup_logger(level: str = "INFO", verbose: bool = False) -> logging.Logger:
 
 
 def set_verbose(enabled: bool) -> None:
-    """
-    Turn console log output on or off at runtime.
-    File logging is unaffected.
-
-    Called by:
-        assistant.py when the user types 'verbose on' or 'verbose off'
-    """
     global _console_handler
     if _console_handler is None:
         return
     if enabled:
         _console_handler.setLevel(logging.DEBUG)
     else:
-        _console_handler.setLevel(logging.CRITICAL + 1)  # silent
+        _console_handler.setLevel(logging.CRITICAL + 1)
 
 
 def is_verbose() -> bool:
-    """Return True if console logging is currently enabled."""
     if _console_handler is None:
         return False
     return _console_handler.level <= logging.DEBUG
