@@ -50,7 +50,8 @@ if _fastapi_available:
         prompt_to_copy:  str | None = None
 
     class HandoffReturnRequest(BaseModel):
-        response_text: str
+        response_text:    str
+        original_message: str | None = None   # the user question that triggered the handoff
 
     class HistoryMessage(BaseModel):
         role:    str
@@ -303,6 +304,14 @@ class AssistantServer:
             if self._memory and self._ep_handoff:
                 self._memory.append_episode(
                     self._ep_handoff("returned", f"{len(req.response_text)} chars from plugin")
+                )
+
+            # Write the full exchange to the episode log so the response
+            # is actually readable in the episode file, not just the 🌐 markers.
+            if self._memory and self._ep_chat:
+                original = req.original_message or "[web handoff — original question not recorded]"
+                self._memory.append_episode(
+                    self._ep_chat(f"[plugin] {original}", req.response_text, provider="web")
                 )
 
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

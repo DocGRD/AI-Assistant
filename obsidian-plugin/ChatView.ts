@@ -114,13 +114,6 @@ export class ChatView extends ItemView {
             attr: { title: "Refresh status" },
         });
         refreshBtn.addEventListener("click", () => this.loadStatus());
-
-        const shutdownBtn = btnRow.createEl("button", {
-            text: "⏻",
-            cls:  "ai-assistant-shutdown-btn",
-             attr: { title: "Shut down the assistant service" },
-        });
-        shutdownBtn.addEventListener("click", () => this.shutdownService());
     }
 
     private buildProviderToggle(): void {
@@ -400,7 +393,10 @@ export class ChatView extends ItemView {
             const resp = await fetch(`http://${host}:${port}/chat/handoff-return`, {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({ response_text: pastedText }),
+                body:    JSON.stringify({
+                    response_text:    pastedText,
+                    original_message: this.pendingHandoffUserMessage || undefined,
+                }),
                 signal:  AbortSignal.timeout(10000),
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -523,31 +519,4 @@ export class ChatView extends ItemView {
     private scrollToBottom(): void {
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
     }
-
-    private async shutdownService(): Promise<void> {
-        const { host, port } = this.plugin.settings;
-        const confirmed = confirm(
-            "Shut down the AI Assistant service?\n\n" +
-            "The watcher and HTTP server will stop. " +
-            "You will need to restart assistant.py manually."
-        );
-        if (!confirmed) return;
-
-        try {
-            await fetch(`http://${host}:${port}/shutdown`, {
-                signal: AbortSignal.timeout(5000),
-            });
-            this.statusEl.setText("⏻ Service shut down");
-            this.statusEl.className = "ai-assistant-status ai-assistant-status-offline";
-            this.serviceOnline = false;
-            this.setConnectMode("vault");
-        } catch {
-            // Service may have shut down before responding — that's fine
-            this.statusEl.setText("⏻ Shutdown sent");
-            this.statusEl.className = "ai-assistant-status ai-assistant-status-offline";
-            this.serviceOnline = false;
-            this.setConnectMode("vault");
-        }
-    }
-
 }

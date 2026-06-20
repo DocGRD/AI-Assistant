@@ -26,3 +26,12 @@ obsidian-plugin/dist/
 obsidian-plugin/build/
 # ignore settings
 config/settings.json
+log/
+# Ignore Python compiled files
+__pycache__/
+*.pyc
+
+# Ignore all log files in the logs directory
+logs/*.log
+logs/*.log.*
+
