@@ -359,3 +359,14 @@
 .ai-assistant-shutdown-btn:hover {
   background-color: var(--background-modifier-error);
 }
+
+.ai-assistant-vault-actions {
+  padding: 4px 10px;
+  margin-top: 4px;
+}
+
+.ai-assistant-vault-action-notice {
+  font-size: 11px;
+  color: var(--color-green);
+  font-style: italic;
+}

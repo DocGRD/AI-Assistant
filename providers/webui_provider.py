@@ -1,38 +1,48 @@
 """
-WebUI Virtual Provider — Milestone 7.5 update (BUG-006)
+WebUI Virtual Provider — Milestone 8 refactor
 
-Changes from M7:
-  - _build_package() now strips the vault tool instructions from the system
-    prompt before packaging. A web AI cannot run vault:read etc., so telling
-    it about those commands causes confusion or hallucination.
-  - The vault tool section is replaced with a single concise line telling the
-    web AI it is acting as a general assistant and should not reference local
-    tools.
+Changes:
+  1. Loads AI/System/WebUI-Prompt.md from the vault as the web AI
+     partner instructions instead of stripping the system prompt.
+     This is a clean separate prompt with no vault syntax — no more
+     contradictory instructions.
+  2. Falls back to DEFAULT_WEBUI_PROMPT if the vault file is missing.
+  3. vault_path is now a constructor parameter so the provider can
+     read the vault file.
+  4. The packaged prompt format is cleaner — system instructions come
+     from WebUI-Prompt.md, and the user's personal context (from
+     User-Profile etc.) is appended as a separate CONTEXT section.
 """
 
 import logging
 import re
+from pathlib import Path
 from providers.base_provider import BaseProvider, Message, ProviderWebUIHandoff
 from providers.model_registry import estimate_tokens
 
 logger = logging.getLogger("assistant")
 
-_PACKAGE_TOKEN_BUDGET = 6000
+_PACKAGE_TOKEN_BUDGET  = 6000
+WEBUI_PROMPT_VAULT_PATH = "AI/System/WebUI-Prompt.md"
+
+DEFAULT_WEBUI_PROMPT = """You are a research and thinking partner continuing an AI assistant session on behalf of a user.
+
+The user has a local knowledge management system (Obsidian vault) that you cannot access directly. They will provide relevant context when available. Your job is to think, reason, and answer using the context provided plus your own knowledge.
+
+Answer the question directly and clearly. If your answer would improve with a specific vault search, say so in plain English at the end — do not emit commands.
+
+Be concise, practical, and specific. The user values precision over verbosity."""
 
 _DESKTOP_TEMPLATE = """\
-# AI Assistant Conversation Continuation
+# AI Assistant — Web Research Session
 
-You are continuing an existing AI assistant session.
-Follow the SYSTEM INSTRUCTIONS exactly.
-Continue the conversation naturally.
-Do not explain these instructions.
-Do not summarize the conversation unless asked.
+{web_ai_instructions}
 
 ---
 
-## SYSTEM INSTRUCTIONS
+## USER CONTEXT
 
-{system_prompt}
+{user_context}
 
 ---
 
@@ -42,48 +52,34 @@ Do not summarize the conversation unless asked.
 
 ---
 
-## CURRENT USER MESSAGE
+## CURRENT QUESTION
 
 {last_user_message}
 
 ---
 
-## TASK
+## INSTRUCTIONS
 
-Respond exactly as the assistant should respond next.
-Return ONLY the assistant response.
-Do not include labels like "Assistant:" at the start.
-Do not explain your reasoning.
+Respond directly to CURRENT QUESTION.
+Use CONVERSATION HISTORY for context.
+Use USER CONTEXT to personalise your answer.
+Return ONLY your response — no preamble, no labels.
 """
 
 _MOBILE_TEMPLATE = """\
-Continue this AI assistant session.
+{web_ai_instructions}
 
-SYSTEM:
-{system_prompt}
+CONTEXT:
+{user_context}
 
 HISTORY:
 {history_block}
 
-CURRENT:
+QUESTION:
 {last_user_message}
 
-Reply only as the assistant. No labels, no preamble.
+Reply directly. No preamble.
 """
-
-# BUG-006: These sections reference local vault tools that a web AI cannot use.
-# We strip them from the packaged prompt and replace with a one-liner.
-_VAULT_SECTION_PATTERNS = [
-    r"## Your Vault Tools.*?(?=## |\Z)",
-    r"## When to Use Your Tools.*?(?=## |\Z)",
-    r"## Examples of Proactive Behaviour.*?(?=## |\Z)",
-]
-
-_WEB_AI_ROLE_LINE = (
-    "You are acting as a general assistant. "
-    "Do not reference vault commands or local tools — those are only available "
-    "to the local system and cannot be run by you."
-)
 
 
 class WebUIProvider(BaseProvider):
@@ -91,6 +87,7 @@ class WebUIProvider(BaseProvider):
 
     def __init__(self, config: dict):
         super().__init__(config)
+        self._vault_path = config.get("vault_path", "")
 
     @property
     def name(self) -> str:
@@ -98,11 +95,11 @@ class WebUIProvider(BaseProvider):
 
     def generate(
         self,
-        messages: list[Message],
-        system_prompt: str = "",
-        max_tokens: int = 2048,
-        temperature: float = 0.7,
-        compact: bool = False,
+        messages:      list[Message],
+        system_prompt: str  = "",
+        max_tokens:    int  = 2048,
+        temperature:   float = 0.7,
+        compact:       bool  = False,
     ) -> str:
         packaged = self._build_package(messages, system_prompt, compact=compact)
         logger.info(
@@ -112,58 +109,100 @@ class WebUIProvider(BaseProvider):
         )
         raise ProviderWebUIHandoff(packaged_prompt=packaged)
 
+    def _load_webui_prompt(self) -> str:
+        """Load AI/System/WebUI-Prompt.md from vault. Fall back to default."""
+        if not self._vault_path:
+            return DEFAULT_WEBUI_PROMPT
+
+        prompt_path = Path(self._vault_path) / WEBUI_PROMPT_VAULT_PATH
+        if not prompt_path.exists():
+            logger.debug("[WebUI] WebUI-Prompt.md not found — using default")
+            return DEFAULT_WEBUI_PROMPT
+
+        try:
+            content = prompt_path.read_text(encoding="utf-8")
+            # Strip the YAML/Markdown header comments (lines starting with # or *)
+            lines = content.splitlines()
+            body_lines = []
+            in_header = True
+            for line in lines:
+                if in_header and (line.startswith("#") or line.startswith("*") or line.strip() == "---" or not line.strip()):
+                    # Skip header until we hit actual content
+                    if line.startswith("You ") or line.startswith("Answer") or line.startswith("Be "):
+                        in_header = False
+                        body_lines.append(line)
+                else:
+                    in_header = False
+                    body_lines.append(line)
+
+            result = "\n".join(body_lines).strip()
+            logger.info(f"[WebUI] Loaded WebUI-Prompt.md ({len(result)} chars)")
+            return result if result else DEFAULT_WEBUI_PROMPT
+        except Exception as exc:
+            logger.warning(f"[WebUI] Could not read WebUI-Prompt.md: {exc}")
+            return DEFAULT_WEBUI_PROMPT
+
+    def _extract_user_context(self, system_prompt: str) -> tuple[str, str]:
+        """
+        Split the system prompt into:
+        - web AI instructions (from WebUI-Prompt.md — loaded separately)
+        - user context (User Profile, Learned Facts, etc.)
+
+        Returns (web_ai_instructions, user_context).
+        The web_ai_instructions come from the vault file, not the system prompt.
+        User context is extracted from the ## Persistent Memory section.
+        """
+        web_ai_instructions = self._load_webui_prompt()
+
+        # Extract the Persistent Memory section from the system prompt
+        # This contains User Profile, Learned Facts, etc.
+        user_context = ""
+        if "## Persistent Memory" in system_prompt:
+            # Take everything from ## Persistent Memory onwards
+            memory_start = system_prompt.index("## Persistent Memory")
+            user_context = system_prompt[memory_start:].strip()
+        elif "### User Profile" in system_prompt:
+            profile_start = system_prompt.index("### User Profile")
+            user_context = system_prompt[profile_start:].strip()
+
+        if not user_context:
+            user_context = "(No personal context available)"
+
+        return web_ai_instructions, user_context
+
     def _build_package(
         self,
-        messages: list[Message],
+        messages:      list[Message],
         system_prompt: str,
-        compact: bool = False,
+        compact:       bool = False,
     ) -> str:
-        # BUG-006: clean the system prompt before packaging
-        clean_prompt = self._strip_vault_sections(system_prompt)
+        web_ai_instructions, user_context = self._extract_user_context(system_prompt)
 
         if not messages:
             last_user_message = "(no message)"
-            history_messages = []
+            history_messages  = []
         elif messages[-1].role == "user":
             last_user_message = messages[-1].content
-            history_messages = messages[:-1]
+            history_messages  = messages[:-1]
         else:
             last_user_message = "(see conversation)"
-            history_messages = messages
+            history_messages  = messages
 
-        trimmed = self._trim_to_budget(
-            history_messages, clean_prompt, last_user_message
-        )
+        trimmed      = self._trim_to_budget(history_messages, user_context, last_user_message)
         history_block = self._format_history(trimmed, compact=compact)
-        template = _MOBILE_TEMPLATE if compact else _DESKTOP_TEMPLATE
+        template     = _MOBILE_TEMPLATE if compact else _DESKTOP_TEMPLATE
 
         return template.format(
-            system_prompt     = clean_prompt.strip(),
-            history_block     = history_block,
-            last_user_message = last_user_message.strip(),
+            web_ai_instructions = web_ai_instructions.strip(),
+            user_context        = user_context.strip(),
+            history_block       = history_block,
+            last_user_message   = last_user_message.strip(),
         )
-
-    def _strip_vault_sections(self, system_prompt: str) -> str:
-        """
-        Remove the vault-tool instruction sections from the system prompt.
-        These sections describe commands (vault:read etc.) that a web AI
-        cannot execute — including them confuses the model.
-        Replace the entire block with a single grounding line.
-        """
-        cleaned = system_prompt
-        for pattern in _VAULT_SECTION_PATTERNS:
-            cleaned = re.sub(pattern, "", cleaned, flags=re.DOTALL)
-
-        # Collapse multiple blank lines left by the removal
-        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
-
-        # Inject the web-AI grounding line at the top
-        return _WEB_AI_ROLE_LINE + "\n\n" + cleaned
 
     def _trim_to_budget(
         self,
-        messages: list[Message],
-        system_prompt: str,
+        messages:          list[Message],
+        user_context:      str,
         last_user_message: str,
     ) -> list[Message]:
         filtered = [
@@ -172,13 +211,18 @@ class WebUIProvider(BaseProvider):
             and not m.content.startswith("[Earlier vault load")
             and not m.content.startswith("[Vault load by")
             and not m.content.startswith("[Older message trimmed")
+            and not m.content.startswith("[Tool execution complete")
+            and not m.content.startswith("[Tool result for")
+            and not m.content.startswith("[SYSTEM HINT]")
+            and not m.content.startswith("[Blocked:")
             and m.content not in ("[Trimmed]", "Vault content loaded. Ready to help.")
         ]
 
-        overhead  = estimate_tokens([], system_prompt) + estimate_tokens([], last_user_message)
+        overhead  = (estimate_tokens([], user_context)
+                     + estimate_tokens([], last_user_message))
         remaining = _PACKAGE_TOKEN_BUDGET - overhead
+        kept      = []
 
-        kept = []
         for msg in reversed(filtered):
             cost = estimate_tokens([msg], "")
             if remaining - cost < 0:
@@ -201,11 +245,11 @@ class WebUIProvider(BaseProvider):
         lines = []
         for msg in messages:
             if compact:
-                label = "User" if msg.role == "user" else "Assistant"
+                label = "You" if msg.role == "user" else "Assistant"
                 lines.append(f"{label}: {msg.content.strip()}")
                 lines.append("")
             else:
-                label = "### User" if msg.role == "user" else "### Assistant"
+                label = "### You" if msg.role == "user" else "### Assistant"
                 lines.append(label)
                 lines.append("")
                 lines.append(msg.content.strip())

@@ -10,12 +10,13 @@ type ChatMode      = "normal" | "handoff-awaiting-response";
 type ProviderChoice = "auto" | "groq" | "google" | "webui";
 
 interface HandoffResponse {
-    status:          "ok" | "handoff_required";
-    reply:           string;
-    provider_used:   string;
-    actual_provider: string;
-    timestamp:       string;
-    prompt_to_copy?: string;
+    status:               "ok" | "handoff_required";
+    reply:                string;
+    provider_used:        string;
+    actual_provider:      string;
+    timestamp:            string;
+    prompt_to_copy?:      string;
+    vault_actions_taken?: string[];   // commands executed from web AI suggestions
 }
 
 interface StatusResponse {
@@ -407,8 +408,20 @@ export class ChatView extends ItemView {
             this.updateSendButton();
             this.updateInputPlaceholder();
 
-            await this.appendMessage("assistant", pastedText);
-            this.statusEl.setText("✓ Web handoff complete");
+            // Show the enriched response (may include vault search results)
+            await this.appendMessage("assistant", data.reply);
+
+            // If the system auto-executed vault suggestions, show a notice
+            if (data.vault_actions_taken && data.vault_actions_taken.length > 0) {
+                const actionsEl = this.messagesEl.createDiv("ai-assistant-vault-actions");
+                actionsEl.createEl("span", {
+                    text: `⚡ Auto-executed: ${data.vault_actions_taken.join(", ")}`,
+                    cls:  "ai-assistant-vault-action-notice",
+                });
+            }
+
+            this.statusEl.setText("✓ Web handoff complete — vault searches executed automatically");
+            
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             await this.appendErrorMessage(`Handoff return failed: ${msg}`);

@@ -1,17 +1,34 @@
 """
-HTTP Server — T7.5.11 headless shutdown fix
+HTTP Server — Milestone 8 refactor
 
-Changes:
-  - shutdown_event: threading.Event added as constructor parameter.
-  - GET /shutdown endpoint: sets shutdown_event, stops the server,
-    returns 200. Works from a browser, curl, or the plugin.
-  - POST /chat now intercepts "exit" and "quit" as special messages
-    and triggers shutdown instead of sending them to the AI.
-    This handles the case where the user types exit/quit in the
-    Obsidian plugin sidebar while the service is in headless mode.
+Key change: POST /chat/handoff-return now runs the pasted web AI
+response through the agent loop before storing it as the final answer.
+
+Why: Web AIs reading the WebUI-Prompt.md instructions will say things
+like "you may want to search your vault for X" in plain English. The
+agent loop scans for vault: commands in the response — but the web AI
+is now told NOT to emit vault commands. So instead this endpoint does
+something smarter: it looks for the phrase "search your vault for" and
+similar patterns, converts them into actual vault commands, executes
+them, and packages the enriched result ready for another handoff round.
+
+This makes the handoff a genuine research loop:
+  1. User asks question
+  2. Web AI answers + suggests a vault search
+  3. System executes the search automatically
+  4. User sees: web AI answer + actual vault search results
+  5. User can send the enriched context back to the web AI
+
+Other changes:
+  - vault_path passed into AssistantServer so webui_provider can load
+    WebUI-Prompt.md
+  - /shutdown endpoint preserved from headless-fixes patch
+  - exit/quit intercept preserved
+  - All history filtering updated to strip new noise prefixes
 """
 
 import logging
+import re
 import threading
 from datetime import datetime
 
@@ -30,6 +47,44 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# Vault suggestion patterns — plain English phrases a web AI might use
+# when it wants a vault search but can't issue commands
+# ---------------------------------------------------------------------------
+
+_VAULT_SUGGESTION_PATTERNS = [
+    # "search your vault for X" → vault:search X
+    (re.compile(
+        r"search(?:\s+your)?\s+vault\s+for\s+[\"']?([^\"'\n\.]{3,60})[\"']?",
+        re.IGNORECASE),
+     "vault:search {0}"),
+    # "check your notes on X" → vault:search X
+    (re.compile(
+        r"check(?:\s+your)?\s+(?:notes?|vault)\s+(?:on|about|for)\s+[\"']?([^\"'\n\.]{3,60})[\"']?",
+        re.IGNORECASE),
+     "vault:search {0}"),
+    # "look in your vault for X" → vault:search X
+    (re.compile(
+        r"look(?:\s+in)?\s+(?:your\s+)?(?:vault|notes?)\s+(?:for|about)\s+[\"']?([^\"'\n\.]{3,60})[\"']?",
+        re.IGNORECASE),
+     "vault:search {0}"),
+]
+
+def _extract_vault_suggestions(text: str) -> list[str]:
+    """
+    Convert plain-English vault search suggestions from a web AI response
+    into actual vault: commands the agent loop can execute.
+    """
+    commands = []
+    for pattern, template in _VAULT_SUGGESTION_PATTERNS:
+        for match in pattern.finditer(text):
+            query   = match.group(1).strip().rstrip(".")
+            command = template.format(query)
+            if command not in commands:
+                commands.append(command)
+    return commands
+
+
+# ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------
 
@@ -39,19 +94,20 @@ if _fastapi_available:
         max_tokens:        int   = 2048
         temperature:       float = 0.7
         provider_override: str | None = None
-        active_note_path:  str | None = None
+        active_note_path:  str | None = None   # M8 active note context
 
     class HandoffResponse(BaseModel):
-        status:          str
-        reply:           str
-        provider_used:   str
-        actual_provider: str
-        timestamp:       str
-        prompt_to_copy:  str | None = None
+        status:              str
+        reply:               str
+        provider_used:       str
+        actual_provider:     str
+        timestamp:           str
+        prompt_to_copy:      str | None = None
+        vault_actions_taken: list[str]  = []   # commands executed on handoff return
 
     class HandoffReturnRequest(BaseModel):
         response_text:    str
-        original_message: str | None = None   # the user question that triggered the handoff
+        original_message: str | None = None
 
     class HistoryMessage(BaseModel):
         role:    str
@@ -84,41 +140,37 @@ class AssistantServer:
         history:        list,
         history_lock:   threading.Lock,
         config:         dict,
-        system_prompt:  str            = "",
-        ep_chat_fn                     = None,
-        ep_error_fn                    = None,
-        ep_handoff_fn                  = None,
-        ep_vault_fn                    = None,
-        shutdown_event: threading.Event | None = None,  # T7.5.11
+        system_prompt:  str             = "",
+        ep_chat_fn                      = None,
+        ep_error_fn                     = None,
+        ep_handoff_fn                   = None,
+        ep_vault_fn                     = None,
+        shutdown_event: threading.Event | None = None,
     ):
-        self._router          = router
-        self._memory          = memory
-        self._registry        = registry
-        self._history         = history
-        self._history_lock    = history_lock
-        self._config          = config
-        self._system_prompt   = system_prompt
-        self._ep_chat         = ep_chat_fn
-        self._ep_error        = ep_error_fn
-        self._ep_handoff      = ep_handoff_fn
-        self._ep_vault        = ep_vault_fn
-        self._shutdown_event  = shutdown_event  # T7.5.11
-        self._host            = config.get("host",  "127.0.0.1")
-        self._port            = config.get("port",  8765)
-        self._session_start   = datetime.now().strftime("%Y-%m-%d %H:%M")
-        self._thread          = None
-        self._server          = None
+        self._router         = router
+        self._memory         = memory
+        self._registry       = registry
+        self._history        = history
+        self._history_lock   = history_lock
+        self._config         = config
+        self._system_prompt  = system_prompt
+        self._ep_chat        = ep_chat_fn
+        self._ep_error       = ep_error_fn
+        self._ep_handoff     = ep_handoff_fn
+        self._ep_vault       = ep_vault_fn
+        self._shutdown_event = shutdown_event
+        self._host           = config.get("host",  "127.0.0.1")
+        self._port           = config.get("port",  8765)
+        self._session_start  = datetime.now().strftime("%Y-%m-%d %H:%M")
+        self._thread         = None
+        self._server         = None
         self._provider_override: str | None = None
 
         if not _fastapi_available:
-            logger.warning("[Server] FastAPI/uvicorn not installed — HTTP server disabled.")
+            logger.warning("[Server] FastAPI/uvicorn not installed.")
             return
 
         self._app = self._build_app()
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def start(self) -> None:
         if not _fastapi_available:
@@ -152,16 +204,15 @@ class AssistantServer:
         return _fastapi_available
 
     # ------------------------------------------------------------------
-    # FastAPI app builder
+    # FastAPI app
     # ------------------------------------------------------------------
 
     def _build_app(self) -> "FastAPI":
         app = FastAPI(
             title       = "AI Assistant API",
             description = "Local HTTP bridge for the Obsidian plugin",
-            version     = "2.3.0",
+            version     = "3.0.0",
         )
-
         app.add_middleware(
             CORSMiddleware,
             allow_origins  = ["app://obsidian.md", "capacitor://localhost", "http://localhost"],
@@ -172,11 +223,6 @@ class AssistantServer:
         # ── GET /shutdown ────────────────────────────────────────────────────
         @app.get("/shutdown")
         async def shutdown():
-            """
-            T7.5.11: Trigger a clean shutdown of the assistant service.
-            Sets the shared shutdown_event so run_headless() exits its
-            polling loop and performs a clean episode close.
-            """
             logger.info("[Server] /shutdown requested")
             if self._shutdown_event:
                 self._shutdown_event.set()
@@ -189,32 +235,38 @@ class AssistantServer:
         async def chat(req: ChatRequest):
             from providers.base_provider import ProviderError, ProviderWebUIHandoff
             from agent_loop import AgentContext, run_agent_loop
+            from memory.context_manager import ContextManager
 
             if not req.message.strip():
                 raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
-            # T7.5.11: intercept exit/quit as shutdown commands
+            # Shutdown intercept
             if req.message.strip().lower() in ("exit", "quit", "shutdown"):
-                logger.info(f"[Server] Shutdown command received via /chat: {req.message!r}")
+                logger.info(f"[Server] Shutdown command via /chat: {req.message!r}")
                 if self._shutdown_event:
                     self._shutdown_event.set()
                 self.stop()
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 return HandoffResponse(
-                    status          = "ok",
-                    reply           = "Shutting down the assistant service. Goodbye.",
-                    provider_used   = "system",
-                    actual_provider = "system",
-                    timestamp       = ts,
+                    status="ok", reply="Shutting down. Goodbye.",
+                    provider_used="system", actual_provider="system", timestamp=ts,
                 )
 
             logger.info(f"[Server] /chat — '{req.message[:60]}'")
-
             tools_used: list[str] = []
 
+            # Active note injection (M8)
+            effective_message = req.message
+            if req.active_note_path and self._registry:
+                result = self._registry.run("read_note", req.active_note_path)
+                if result.success:
+                    effective_message = (
+                        f"[Active note: {req.active_note_path}]\n\n"
+                        f"{result.output}\n\n---\n\n{req.message}"
+                    )
+                    logger.info(f"[Server] Active note injected: {req.active_note_path}")
+
             try:
-                # Trim context before agent loop
-                from memory.context_manager import ContextManager
                 ctx_mgr_inst = ContextManager(self._router.registry)
                 if self._router.available_providers:
                     with self._history_lock:
@@ -226,13 +278,13 @@ class AssistantServer:
                         )
 
                 ctx = AgentContext(
-                    user_input        = req.message,
+                    user_input        = effective_message,
                     history           = self._history,
                     history_lock      = self._history_lock,
                     router            = self._router,
                     registry          = self._registry,
                     memory            = self._memory,
-                    ctx_mgr           = None,   # trimmed above
+                    ctx_mgr           = None,
                     system_prompt     = self._system_prompt,
                     max_tokens        = req.max_tokens,
                     temperature       = req.temperature,
@@ -255,12 +307,10 @@ class AssistantServer:
                     )
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 return HandoffResponse(
-                    status          = "handoff_required",
-                    reply           = "Web handoff required — copy the prompt and paste in a web AI.",
-                    provider_used   = "webui",
-                    actual_provider = "webui",
-                    timestamp       = ts,
-                    prompt_to_copy  = handoff.packaged_prompt,
+                    status="handoff_required",
+                    reply="Web handoff required — copy the prompt below.",
+                    provider_used="webui", actual_provider="webui", timestamp=ts,
+                    prompt_to_copy=handoff.packaged_prompt,
                 )
 
             except ProviderError as exc:
@@ -280,17 +330,24 @@ class AssistantServer:
 
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             return HandoffResponse(
-                status          = "ok",
-                reply           = reply,
-                provider_used   = used_provider,
-                actual_provider = used_provider,
-                timestamp       = ts,
-                prompt_to_copy  = None,
+                status="ok", reply=reply,
+                provider_used=used_provider, actual_provider=used_provider, timestamp=ts,
             )
 
         # ── POST /chat/handoff-return ───────────────────────────────────────
         @app.post("/chat/handoff-return", response_model=HandoffResponse)
         async def handoff_return(req: HandoffReturnRequest):
+            """
+            Process a web AI response pasted back by the user.
+
+            New behaviour: scan the response for plain-English vault search
+            suggestions. Convert them to vault commands and execute them via
+            the registry. Append results to the response before storing.
+
+            This makes the handoff a research loop — the web AI says
+            "you may want to search for X", the system does it automatically,
+            and the enriched result is ready to send back to the web AI.
+            """
             from providers.base_provider import Message
 
             if not req.response_text.strip():
@@ -298,30 +355,56 @@ class AssistantServer:
 
             logger.info(f"[Server] /chat/handoff-return — {len(req.response_text)} chars")
 
-            with self._history_lock:
-                self._history.append(Message(role="assistant", content=req.response_text))
+            response_text    = req.response_text
+            vault_actions    = []
 
+            # Check for plain-English vault suggestions and execute them
+            if self._registry:
+                suggestions = _extract_vault_suggestions(req.response_text)
+                if suggestions:
+                    logger.info(f"[Server] Found {len(suggestions)} vault suggestion(s) in handoff return")
+                    results_block = "\n\n---\n**Vault search results (executed automatically):**\n\n"
+                    for cmd in suggestions:
+                        parts     = cmd.split(None, 1)
+                        tool_name_map = {
+                            "vault:search": "search_vault",
+                            "vault:read":   "read_note",
+                            "vault:list":   "list_vault",
+                        }
+                        tool_name = tool_name_map.get(parts[0].lower())
+                        if tool_name and len(parts) > 1:
+                            result = self._registry.run(tool_name, parts[1].strip())
+                            status = "✓" if result.success else "✗"
+                            results_block += f"**{cmd}** {status}\n\n{result.output}\n\n"
+                            vault_actions.append(cmd)
+                            logger.info(f"[Server] Executed vault suggestion: {cmd}")
+                            if self._ep_vault and self._memory:
+                                self._memory.append_episode(
+                                    self._ep_vault(parts[0], parts[1] + " [handoff-suggestion]")
+                                )
+
+                    response_text = response_text + results_block
+
+            # Store the enriched response in history
+            with self._history_lock:
+                self._history.append(Message(role="assistant", content=response_text))
+
+            # Episode logging — both the handoff marker and the chat entry
             if self._memory and self._ep_handoff:
                 self._memory.append_episode(
                     self._ep_handoff("returned", f"{len(req.response_text)} chars from plugin")
                 )
-
-            # Write the full exchange to the episode log so the response
-            # is actually readable in the episode file, not just the 🌐 markers.
             if self._memory and self._ep_chat:
                 original = req.original_message or "[web handoff — original question not recorded]"
                 self._memory.append_episode(
-                    self._ep_chat(f"[plugin] {original}", req.response_text, provider="web")
+                    self._ep_chat(f"[plugin] {original}", response_text, provider="web")
                 )
 
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             return HandoffResponse(
-                status          = "ok",
-                reply           = req.response_text,
-                provider_used   = "webui",
-                actual_provider = "webui",
-                timestamp       = ts,
-                prompt_to_copy  = None,
+                status="ok", reply=response_text,
+                provider_used="webui", actual_provider="webui", timestamp=ts,
+                vault_actions_taken=vault_actions,
             )
 
         # ── GET /status ─────────────────────────────────────────────────────
@@ -329,12 +412,12 @@ class AssistantServer:
         async def status():
             avail = self._router.available_providers
             return StatusResponse(
-                online            = True,
-                providers         = self._router.status(),
-                active_provider   = avail[0] if avail else None,
-                provider_override = self._provider_override,
-                session_started   = self._session_start,
-                message_count     = len(self._history),
+                online=True,
+                providers=self._router.status(),
+                active_provider=avail[0] if avail else None,
+                provider_override=self._provider_override,
+                session_started=self._session_start,
+                message_count=len(self._history),
             )
 
         # ── GET /history ────────────────────────────────────────────────────
@@ -352,6 +435,7 @@ class AssistantServer:
                 "[Tool result for",
                 "[SYSTEM HINT]",
                 "[Blocked:",
+                "[Active note:",
             )
             skip_exact = {
                 "[Trimmed]",

@@ -94,7 +94,8 @@ class MemoryManager:
     PROJECTS_DIR       = "AI/Memory/Projects"
     EPISODES_DIR       = "AI/Memory/Episodes"
     SYSTEM_DIR         = "AI/System"
-    SYSTEM_PROMPT_FILE = "AI/System/System-Prompt.md"   # ← new
+    SYSTEM_PROMPT_FILE = "AI/System/System-Prompt.md"
+    WEBUI_PROMPT_FILE = "AI/System/WebUI-Prompt.md"
 
     def __init__(self, vault_path: str):
         self._vault    = Path(vault_path)
@@ -197,6 +198,58 @@ class MemoryManager:
         except Exception as exc:
             logger.warning(f"[Memory] Could not read System-Prompt.md: {exc} — using default")
             return DEFAULT_SYSTEM_PROMPT
+
+    def seed_webui_prompt(self) -> None:
+        """
+        Write the default WebUI-Prompt.md to the vault if it doesn't
+        exist. Called once at startup so the user can find and edit it
+        in Obsidian. The file is the partner instructions sent to web
+        AIs during handoff — no vault command syntax should be in it.
+        """
+        prompt_path = self._vault / self.WEBUI_PROMPT_FILE
+        if prompt_path.exists():
+            return
+
+        default_content = '''# AI Assistant — Web AI Partner Prompt
+
+*This file is loaded by the assistant when packaging a conversation for a web AI.*
+*Edit this file in Obsidian to change how web AI partners behave.*
+*Do NOT add vault: command instructions — web AIs cannot execute them.*
+
+---
+
+You are a research and thinking partner continuing an AI assistant session on behalf of a user.
+
+The user has a local knowledge management system (Obsidian vault) that you cannot access directly. They will provide relevant context when available. Your job is to think, reason, and answer using the context provided plus your own knowledge.
+
+## How to respond
+
+Answer the question directly and clearly. Be specific, not generic.
+
+If your answer would be significantly improved by information likely in the user\\'s personal notes, say so explicitly at the end — for example:
+
+> "Note: this answer would be more specific if you searched your vault for [topic]."
+
+Do not emit commands. Just note what information would help, in plain English.
+
+## What you know about the user
+
+The USER CONTEXT section of this prompt contains information about the user, their projects, and their preferences. Use this to personalise your answers.
+
+## Format
+
+Use clear headings and bullet points when the answer is complex. Keep responses concise. Avoid unnecessary preamble.
+
+## Tone
+
+Practical and direct. This user is technically capable and values precision.
+'''
+        try:
+            prompt_path.write_text(default_content, encoding="utf-8")
+            logger.info("[Memory] Seeded WebUI-Prompt.md")
+        except Exception as exc:
+            logger.warning(f"[Memory] Could not seed WebUI-Prompt.md: {exc}")
+
 
     # ------------------------------------------------------------------
     # Context for system prompt injection

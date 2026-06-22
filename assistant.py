@@ -26,6 +26,7 @@ import logging
 import re
 from datetime import datetime as _dt
 from pathlib import Path
+from turtle import mode
 
 logger = logging.getLogger("assistant")
 
@@ -271,7 +272,15 @@ def _collect_handoff_response() -> str | None:
 # ---------------------------------------------------------------------------
 
 def _is_headless() -> bool:
-    """True when there is no interactive terminal (e.g. systemd service)."""
+    """
+    Headless is now the DEFAULT when no terminal flag is given.
+    Pass --terminal to force the interactive chat loop.
+    The --headless flag is kept for explicitness but is no longer
+    needed — any non-TTY environment (systemd, background process)
+    also runs headless.
+    """
+    if "--terminal" in sys.argv:
+        return False
     if "--headless" in sys.argv:
         return True
     try:
@@ -332,7 +341,10 @@ def run_headless(
 def main() -> None:
     config = ConfigManager()
     logger = setup_logger(config.get("log_level", "INFO"), verbose=False)
-    logger.info("Assistant starting — Milestone 7.5 (Hardening)")
+    logger.info("Assistant starting — Milestone 8")
+    headless = _is_headless()
+    mode = "headless" if headless else "terminal"
+    logger.info(f"Mode: {mode}")  
 
     router = ProviderRouter(config.all())
 
@@ -353,6 +365,7 @@ def main() -> None:
     system_prompt  = build_system_prompt(base_prompt, memory_context)
 
     if memory:
+        memory.seed_webui_prompt() # Seed WebUI-Prompt.md if it doesn't exist
         memory.open_episode()
 
     run_startup_diagnostics(config, router, registry, memory, logger)
@@ -423,7 +436,10 @@ def main() -> None:
         return
 
     # ── Print help ─────────────────────────────────────────────────────────
-    print("Type your message and press Enter.")
+    print("Terminal mode active.")
+    print("Use --terminal to force terminal mode, or run without a TTY for headless/service mode.")
+    print("To force headless/service mode: python assistant.py --headless")
+    print()
     print("Vault read   : vault:read | vault:search | vault:list | vault:links")
     print("Vault write  : vault:create | vault:update")
     print("Research     : vault:research | vault:import | vault:summarise")
