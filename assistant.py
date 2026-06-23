@@ -26,7 +26,6 @@ import logging
 import re
 from datetime import datetime as _dt
 from pathlib import Path
-from turtle import mode
 
 logger = logging.getLogger("assistant")
 
