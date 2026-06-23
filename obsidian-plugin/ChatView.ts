@@ -392,36 +392,46 @@ export class ChatView extends ItemView {
         const { host, port } = this.plugin.settings;
         try {
             const resp = await fetch(`http://${host}:${port}/chat/handoff-return`, {
-                method:  "POST",
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({
-                    response_text:    pastedText,
+                body: JSON.stringify({
+                    response_text: pastedText,
                     original_message: this.pendingHandoffUserMessage || undefined,
                 }),
-                signal:  AbortSignal.timeout(10000),
+                signal: AbortSignal.timeout(10000),
             });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-            this.chatMode                  = "normal";
-            this.pendingHandoffUserMessage = "";
-            this.containerEl.setAttribute("data-chat-mode", "normal");
-            this.updateSendButton();
-            this.updateInputPlaceholder();
+            if (!resp.ok) {
+                let detail = `HTTP ${resp.status}`;
+                try {
+                    const errData = await resp.json();
+                    if (errData?.detail) detail = errData.detail;
+                } catch {
+                    // ignore JSON parse failure for error body
+                }
+                throw new Error(detail);
+            }
 
-            // Show the enriched response (may include vault search results)
+            const data: HandoffResponse = await resp.json();
+
+            // Render first, then reset mode
             await this.appendMessage("assistant", data.reply);
 
-            // If the system auto-executed vault suggestions, show a notice
             if (data.vault_actions_taken && data.vault_actions_taken.length > 0) {
                 const actionsEl = this.messagesEl.createDiv("ai-assistant-vault-actions");
                 actionsEl.createEl("span", {
                     text: `⚡ Auto-executed: ${data.vault_actions_taken.join(", ")}`,
-                    cls:  "ai-assistant-vault-action-notice",
+                    cls: "ai-assistant-vault-action-notice",
                 });
             }
 
+            this.chatMode = "normal";
+            this.pendingHandoffUserMessage = "";
+            this.containerEl.setAttribute("data-chat-mode", "normal");
+            this.updateSendButton();
+            this.updateInputPlaceholder();
             this.statusEl.setText("✓ Web handoff complete — vault searches executed automatically");
-            
+
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             await this.appendErrorMessage(`Handoff return failed: ${msg}`);
