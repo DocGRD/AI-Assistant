@@ -1,322 +1,94 @@
-# AI Assistant — Zero-Cost AI Operating System for Obsidian
+# Zero-Cost AI Operating System for Obsidian
 
-A Python service that acts as an AI brain for an Obsidian vault. It reads and writes notes autonomously, maintains persistent memory as Markdown, routes requests across multiple free-tier AI providers, exposes a local HTTP API, and is accessible from a sidebar plugin in Obsidian — or from any device via Obsidian Sync.
+A Python service that gives Obsidian an autonomous AI brain — one that reads and writes your
+vault, keeps its memory as Markdown, and routes every request across **free-tier** AI providers
+only. It runs headless in the background; you interact through the Obsidian sidebar plugin or by
+tagging a note for the vault watcher. The terminal exists only for debugging.
 
-**Hard constraint: zero spend on AI services at any point in the project.**
-
----
-
-## Current Status — Milestone 8 Complete
-
-| Milestone | Status | Description |
-|-----------|--------|-------------|
-| 1 — Foundation | ✅ | Startup, config, logging, command loop |
-| 1.5 — Config System | ✅ | `settings.json` validation, startup diagnostics |
-| 2 — AI Provider Layer | ✅ | Groq + Google adapters, router, fallback |
-| 3 — Vault Access Layer | ✅ | 4 read tools, tool registry, `vault:` commands |
-| 3 patch — Verbose Toggle | ✅ | Clean console by default, `verbose on/off` |
-| 4 — Router + Memory | ✅ | Token-aware routing, Markdown memory, context trimming |
-| 4 patch — Crash-safe Episodes | ✅ | Open/append/close pattern — crash loses nothing |
-| 5 — Research Workflow | ✅ | `vault:research`, `vault:import`, `vault:summarise` |
-| 5.5 — Vault Watcher | ✅ | Frontmatter-triggered async requests, content chunker |
-| 6 — Obsidian Plugin | ✅ | FastAPI server, TypeScript sidebar, vault-mode fallback |
-| 7 — Web Handoff + Provider Override | ✅ | Virtual WebUI provider, context packaging, provider switcher |
-| 7.5 — Hardening | ✅ | Agent loop, headless mode, 8 bug fixes, systemd service |
-| 8 — Three-Prompt Architecture | ✅ | WebUI-Prompt.md, vault suggestion execution, headless default |
-| **9 — Context-Aware Plugin + In-Place Editing** | 🔜 | Active note injection, text selection context, quick-actions, vault:replace |
-| **10 — Provider Registry + Free Endpoint Tracker** | 🔜 | Live provider registry in vault, NVIDIA NIM, auto-update workflow |
-| 11 — Project Awareness | 🔜 | Auto-load project memory from note context |
-| 11.5 — Automated Testing | 🔜 | Self-testing agent, vault:shell whitelist, test runner |
-| 12 — Muscle Memory | 🔜 | Repeated tasks become zero-API local scripts |
-| 13 — Advanced Memory | 🔜 | Procedural memory, archive, consolidation |
+> **Status:** Milestones 1–8 complete and tested. Milestone 9 (context-aware plugin + in-place
+> editing) and Milestone 10 (provider registry + free-endpoint tracker) are in progress.
+> M10 is the current focus.
 
 ---
 
-## Quick Start
+## What it does today
 
-### Prerequisites
+- **Headless by default.** Starts a vault watcher + local HTTP API with no terminal. `--terminal` for interactive debugging.
+- **Reads and writes the vault autonomously** through a shared agent loop (`MAX_STEPS = 10`) used by all three entry points (terminal, HTTP server, watcher).
+- **Memory as Markdown.** System prompt, web-AI prompt, user profile, learned facts, per-project notes, and crash-safe daily episode logs all live in `AI/` as plain notes.
+- **Multi-provider routing across free tiers** (Groq, Google AI Studio), with a Universal Web Handoff that packages a clean prompt for any web AI (ChatGPT / Claude / Gemini) and integrates the response back into the vault.
+- **Three separate prompts**, never mixed: system prompt (vault tools), web-AI partner prompt (no vault syntax), and memory context.
 
-- Python 3.13+
-- Node.js 18+ (for building the Obsidian plugin — one-time)
-- An [Obsidian](https://obsidian.md) vault
-- A free [Groq API key](https://console.groq.com) and/or [Google AI Studio key](https://aistudio.google.com/app/apikey)
+## Interfaces
 
-### Installation
+- **Plugin sidebar** (primary): chat live against the background service over HTTP, with a vault-file fallback (Vault mode) that routes through the watcher.
+- **Vault watcher** (primary): set `assistant-status: pending` + `assistant-request: <question>` on any note; the watcher processes it and writes back.
+- **Terminal** (debug only): `python assistant.py --terminal`.
 
-```bash
-git clone <repo-url> assistant-core
-cd assistant-core
-pip install -r requirements.txt
-```
-
-### Configuration
-
-Edit `config/settings.json`:
-
-```json
-{
-  "vault_path": "/path/to/your/obsidian/vault",
-  "default_provider": "groq",
-  "fallback_provider": "google",
-  "groq_api_key": "gsk_...",
-  "google_api_key": "AIza...",
-  "groq_model": "llama-3.3-70b-versatile",
-  "google_model": "gemini-2.5-flash",
-  "max_tokens": 2048,
-  "temperature": 0.7,
-  "host": "127.0.0.1",
-  "port": 8765,
-  "watcher_poll_interval": 5
-}
-```
-
-### Running
+## Run it
 
 ```bash
-# Headless (default) — watcher + HTTP server, no terminal
+# Headless (same as production)
 python assistant.py
 
-# Terminal mode — interactive chat for debugging
+# Interactive terminal (debugging)
 python assistant.py --terminal
-```
 
-Three threads start: the vault watcher (background), the HTTP API server (background), and either the chat loop (terminal mode) or a clean blocking wait (headless).
-
----
-
-## Features
-
-### Vault Commands
-
-| Command | What it does |
-|---------|-------------|
-| `vault:read <name or path>` | Read a note and inject it into AI context |
-| `vault:search <query>` | Full-text search all notes |
-| `vault:list [subfolder]` | Browse the vault folder tree |
-| `vault:links <name>` | Read a note and all its `[[wikilinked]]` notes |
-| `vault:create <path>\n<content>` | Write a new note |
-| `vault:update <path>\n<content>` | Append content to an existing note |
-| `vault:research <question>` | Generate an optimised prompt for external AI |
-| `vault:import` | Paste external AI response into vault as structured research note |
-| `vault:summarise <path>` | Load a research note into context; assistant summarises it |
-
-### Memory Commands (terminal mode)
-
-| Command | What it does |
-|---------|-------------|
-| `remember: <fact>` | Save a fact to `AI/Memory/Facts/Learned-Facts.md` |
-| `context` | Show current token usage estimate |
-| `models` | Show model capabilities and session error log |
-| `status` | Show provider health, verbose state, HTTP API URL |
-| `verbose on / off` | Toggle console log output |
-| `clear` | Wipe conversation history (episode log unaffected) |
-| `/use groq \| google \| webui \| auto` | Override provider for this session |
-| `exit` | Write session footer, stop watcher and HTTP server |
-
-### Three-Prompt Architecture
-
-The system uses three strictly separate prompts — they are never merged:
-
-1. **`AI/System/System-Prompt.md`** — loaded at startup. Contains vault tool instructions and agent loop rules. Used by terminal, plugin, and watcher. Edit in Obsidian to change assistant behaviour.
-2. **`AI/System/WebUI-Prompt.md`** — loaded when packaging a web handoff. Contains instructions for the web AI research partner. No vault command syntax — tells the web AI to suggest searches in plain English.
-3. **Memory context** (`User-Profile.md` + `Learned-Facts.md`) — appended to prompt 1 at startup.
-
-### Vault Watcher — Async Requests from Any Device
-
-Add this frontmatter to any Obsidian note:
-
-```yaml
----
-assistant-status: pending
-assistant-request: Summarize this note and extract action items
----
-```
-
-The watcher detects it, processes it using the note content as context, and writes back:
-
-```yaml
----
-assistant-status: done
-assistant-responded: 2026-06-09 14:32
----
-
-## Assistant Response
-[Generated response here]
-```
-
-Works across devices via Obsidian Sync — no open ports required.
-
-### Universal Web Handoff
-
-When all API providers are exhausted (or you select Web UI mode in the plugin), the system packages your full conversation context into a clean prompt ready to paste into any web AI (ChatGPT, Claude, Gemini, DeepSeek). When you paste the response back, the system automatically detects any vault search suggestions the web AI made and executes them — turning the handoff into a genuine research loop.
-
-### Obsidian Plugin
-
-Click the robot icon in the left ribbon to open the chat sidebar.
-
-- **Live mode** (green badge): direct connection to the Python service — instant replies, shared session history
-- **Vault mode** (orange badge): service offline or different device — writes a request note to `AI/Chat/`, polls every 3 seconds for the watcher's response. Works from your phone.
-- **Provider toggle**: Auto / Groq / Gemini / Web UI — select per message
-- **Web handoff**: copy prompt → paste into any web AI → paste response back → vault searches execute automatically
-
----
-
-## Architecture
-
-```
-assistant-core/
-│
-├── assistant.py              Entry point: headless default, watcher thread, HTTP thread,
-│                             terminal fallback (--terminal)
-├── server.py                 FastAPI: POST /chat, GET /status, GET /history,
-│                             POST /chat/handoff-return, GET /shutdown
-├── agent_loop.py             Shared agent loop (terminal + HTTP + watcher).
-│                             MAX_STEPS=10. Self-correcting tool hints.
-│
-├── config/
-│   ├── config_manager.py     Loads settings.json
-│   └── logger.py             Daily rotating logs (TimedRotatingFileHandler, 7 days)
-│
-├── providers/
-│   ├── base_provider.py      BaseProvider, Message, exceptions
-│   │                         ProviderWebUIHandoff is a sibling to ProviderError, not a subclass
-│   ├── groq_provider.py      Groq SDK adapter
-│   ├── google_provider.py    google-genai SDK adapter
-│   ├── webui_provider.py     Virtual provider — loads WebUI-Prompt.md, raises ProviderWebUIHandoff
-│   ├── provider_router.py    Token-aware routing, fallback, tuple[str,str] return
-│   └── model_registry.py     ModelSpec, SessionErrorLog, token estimator
-│
-├── memory/
-│   ├── memory_manager.py     System prompt from vault, crash-safe episodes,
-│   │                         seeds WebUI-Prompt.md on first run
-│   └── context_manager.py    Trims history to fit provider limits
-│
-├── tools/
-│   ├── base_tool.py          BaseTool, ToolResult
-│   ├── tool_registry.py      Central dispatcher
-│   ├── read_note.py
-│   ├── search_vault.py
-│   ├── list_vault.py
-│   ├── get_linked_notes.py
-│   ├── create_note.py        Path normalisation, suspicious-path warning
-│   ├── update_note.py        Path normalisation
-│   ├── research_prompt.py
-│   ├── import_research.py
-│   └── summarise_research.py
-│
-├── watcher/
-│   ├── vault_watcher.py      Polling loop, handles pending + handoff-pending
-│   ├── request_handler.py    Agent loop for watcher — vault commands execute autonomously
-│   ├── frontmatter_parser.py Read/write YAML frontmatter
-│   └── content_chunker.py    Split large notes for chunked processing
-│
-└── obsidian-plugin/
-    ├── manifest.json
-    ├── main.ts               Plugin entry: sidebar, ribbon, settings
-    ├── ChatView.ts           Chat UI: HTTP mode, vault-file fallback, web handoff,
-    │                         provider toggle, focus retention, vault_actions display
-    └── styles.css
-```
-
----
-
-## AI Providers
-
-| Provider | Model | Context | Free TPM | Free RPD |
-|----------|-------|---------|----------|----------|
-| Groq | `llama-3.3-70b-versatile` | 128k | 6,000 | 14,400 |
-| Google | `gemini-2.5-flash` | 1M | 250,000 | 20 |
-| WebUI | user-mediated | ∞ | ∞ | ∞ |
-
-The router estimates token count before every request. Requests too large for Groq's 6k TPM limit are automatically routed to Google. Rate-limit hits are recorded and that provider is avoided for 65 seconds before retry.
-
----
-
-## Vault Memory Layout
-
-```
-AI/
-├── Memory/
-│   ├── User-Profile.md          Loaded at every startup into the system prompt
-│   ├── Facts/Learned-Facts.md   Appended by 'remember: <fact>'
-│   ├── Projects/<name>.md       Per-project accumulated knowledge
-│   └── Episodes/YYYY-MM-DD.md  Session log — written live, crash-safe
-├── Chat/
-│   └── chat-<timestamp>.md      Vault-mode plugin messages (watcher processes these)
-├── Research/
-│   └── YYYY-MM-DD-<slug>.md     Research notes from vault:import
-└── System/
-    ├── Project-State.md         Full architecture and forward plan
-    ├── System-Prompt.md         Live system prompt — edit in Obsidian to change behaviour
-    ├── WebUI-Prompt.md          Web AI partner instructions — edit in Obsidian
-    └── watcher.service          systemd unit file for Linux production
-```
-
----
-
-## Building the Obsidian Plugin
-
-```bash
-cd obsidian-plugin
-npm install
-npm run build          # produces main.js
-```
-
-Copy `main.js`, `manifest.json`, `styles.css` to `.obsidian/plugins/ai-assistant/` in your vault. Enable in Obsidian → Settings → Community plugins.
-
----
-
-## Linux Production (systemd)
-
-A `systemd` unit file is at `AI/System/watcher.service` in your vault (and `watcher.service` in the repo root).
-
-```bash
-sudo cp watcher.service /etc/systemd/system/ai-assistant.service
-# Edit the paths inside the file first
-sudo systemctl daemon-reload
-sudo systemctl enable --now ai-assistant
-sudo systemctl status ai-assistant
-```
-
-The service runs headless by default — no `--headless` flag needed. To stop cleanly:
-
-```bash
+# Shutdown (from anywhere)
 curl http://127.0.0.1:8765/shutdown
-# or
-sudo systemctl stop ai-assistant
+# or, under systemd:
+sudo systemctl restart ai-assistant
 ```
+
+Deployment: Windows for development, Linux (systemd) for production. Obsidian Sync keeps the vault
+identical on both machines and is what carries note edits made on any device to the Linux box where
+the watcher runs.
 
 ---
 
-## Extending the System
+## Architecture (high level)
 
-### Adding a Tool
+```
+assistant.py        entry point — headless default, threads: watcher + HTTP server
+agent_loop.py       shared agent loop (terminal, server, watcher); MAX_STEPS=10
+providers/          base_provider, provider_router, model_registry,
+                    + generic OpenAI-compatible adapter (M10),
+                    + registry_loader (M10), webui_provider (web handoff)
+memory/             memory_manager (prompts + episodes), context_manager (trimming)
+tools/              read / search / list / links / create / update / research / summarise
+                    + replace_note (M9), provider_tracker (M10)
+watcher/            vault_watcher, request_handler (uses agent loop), frontmatter_parser
+obsidian-plugin/    main.ts, ChatView.ts (HTTP + vault fallback, handoff, M9 context features)
+```
 
-1. Create `tools/my_tool.py` — subclass `BaseTool`, implement `name`, `description`, `run()`
-2. Add one import + one line to `_build_tools()` in `tools/tool_registry.py`
-3. Optionally add a `vault:mycommand` entry to `VAULT_COMMANDS` in `agent_loop.py` and `assistant.py`
+Vault system files live under `AI/System/`:
 
-### Adding a Provider
-
-1. Create `providers/my_provider.py` — subclass `BaseProvider`, implement `name`, `generate()`
-2. Add to `_PROVIDER_CLASSES` in `providers/provider_router.py`
-3. Add a `ModelSpec` in `providers/model_registry.py`
-4. Add the API key field to `config/settings.json`
-
-Full interface contracts and the forward plan: `AI/System/Project-State.md` in your vault.
+- `Project-State.md` — the canonical project plan and interface contracts.
+- `System-Prompt.md` — live system prompt (editable in Obsidian).
+- `WebUI-Prompt.md` — web-AI partner prompt (editable in Obsidian).
+- `Provider-Registry.md` — live list of free-tier endpoints (M10).
 
 ---
 
-## Requirements
+## Standing design principles
 
-```
-groq
-google-genai
-fastapi
-uvicorn[standard]
-python-dotenv
-```
+- **Zero cost.** Free tiers only; the router enforces it.
+- **Obsidian is the knowledge base.** Nothing important lives in binary files or databases.
+- **Python for the brain, TypeScript for the face.** They talk over HTTP only.
+- **Tools produce real results, not claimed ones.** Tool output is injected back into context before the final reply.
+- **Privacy is a routing input (M10).** Notes flagged `private` are sent only to providers that do not train on or log prompts.
+- **Adding a provider is a Markdown edit (M10).** One generic OpenAI-compatible adapter is driven by rows in `Provider-Registry.md`.
 
-Install: `pip install -r requirements.txt`
+---
 
-> Do **not** install `google-generativeai` — it is deprecated. The correct package is `google-genai`.
+## What's next
+
+- **M9 — Context-aware plugin + in-place editing.** Active-note injection, selection context, and a
+  *propose/commit* edit model: the agent only ever proposes a change (target region + replacement
+  text); the plugin shows it in an interactive dialog where you approve or keep editing. Nothing is
+  overwritten autonomously. Sub-note granularity (word / paragraph / whole-note) lives in the plugin,
+  which owns the editor offsets; the watcher path stays whole-note.
+- **M10 — Provider registry + free-endpoint tracker.** A live `Provider-Registry.md`, a generic
+  OpenAI-compatible provider driven by it, a tracker that proposes updates from a known machine-readable
+  source (web-AI handoff as fallback), and task- and privacy-aware routing with a ≥3-healthy-provider floor.
+- Later: project awareness, self-testing agent (`vault:shell` whitelist + test runner), local "muscle-memory" scripts.
