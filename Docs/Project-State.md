@@ -242,8 +242,9 @@ assistant-core/
 └── obsidian-plugin/
     ├── manifest.json, main.ts
     ├── ChatView.ts         HTTP mode, vault fallback, web handoff mode,
-    │                       provider toggle, focus retention,
-    │                       vault_actions_taken display (M8),
+    │                       [M10] registry-driven provider dropdown (from /status)
+    │                       + 🔒 Private toggle + WebUI opt-in on private exhaustion,
+    │                       focus retention, vault_actions_taken display (M8),
     │                       [M9] active note injection, text selection context,
     │                       [M9] quick-action toolbar, in-place note editing
     └── styles.css
@@ -331,7 +332,8 @@ is why the registry exists). `trains_on_data = no` rows are the only ones eligib
 | google | `gemini-2.5-flash` | 1M | 250,000 | ~1,500 | yes | active (default, non-private) |
 | groq | `llama-3.3-70b-versatile` | 128k | 12,000 | ~1,000 | no | active |
 | groq:llama-3.1-8b-instant | `llama-3.1-8b-instant` | 131k | 6,000 | ~14,400 | no | active (high-volume fallback) |
-| cerebras | `llama-3.3-70b` | 128k | ? | ? (~1M tok/day) | no | active |
+| cerebras | `gpt-oss-120b` | 64k | 30,000 | 2,400 (~1M tok/day) | no | active |
+| cerebras:zai-glm-4.7 | `zai-glm-4.7` | 64k | 30,000 | 2,400 | no | candidate (preview) |
 | nvidia | `nvidia/llama-3.3-70b-instruct` | 128k | 40,000 | ? | logs | candidate (not routed) |
 | openrouter | `…llama-3.3-70b-instruct:free` | 128k | ? | ~200 | varies | candidate (not routed) |
 | webui | user-mediated | ∞ | ∞ | ∞ | — | always-available fallback |

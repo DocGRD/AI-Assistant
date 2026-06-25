@@ -25,7 +25,7 @@ tagging a note for the vault watcher. The terminal exists only for debugging.
 
 ## Interfaces
 
-- **Plugin sidebar** (primary): chat live against the background service over HTTP, with a vault-file fallback (Vault mode) that routes through the watcher.
+- **Plugin sidebar** (primary): chat live against the background service over HTTP, with a vault-file fallback (Vault mode) that routes through the watcher. Its **provider dropdown is registry-driven** (populated from the service's `/status`, so new `Provider-Registry.md` rows appear automatically) and it has a **🔒 Private** toggle for privacy routing.
 - **Vault watcher** (primary): set `assistant-status: pending` + `assistant-request: <question>` on any note; the watcher processes it and writes back.
 - **Terminal** (debug only): `python assistant.py --terminal`.
 

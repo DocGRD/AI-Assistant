@@ -7,7 +7,9 @@ export const CHAT_VIEW_TYPE = "ai-assistant-chat";
 // Types
 // ---------------------------------------------------------------------------
 type ChatMode      = "normal" | "handoff-awaiting-response";
-type ProviderChoice = "auto" | "groq" | "google" | "webui";
+// Provider keys are no longer a fixed union — the dropdown is populated from the
+// service's /status endpoint, which is itself driven by Provider-Registry.md.
+// "auto" means smart routing (no override).
 
 interface HandoffResponse {
     status:               "ok" | "handoff_required";
@@ -45,9 +47,28 @@ export class ChatView extends ItemView {
 
     private isLoading    = false;
     private chatMode:    ChatMode       = "normal";
-    private selectedProvider: ProviderChoice = "auto";
+    private selectedProvider            = "auto";
+    // Registry-driven list, refreshed from /status. Fallback used while offline.
+    private availableProviders: string[] = ["auto", "groq", "google", "cerebras", "webui"];
     private pendingHandoffUserMessage   = "";
     private serviceOnline               = false;
+
+    // Display names for known provider keys. Unknown keys (new registry rows) are
+    // shown capitalised, so a new provider appears automatically with no code change.
+    private static readonly PROVIDER_LABELS: Record<string, string> = {
+        auto: "Auto (smart routing)",
+        groq: "Groq",
+        google: "Gemini",
+        cerebras: "Cerebras",
+        nvidia: "NVIDIA",
+        openrouter: "OpenRouter",
+        webui: "Web UI (handoff)",
+    };
+    // M10 — privacy routing. When private, the service routes only to providers
+    // that do not train on data, and will not hand off to a web AI unless the
+    // user opts in (allowWebuiOnPrivate).
+    private isPrivate            = false;
+    private allowWebuiOnPrivate  = false;
 
     constructor(leaf: WorkspaceLeaf, plugin: AIAssistantPlugin) {
         super(leaf);
@@ -81,7 +102,7 @@ export class ChatView extends ItemView {
         this.modeEl = header.createEl("span", { cls: "ai-assistant-mode" });
 
         this.providerEl = container.createDiv("ai-assistant-provider-bar");
-        this.buildProviderToggle();
+        this.buildProviderBar();
 
         this.statusEl = container.createDiv("ai-assistant-status");
         this.statusEl.setText("Connecting...");
@@ -117,26 +138,74 @@ export class ChatView extends ItemView {
         refreshBtn.addEventListener("click", () => this.loadStatus());
     }
 
-    private buildProviderToggle(): void {
+    /** Human label for a provider key. Composite keys ("groq:model") show "Groq · model". */
+    private providerLabel(key: string): string {
+        if (ChatView.PROVIDER_LABELS[key]) return ChatView.PROVIDER_LABELS[key];
+        if (key.includes(":")) {
+            const [p, model] = key.split(":");
+            const base = (ChatView.PROVIDER_LABELS[p] ?? this.capitalise(p)).replace(/ \(.*\)$/, "");
+            return `${base} · ${model}`;
+        }
+        return this.capitalise(key);
+    }
+
+    private capitalise(s: string): string {
+        return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    }
+
+    /**
+     * Provider selector (registry-driven) + privacy toggle.
+     * The dropdown options come from `availableProviders`, which `loadStatus()`
+     * refreshes from the service's /status endpoint (driven by Provider-Registry.md).
+     * Adding a provider row therefore makes it appear here with no plugin edit.
+     */
+    private buildProviderBar(): void {
         this.providerEl.empty();
-        const providers: ProviderChoice[] = ["auto", "groq", "google", "webui"];
-        const labels: Record<ProviderChoice, string> = {
-            auto: "Auto", groq: "Groq", google: "Gemini", webui: "Web UI",
-        };
-        providers.forEach(p => {
-            const btn = this.providerEl.createEl("button", {
-                text: labels[p],
-                cls:  `ai-assistant-provider-btn${p === this.selectedProvider ? " active" : ""}`,
-                attr: { "data-provider": p },
-            });
-            btn.addEventListener("click", () => {
-                this.selectedProvider = p;
-                this.buildProviderToggle();
-                this.updateInputPlaceholder();
-                // BUG-005: keep focus after clicking a provider button
-                this.focusInput();
-            });
+
+        this.providerEl.createEl("span", { text: "Provider", cls: "ai-assistant-provider-label" });
+
+        const select = this.providerEl.createEl("select", { cls: "ai-assistant-provider-select" });
+        for (const key of this.availableProviders) {
+            const opt = select.createEl("option", { text: this.providerLabel(key), value: key });
+            if (key === this.selectedProvider) opt.selected = true;
+        }
+        select.addEventListener("change", () => {
+            this.selectedProvider = select.value;
+            this.updateInputPlaceholder();
+            this.focusInput();
         });
+
+        // M10 — privacy toggle. Routes only to providers that don't train on data
+        // (excludes Gemini) and blocks the web handoff unless the user opts in.
+        const privBtn = this.providerEl.createEl("button", {
+            text: this.isPrivate ? "🔒 Private" : "🔓 Private",
+            cls:  `ai-assistant-provider-btn ai-assistant-private-btn${this.isPrivate ? " active" : ""}`,
+            attr: {
+                "data-private": String(this.isPrivate),
+                title: "Private: route only to providers that do not train on your data " +
+                       "(no Gemini); no web handoff unless you allow it.",
+            },
+        });
+        privBtn.addEventListener("click", () => {
+            this.isPrivate = !this.isPrivate;
+            if (!this.isPrivate) this.allowWebuiOnPrivate = false;
+            this.buildProviderBar();
+            this.updateInputPlaceholder();
+            this.focusInput();
+        });
+    }
+
+    /** Refresh the dropdown options from the service's live provider map. */
+    private updateAvailableProviders(providers: Record<string, boolean>): void {
+        const built    = Object.keys(providers).filter(k => providers[k]);
+        const nonWebui = built.filter(k => k !== "webui");
+        // Auto first, then every built provider in service order, Web UI last.
+        this.availableProviders = ["auto", ...nonWebui, ...(built.indexOf("webui") !== -1 ? ["webui"] : [])];
+        // If the pinned provider vanished (e.g. went unhealthy / key removed), fall back to Auto.
+        if (this.selectedProvider !== "auto" && this.availableProviders.indexOf(this.selectedProvider) === -1) {
+            this.selectedProvider = "auto";
+        }
+        this.buildProviderBar();
     }
 
     // ------------------------------------------------------------------
@@ -154,6 +223,8 @@ export class ChatView extends ItemView {
             this.statusEl.setText(`✓ Connected — ${provider.toUpperCase()} — ${data.message_count} messages`);
             this.statusEl.className = "ai-assistant-status ai-assistant-status-online";
             this.serviceOnline      = true;
+            // Registry-driven: rebuild the provider dropdown from the live service list.
+            if (data.providers) this.updateAvailableProviders(data.providers);
             this.setConnectMode("http");
         } catch {
             this.statusEl.setText("⚡ Service offline — vault mode active");
@@ -216,7 +287,7 @@ export class ChatView extends ItemView {
     // ------------------------------------------------------------------
     // HTTP send
     // ------------------------------------------------------------------
-    private async sendViaHTTP(text: string): Promise<void> {
+    private async sendViaHTTP(text: string, forceAllowWebui = false): Promise<void> {
         const { host, port } = this.plugin.settings;
         try {
             const resp = await fetch(`http://${host}:${port}/chat`, {
@@ -225,13 +296,23 @@ export class ChatView extends ItemView {
                 body:    JSON.stringify({
                     message:           text,
                     provider_override: this.selectedProvider === "auto" ? null : this.selectedProvider,
+                    private:                 this.isPrivate,
+                    allow_webui_on_private:  this.isPrivate && (this.allowWebuiOnPrivate || forceAllowWebui),
                 }),
                 signal: AbortSignal.timeout(60000),
             });
 
             if (!resp.ok) {
-                const err = await resp.json().catch(() => ({ detail: "Unknown error" }));
-                throw new Error(err.detail ?? `HTTP ${resp.status}`);
+                const err    = await resp.json().catch(() => ({ detail: "Unknown error" }));
+                const detail = (err.detail ?? `HTTP ${resp.status}`) as string;
+                // M10 — private request exhausted all no-train providers. Offer the
+                // web-AI handoff as an explicit choice rather than just erroring.
+                if (resp.status === 503 && this.isPrivate && !forceAllowWebui
+                        && /allow_webui_on_private/i.test(detail)) {
+                    this.appendPrivateHandoffChoice(text);
+                    return;
+                }
+                throw new Error(detail);
             }
 
             const data: HandoffResponse = await resp.json();
@@ -271,6 +352,9 @@ export class ChatView extends ItemView {
             "---",
             `assistant-status: pending`,
             `assistant-request: "${text.replace(/"/g, '\\"')}"`,
+            // M10 — carry the privacy flags into the watcher path.
+            ...(this.isPrivate ? [`private: true`] : []),
+            ...(this.isPrivate && this.allowWebuiOnPrivate ? [`allow-webui: true`] : []),
             "---",
             "",
             `**Sent:** ${new Date().toLocaleString()}`,
@@ -486,6 +570,26 @@ export class ChatView extends ItemView {
         return el;
     }
 
+    /** M10 — a private turn exhausted all no-train providers. Offer the web handoff as a choice. */
+    private appendPrivateHandoffChoice(text: string): void {
+        const el = this.messagesEl.createDiv("ai-assistant-message ai-assistant-error");
+        el.createEl("span", { text: "🔒 Private — providers unavailable", cls: "ai-assistant-label" });
+        const body = el.createDiv("ai-assistant-body");
+        body.createEl("p", {
+            text: "All privacy-safe providers (those that do not train on your data) are unavailable. " +
+                  "You can send this to a web AI instead, but that would expose the content to an external service.",
+        });
+        const btn = body.createEl("button", { text: "Send via Web AI anyway", cls: "ai-assistant-copy-btn" });
+        btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            this.setLoading(true);
+            await this.sendViaHTTP(text, true);   // one-shot opt-in
+            this.setLoading(false);
+            this.focusInput();
+        });
+        this.scrollToBottom();
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
@@ -518,6 +622,8 @@ export class ChatView extends ItemView {
     private updateInputPlaceholder(): void {
         if (this.chatMode === "handoff-awaiting-response")
             this.inputEl.placeholder = "Paste web AI response here...";
+        else if (this.isPrivate)
+            this.inputEl.placeholder = "🔒 Private — no-train providers only (no Gemini)...";
         else if (this.selectedProvider === "webui")
             this.inputEl.placeholder = "Ask... (will package for web AI)";
         else

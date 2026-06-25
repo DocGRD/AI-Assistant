@@ -39,14 +39,36 @@
   color: var(--text-on-accent);
 }
 
-/* ── Provider toggle bar ─────────────────────────────────────────────── */
+/* ── Provider bar (dropdown + privacy) ───────────────────────────────── */
 .ai-assistant-provider-bar {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+  align-items: center;
   padding: 6px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+/* M10 — registry-driven provider dropdown */
+.ai-assistant-provider-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ai-assistant-provider-select {
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+  max-width: 60%;
+}
+
+.ai-assistant-provider-select:hover {
+  background-color: var(--background-modifier-hover);
 }
 
 .ai-assistant-provider-btn {
@@ -77,6 +99,13 @@
 .ai-assistant-provider-btn[data-provider="webui"].active {
   background-color: var(--color-purple, #8b5cf6);
   border-color: var(--color-purple, #8b5cf6);
+}
+
+/* M10 — Private toggle gets a distinct colour when active */
+.ai-assistant-private-btn.active {
+  background-color: var(--color-green, #22c55e);
+  border-color: var(--color-green, #22c55e);
+  color: var(--text-on-accent, #fff);
 }
 
 /* ── Status bar ──────────────────────────────────────────────────────── */

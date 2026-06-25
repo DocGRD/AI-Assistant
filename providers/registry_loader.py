@@ -42,12 +42,15 @@ _INT_COLUMNS = {
 # Docs/Provider-Registry.md. Contains NO API keys — keys live in settings.json.
 SEED_CONTENT = """# Provider Registry
 
-*Last updated: 2026-06-24*
+*Last updated: 2026-06-25*
 *Update this file by running: `vault:update-providers`*
 
 This file is the single source of truth for every free-tier endpoint the router can use.
 The router reads it at startup. Each **active** row becomes a live provider via the generic
 OpenAI-compatible adapter — no Python file per provider. To add a provider, add a row.
+
+The Obsidian plugin's **provider dropdown** is also populated from this list (via the service's
+`/status` endpoint), so a new **active** row appears there automatically — no plugin edit needed.
 
 ## How the columns are used
 
@@ -71,7 +74,7 @@ OpenAI-compatible adapter — no Python file per provider. To add a provider, ad
 | google | https://generativelanguage.googleapis.com/v1beta/openai/ | gemini-2.5-flash | 1000000 | 250000 | 15 | 1500 | ? | yes | active | default, long-context, multimodal | **Trains on free-tier prompts — never receives `private` notes.** Pro removed from free tier (Apr 2026); 2.0 retired (Jun 2026) |
 | groq | https://api.groq.com/openai/v1 | llama-3.3-70b-versatile | 128000 | 12000 | 30 | 1000 | 100000 | no | active | reasoning, tool-use, fast | RPD cut from 14400 to ~1000 in 2026; good quality but tight daily cap |
 | groq | https://api.groq.com/openai/v1 | llama-3.1-8b-instant | 131072 | 6000 | 30 | 14400 | 500000 | no | active | high-volume, fast, cheap fallback | most permissive RPD on Groq free tier |
-| cerebras | https://api.cerebras.ai/v1 | llama-3.3-70b | 128000 | ? | ? | ? | 1000000 | no | active | volume, batch, fastest throughput | ~1M tokens/day, very high TPS; no card, no expiry |
+| cerebras | https://api.cerebras.ai/v1 | gpt-oss-120b | 65536 | 30000 | 5 | 2400 | 1000000 | no | active | volume, batch, fast, reasoning | Free tier (Production): GPT-OSS 120B. 5 RPM / 2,400 RPD / 30K TPM / ~1M tokens/day; very high TPS |
 
 ## Candidate Providers (registered, not routed until tested)
 
@@ -79,6 +82,7 @@ OpenAI-compatible adapter — no Python file per provider. To add a provider, ad
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | nvidia | https://integrate.api.nvidia.com/v1 | nvidia/llama-3.3-70b-instruct | 128000 | 40000 | 40 | ? | ? | logs | candidate | breadth (100+ models) | Verify credit policy in console — old 1000-credit cap may be lifted to pure 40 RPM. Can request 200 RPM |
 | openrouter | https://openrouter.ai/api/v1 | meta-llama/llama-3.3-70b-instruct:free | 128000 | ? | 20 | 200 | ? | varies | candidate | breadth, built-in fallback | One key to many `:free` models. RPD rises to 1000 with $10+ balance |
+| cerebras | https://api.cerebras.ai/v1 | zai-glm-4.7 | 64000 | 30000 | 5 | 2400 | 1000000 | no | candidate | preview, reasoning | Cerebras Preview model — same free limits as gpt-oss-120b. Change status to active to route to it |
 
 ## Deprecated / Removed
 
