@@ -95,6 +95,8 @@ if _fastapi_available:
         temperature:       float = 0.7
         provider_override: str | None = None
         active_note_path:  str | None = None   # M8 active note context
+        private:                 bool = False  # M10 — privacy-only routing
+        allow_webui_on_private:  bool = False  # M10 — opt-in to WebUI handoff for private
 
     class HandoffResponse(BaseModel):
         status:              str
@@ -293,6 +295,8 @@ class AssistantServer:
                     ep_error_fn       = self._ep_error,
                     tools_used        = tools_used,
                     source_label      = "plugin",
+                    private                = req.private,
+                    allow_webui_on_private = req.allow_webui_on_private,
                 )
 
                 reply, used_provider = run_agent_loop(ctx)
@@ -321,6 +325,15 @@ class AssistantServer:
                 logger.error(f"[Server] Provider error: {err}")
                 if self._memory and self._ep_error:
                     self._memory.append_episode(self._ep_error(f"[HTTP] {err[:120]}"))
+                # Private request that exhausted all trains_on_data=no providers:
+                # offer the WebUI handoff as an explicit choice rather than blocking.
+                if req.private and not req.allow_webui_on_private:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=("All privacy-safe providers failed for this private request. "
+                                "Resubmit with allow_webui_on_private=true to permit a WebUI "
+                                "handoff (this would expose the content to a web AI)."),
+                    )
                 raise HTTPException(status_code=503, detail=f"Provider error: {err}")
 
             if self._memory and self._ep_chat:

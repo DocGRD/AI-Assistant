@@ -12,6 +12,7 @@
   "cerebras_api_key": "",
   "nvidia_api_key": "",
   "openrouter_api_key": "",
+  "provider_source_url": "",
   "groq_model": "llama-3.3-70b-versatile",
   "google_model": "gemini-2.5-flash",
   "max_tokens": 2048,

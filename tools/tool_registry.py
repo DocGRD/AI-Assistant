@@ -14,6 +14,7 @@ from tools.update_note import UpdateNoteTool
 from tools.research_prompt import ResearchPromptTool
 from tools.import_research import ImportResearchTool
 from tools.summarise_research import SummariseResearchTool
+from tools.provider_tracker import ProviderTrackerTool
 
 logger = logging.getLogger("assistant")
 
@@ -21,8 +22,9 @@ logger = logging.getLogger("assistant")
 class ToolRegistry:
     """Holds all registered tools and dispatches run() calls by name."""
 
-    def __init__(self, vault_path: str):
+    def __init__(self, vault_path: str, config: dict | None = None):
         self._vault_path = vault_path
+        self._config     = config or {}
         self._tools: dict[str, BaseTool] = {}
         self._build_tools()
 
@@ -37,6 +39,7 @@ class ToolRegistry:
             ResearchPromptTool(self._vault_path),
             ImportResearchTool(self._vault_path),
             SummariseResearchTool(self._vault_path),
+            ProviderTrackerTool(self._vault_path, self._config),
         ]
         for tool in vault_tools:
             self._tools[tool.name] = tool

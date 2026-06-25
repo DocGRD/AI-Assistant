@@ -29,6 +29,11 @@ from agent_loop import AgentContext, run_agent_loop
 logger = logging.getLogger("watcher")
 
 
+def _truthy(value: str) -> bool:
+    """Interpret a frontmatter string value as a boolean (private: true, etc.)."""
+    return str(value).strip().strip('"\'').lower() in ("true", "yes", "1", "on")
+
+
 class RequestHandler:
 
     def __init__(
@@ -76,19 +81,25 @@ class RequestHandler:
             logger.debug(f"[RequestHandler] Skipping {note_path} — status '{status}'")
             return False
 
+        # Milestone 10 — privacy routing from note frontmatter.
+        private     = _truthy(fm_dict.get("private", ""))
+        allow_webui = _truthy(fm_dict.get("allow-webui", ""))
+
         logger.info(f"[RequestHandler] Processing: {note_path}")
-        logger.info(f"[RequestHandler] Request: {request[:100]}")
+        logger.info(f"[RequestHandler] Request: {request[:100]} (private={private})")
 
         token_count = estimate_tokens([], body)
 
         try:
             if token_count > 3000:
                 chunks = self._chunker.chunk_content(body)
-                reply  = self._process_chunks(chunks, request, note_path)
+                reply  = self._process_chunks(chunks, request, note_path, private, allow_webui)
             else:
                 reply = self._run_agent(
-                    user_input = f"[Vault Note Context]\n\nFile: {note_path}\n\n{body}\n\n---\n\nRequest: {request}",
-                    note_path  = note_path,
+                    user_input  = f"[Vault Note Context]\n\nFile: {note_path}\n\n{body}\n\n---\n\nRequest: {request}",
+                    note_path   = note_path,
+                    private     = private,
+                    allow_webui = allow_webui,
                 )
 
             if reply is None:
@@ -101,7 +112,15 @@ class RequestHandler:
 
         except ProviderError as exc:
             logger.error(f"[RequestHandler] Provider error: {exc}")
-            self._write_error(full_path, fm_dict, body, str(exc))
+            err_text = str(exc)
+            if private and not allow_webui:
+                err_text += (
+                    "\n\nThis note is marked `private: true`, so it only routes to providers "
+                    "that do not train on data, and the WebUI handoff is disabled. "
+                    "To allow a WebUI handoff (which would expose the content to a web AI), "
+                    "add `allow-webui: true` to the frontmatter and set assistant-status back to pending."
+                )
+            self._write_error(full_path, fm_dict, body, err_text)
             return False
 
         return self._write_response(full_path, fm_dict, body, reply)
@@ -110,7 +129,13 @@ class RequestHandler:
     # Agent loop wrapper
     # ------------------------------------------------------------------
 
-    def _run_agent(self, user_input: str, note_path: str) -> str | None:
+    def _run_agent(
+        self,
+        user_input:  str,
+        note_path:   str,
+        private:     bool = False,
+        allow_webui: bool = False,
+    ) -> str | None:
         """
         Run the shared agent loop for one watcher request.
         The model can issue vault commands; they are executed and fed back
@@ -134,6 +159,8 @@ class RequestHandler:
             ep_error_fn       = None,
             tools_used        = [],
             source_label      = "watcher",
+            private                = private,
+            allow_webui_on_private = allow_webui,
         )
 
         try:
@@ -153,15 +180,20 @@ class RequestHandler:
 
     def _process_chunks(
         self,
-        chunks:    list[str],
-        request:   str,
-        note_path: str,
+        chunks:      list[str],
+        request:     str,
+        note_path:   str,
+        private:     bool = False,
+        allow_webui: bool = False,
     ) -> str | None:
         responses = []
         for i, chunk in enumerate(chunks, 1):
             logger.info(f"[RequestHandler] Processing chunk {i}/{len(chunks)}")
             user_input = f"[Part {i} of {len(chunks)}]\n\n{chunk}\n\n---\n\nRequest: {request}"
-            reply = self._run_agent(user_input=user_input, note_path=note_path)
+            reply = self._run_agent(
+                user_input=user_input, note_path=note_path,
+                private=private, allow_webui=allow_webui,
+            )
             if reply is None:
                 return None
             responses.append(reply)
@@ -174,7 +206,10 @@ class RequestHandler:
         for i, r in enumerate(responses, 1):
             combined += f"### Part {i}:\n{r}\n\n"
 
-        return self._run_agent(user_input=combined, note_path=note_path)
+        return self._run_agent(
+            user_input=combined, note_path=note_path,
+            private=private, allow_webui=allow_webui,
+        )
 
     # ------------------------------------------------------------------
     # Handoff return

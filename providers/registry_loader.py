@@ -14,6 +14,7 @@ header does not contain the registry schema columns.
 """
 
 import logging
+import re
 from pathlib import Path
 
 from providers.model_registry import ModelSpec
@@ -128,6 +129,7 @@ class RegistryLoader:
         self.registry_path = Path(registry_path)
         self.seed_content  = seed_content
         self.skipped: list[str] = []   # human-readable reasons for skipped rows
+        self.last_updated: str = "unknown"   # parsed from "*Last updated: <date>*"
 
     def seed(self) -> None:
         """Write the default registry file if it is missing. Never fatal."""
@@ -156,6 +158,11 @@ class RegistryLoader:
         except Exception as exc:
             logger.warning(f"[RegistryLoader] Could not read registry file: {exc}")
             return []
+
+        # Capture the "*Last updated: <date>*" line for the startup report.
+        m = re.search(r"\*\s*Last updated:\s*([^*\n]+?)\s*\*", text, re.IGNORECASE)
+        if m:
+            self.last_updated = m.group(1).strip()
 
         specs: list[ModelSpec] = []
         header: list[str] | None = None  # active header → currently inside a schema table

@@ -1,6 +1,6 @@
 # AI Assistant — Project State and Forward Plan
 
-*Last updated: 2026-06-23*
+*Last updated: 2026-06-25*
 *Project: Zero-Cost AI Operating System for Obsidian*
 
 ---
@@ -9,7 +9,7 @@
 
 If you are an AI reading this document to implement a milestone, read this section first.
 
-**What exists:** A working Python assistant service (`assistant-core/`) across nine completed milestones. It starts in headless mode by default (watcher + HTTP server, no terminal required), loads its system prompt from the vault (`AI/System/System-Prompt.md`), talks to Groq and Google AI on free tiers, reads and writes the vault autonomously via an agent loop (MAX_STEPS=10), logs every session event crash-safely to the vault, watches the vault for frontmatter-triggered async requests from any device, exposes a local HTTP API consumed by an Obsidian sidebar plugin, supports a Universal Web Handoff that uses a clean web-AI-specific prompt (`AI/System/WebUI-Prompt.md`), and automatically executes vault search suggestions that web AIs make in plain English.
+**What exists:** A working Python assistant service (`assistant-core/`). It starts in headless mode by default (watcher + HTTP server, no terminal required), loads its system prompt from the vault (`AI/System/System-Prompt.md`), and routes across free-tier providers driven by `AI/System/Provider-Registry.md` — Groq, Google AI, and Cerebras are active (NVIDIA/OpenRouter are registered candidates), all served by one generic OpenAI-compatible adapter. Selection is privacy- and task-aware (M10): `private` turns route only to providers that do not train on data, and a per-provider health tracker skips repeatedly-failing providers while warning below a ≥3-healthy floor. It reads and writes the vault autonomously via an agent loop (MAX_STEPS=10), logs every session event crash-safely to the vault, watches the vault for frontmatter-triggered async requests from any device, exposes a local HTTP API consumed by an Obsidian sidebar plugin, supports a Universal Web Handoff that uses a clean web-AI-specific prompt (`AI/System/WebUI-Prompt.md`), and automatically executes vault search suggestions that web AIs make in plain English.
 
 **Three distinct prompts — never mix them:**
 1. `AI/System/System-Prompt.md` — for terminal/plugin/watcher. Contains vault tool instructions. Agent loop executes vault: commands in replies.
@@ -20,7 +20,7 @@ If you are an AI reading this document to implement a milestone, read this secti
 
 **Conventions:**
 - Every new tool is a subclass of `BaseTool` in `tools/`, registered in `_build_tools()` in `tool_registry.py`
-- Every new provider is a subclass of `BaseProvider` in `providers/`, registered in `_PROVIDER_CLASSES` in `provider_router.py`
+- Most new providers need **no Python class** — add a row to `AI/System/Provider-Registry.md`. The router builds one `OpenAICompatibleProvider` per active row. Write a bespoke `BaseProvider` subclass only for a genuinely non-OpenAI-compatible API. (`_PROVIDER_CLASSES` was removed in M10.)
 - `assistant.py` never imports tools or providers directly — only `ToolRegistry` and `ProviderRouter`
 - All paths use `pathlib.Path`
 - Episode logging: call `memory.append_episode(ep_*(...))` after every user-visible event
@@ -91,6 +91,14 @@ Add to `READ_TOOLS` in `agent_loop.py` if result should go into AI context.
 
 ### Contract 2 — Adding a New Provider
 
+**Most providers are OpenAI-compatible and need no new class (M10).** Add a row to
+`AI/System/Provider-Registry.md` (`provider_key | base_url | model_id | context_window | tpm | rpm |
+rpd | tpd | trains_on_data | status | strengths | notes`) and put the key in `settings.json` as
+`<provider_key>_api_key`. The router builds one `OpenAICompatibleProvider` per **active** row at
+startup. Use `status: candidate` to register a provider without routing to it until you promote it.
+
+Write a bespoke `BaseProvider` subclass only for a genuinely non-OpenAI-compatible API:
+
 ```python
 from providers.base_provider import BaseProvider, Message, ProviderAuthError, ProviderError, ProviderRateLimitError
 
@@ -107,12 +115,9 @@ class MyProvider(BaseProvider):
 
     def generate(self, messages: list[Message], system_prompt: str = "",
                  max_tokens: int = 2048, temperature: float = 0.7) -> str:
+        # map 401→ProviderAuthError, 429→ProviderRateLimitError, else ProviderError
         ...
 ```
-
-Register in `_PROVIDER_CLASSES` in `provider_router.py`.
-Add `ModelSpec` in `model_registry.py`.
-Add API key to `settings.json`.
 
 ### Contract 3 — Episode Logging
 
@@ -198,13 +203,17 @@ assistant-core/
 ├── providers/
 │   ├── base_provider.py  BaseProvider, Message, ProviderError,
 │   │                     ProviderWebUIHandoff (sibling, not subclass)
-│   ├── groq_provider.py
-│   ├── google_provider.py
+│   ├── openai_compatible_provider.py  generic adapter (M10) — one instance per
+│   │                     active registry row; 401→Auth, 429→RateLimit, else Error
+│   ├── registry_loader.py  parses Provider-Registry.md → ModelSpec; seed(); skips bad rows
+│   ├── groq_provider.py / google_provider.py  legacy bespoke adapters (unused; kept for reference)
 │   ├── webui_provider.py Loads AI/System/WebUI-Prompt.md from vault.
 │   │                     Packages context with clean web-AI instructions.
 │   │                     No vault command syntax in packaged prompts.
-│   ├── provider_router.py  tuple[str,str] return, provider_override, webui fallback
-│   └── model_registry.py   groq + google + webui ModelSpec, SessionErrorLog
+│   ├── provider_router.py  per-model build; privacy+task route_order; health flags
+│   │                     + ≥3 floor; startup_report(); tuple[str,str] return
+│   └── model_registry.py   registry merge over fallbacks; route_order(); SessionErrorLog
+│                           with per-provider health (record_success / is_healthy)
 │
 ├── memory/
 │   ├── memory_manager.py   load_system_prompt() reads AI/System/System-Prompt.md
@@ -219,7 +228,8 @@ assistant-core/
 │   ├── create_note.py      path normalisation, suspicious-path warning
 │   ├── update_note.py      path normalisation
 │   ├── research_prompt.py, import_research.py, summarise_research.py
-│   └── [future] detect_project.py, local_script_tool.py, provider_tracker.py
+│   ├── provider_tracker.py  (M10) vault:update-providers — propose/commit registry updates
+│   └── [future] detect_project.py, local_script_tool.py
 │
 ├── watcher/
 │   ├── vault_watcher.py    polls vault, handles pending+handoff-pending,
@@ -312,13 +322,21 @@ User can copy the enriched context and send another round to web AI
 
 ## Current Provider Table
 
-| Provider | Model | Context | Free TPM | Free RPD |
-|----------|-------|---------|----------|----------|
-| Groq | `llama-3.3-70b-versatile` | 128k | 6,000 | 14,400 |
-| Google | `gemini-2.5-flash` | 1M | 250,000 | 20 |
-| WebUI | user-mediated | ∞ | ∞ | ∞ |
+The router builds one OpenAI-compatible adapter per **active** row of
+`AI/System/Provider-Registry.md`. Numbers are mid-2026 free-tier best estimates (they drift — that
+is why the registry exists). `trains_on_data = no` rows are the only ones eligible for `private` turns.
 
-*The full live list of free endpoints is maintained at `AI/System/Provider-Registry.md` (added M10).*
+| Provider (route key) | Model | Context | Free TPM | Free RPD | trains_on_data | Status |
+|---|---|---|---|---|---|---|
+| google | `gemini-2.5-flash` | 1M | 250,000 | ~1,500 | yes | active (default, non-private) |
+| groq | `llama-3.3-70b-versatile` | 128k | 12,000 | ~1,000 | no | active |
+| groq:llama-3.1-8b-instant | `llama-3.1-8b-instant` | 131k | 6,000 | ~14,400 | no | active (high-volume fallback) |
+| cerebras | `llama-3.3-70b` | 128k | ? | ? (~1M tok/day) | no | active |
+| nvidia | `nvidia/llama-3.3-70b-instruct` | 128k | 40,000 | ? | logs | candidate (not routed) |
+| openrouter | `…llama-3.3-70b-instruct:free` | 128k | ? | ~200 | varies | candidate (not routed) |
+| webui | user-mediated | ∞ | ∞ | ∞ | — | always-available fallback |
+
+*The full live list and routing intent is maintained at `AI/System/Provider-Registry.md` (M10).*
 
 ---
 
@@ -404,6 +422,34 @@ Eight bug fixes: agent loop (BUG-001), headless mode (BUG-002), memory context i
 **Testing result:** All M8 functionality confirmed working. No issues.
 
 **Files changed:** `providers/webui_provider.py`, `server.py`, `memory/memory_manager.py`, `assistant.py`, `watcher.service`, `obsidian-plugin/ChatView.ts`
+
+---
+
+### M10 — Provider Registry + Privacy/Task Routing + Self-Updating Registry + Health Floor ✅
+
+Delivered in two slices. Full design: `Project-State-M10-revision.md`; live data: `AI/System/Provider-Registry.md`.
+
+- **Registry-driven providers via one generic adapter.** `providers/openai_compatible_provider.py`
+  (`OpenAICompatibleProvider`) is built per **active** registry row; `providers/registry_loader.py`
+  parses `Provider-Registry.md` into `ModelSpec` (bad rows skipped + reported), seeds it on first run,
+  and `ModelRegistry` merges the file **over** the hardcoded fallbacks. Adding a provider is a Markdown edit.
+- **Per-model routing.** One provider per active row → route keys `google`, `groq`, `cerebras`,
+  `groq:llama-3.1-8b-instant`. NVIDIA/OpenRouter stay `candidate` (registered, never routed).
+- **Privacy-first, task-aware selection** (`ModelRegistry.route_order`). Privacy is applied **first**:
+  `private` turns drop every `trains_on_data != "no"` model (Google excluded) and the WebUI handoff is
+  offered only on explicit opt-in. Then health, size, and a task ranking (high-volume → Cerebras; default → Google).
+  `private` threads from HTTP `ChatRequest.private`, watcher frontmatter `private: true`, and the terminal `private on` toggle.
+- **Health floor.** `SessionErrorLog` tracks consecutive real-traffic failures (no probing); a provider
+  is marked unhealthy after 3 and skipped; flags raise on flip and when fewer than 3 distinct provider_keys are healthy.
+- **Self-updating registry (propose/commit).** `tools/provider_tracker.py` (`vault:update-providers
+  [provider|apply]`) fetches a machine-readable source over plain HTTP, diffs it, and writes
+  `Provider-Registry-proposed.md`; `apply` commits it. No source / unparseable → `vault:research` fallback.
+  The live registry is never overwritten autonomously.
+- **Startup report.** `run_startup_diagnostics()` prints the live registry table (last-updated, active vs
+  candidate, health) and warns under the ≥3 floor.
+
+**Tests:** `tests/test_registry_loader.py`, `tests/test_routing.py` (privacy, task shape, candidates-never-chosen, health flip, floor).
+**Out of scope (kept open):** Milestone 9 in-place editing (`replace_note`) remains in progress.
 
 ---
 
@@ -517,105 +563,13 @@ The plugin also benefits from edit mode: when a quick-action like "Fix Grammar" 
 
 ---
 
-### Milestone 10 — Provider Registry + Free Endpoint Tracker
+### Milestone 10 — Provider Registry + Free Endpoint Tracker ✅ (completed — see "Completed Milestones")
 
-**Rationale:** The list of free AI endpoints changes constantly — models get added, deprecated, rate limits shift. Hard-coding specs in `model_registry.py` means the router works with stale data. This milestone makes provider knowledge a living vault document that the assistant can update itself.
-
-**Goal:** Maintain `AI/System/Provider-Registry.md` as the single source of truth for all available free-tier providers and models. The router reads from it at startup. The assistant can search for updated specs and write them back using its own tools.
-
-#### 10.1 — Provider Registry Vault File
-
-`AI/System/Provider-Registry.md` — a structured Markdown table the system reads and writes. Format:
-
-```markdown
-# Provider Registry
-
-*Last updated: 2026-06-23*
-*Update this file by running: vault:update-providers*
-
-## Active Providers
-
-| provider_key | model_id | context_window | tpm_limit | rpm_limit | rpd_limit | status | notes |
-|---|---|---|---|---|---|---|---|
-| groq | llama-3.3-70b-versatile | 128000 | 6000 | 30 | 14400 | active | free tier |
-| groq | llama3-8b-8192 | 8192 | 6000 | 30 | 14400 | active | faster, smaller |
-| google | gemini-2.5-flash | 1000000 | 250000 | 15 | 20 | active | best free option |
-| google | gemini-2.5-flash-lite | 1000000 | 1000000 | 30 | 1500 | active | fastest google |
-| nvidia | llama-3.1-nemotron-ultra-253b-v1 | 128000 | 40000 | 40 | 1000 | candidate | requires testing |
-
-## Deprecated / Removed
-
-| provider_key | model_id | removed_date | reason |
-|---|---|---|---|
-| groq | mixtral-8x7b-32768 | 2026-03-01 | Deprecated by Groq |
-```
-
-#### 10.2 — Registry Parser
-
-New module: `providers/registry_loader.py`
-
-```python
-class RegistryLoader:
-    """Reads AI/System/Provider-Registry.md and returns list[ModelSpec]."""
-
-    def __init__(self, vault_path: str):
-        self._path = Path(vault_path) / "AI/System/Provider-Registry.md"
-
-    def load(self) -> list[ModelSpec]:
-        """Parse the Markdown table and return ModelSpec objects."""
-        ...
-
-    def seed(self) -> None:
-        """Write the default registry if the file does not exist."""
-        ...
-```
-
-The `ModelRegistry.__init__()` calls `RegistryLoader.load()` at startup and merges results with the hardcoded fallbacks. Registry file entries take precedence over hardcoded specs for any matching `provider_key`.
-
-#### 10.3 — Provider Tracker Tool
-
-New tool: `tools/provider_tracker.py` — `ProviderTrackerTool`
-
-```
-vault:update-providers [provider]
-```
-
-Behaviour:
-1. Reads the current `AI/System/Provider-Registry.md`
-2. Generates a `vault:research` prompt targeted at finding current free-tier specs for the named provider (or all providers if blank)
-3. Returns the research prompt ready to paste into a web AI — or if called from the agent, triggers `vault:research` automatically
-4. After the user pastes back research results (or the agent imports them), a follow-up `vault:update-providers apply` parses the research note and updates the registry table
-
-This keeps the update flow consistent with the existing research workflow: web AI does the current-data lookup, the assistant integrates the result.
-
-#### 10.4 — NVIDIA NIM Provider
-
-Add NVIDIA NIM as a third real API provider. Free tier is available via `api.nvidia.com`.
-
-| Action | File | Detail |
-|--------|------|--------|
-| CREATE | `providers/nvidia_provider.py` | `NvidiaProvider(BaseProvider)` using `openai` SDK (NVIDIA uses OpenAI-compatible API) |
-| MODIFY | `provider_router.py` | Add to `_PROVIDER_CLASSES` |
-| MODIFY | `model_registry.py` | Add initial `ModelSpec` for `nvidia` — overrideable by registry file |
-| MODIFY | `config/settings.example.json` | Add `nvidia_api_key` field |
-
-**NVIDIA free tier (as of mid-2026):** 40 RPM, 1,000 RPD, 40k TPM for most models. Key model: `nvidia/llama-3.1-nemotron-ultra-253b-v1`.
-
-#### 10.5 — Startup Registry Report
-
-At startup, `run_startup_diagnostics()` prints the provider table from the live registry file, not the hardcoded table. Shows last-updated date, flags any providers that are marked `candidate` (not yet tested).
-
-#### M10 Deliverables Summary
-
-- `providers/registry_loader.py` — new module
-- `tools/provider_tracker.py` — new tool
-- `providers/nvidia_provider.py` — new provider
-- `providers/model_registry.py` — integrate registry loader, add nvidia fallback spec
-- `providers/provider_router.py` — register nvidia
-- `memory/memory_manager.py` — `seed_provider_registry()` method
-- `assistant.py` — `vault:update-providers` command, startup report from registry
-- `tools/tool_registry.py` — register provider tracker
-- `AI/System/Provider-Registry.md` — seed file (written on first run)
+The original M10 plan (a bespoke `nvidia_provider.py`, `_PROVIDER_CLASSES` registration, and a
+research-only tracker) was **superseded** by the revision in `Project-State-M10-revision.md` and is now
+implemented: one generic OpenAI-compatible adapter driven by `AI/System/Provider-Registry.md`,
+per-model privacy/task routing, a propose/commit `vault:update-providers` tracker, and health tracking
+with a ≥3-provider floor. See the **M10** entry under *Completed Milestones* for the as-built summary.
 
 ---
 

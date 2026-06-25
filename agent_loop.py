@@ -165,6 +165,10 @@ class AgentContext:
     ep_error_fn:       Any = None
     tools_used:        list = field(default_factory=list)
     source_label:      str  = ""
+    # Milestone 10 — privacy routing. Forwarded to router.generate(); the loop
+    # itself has no privacy logic, it only carries the flags through.
+    private:                 bool = False
+    allow_webui_on_private:  bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +210,8 @@ def run_agent_loop(ctx: AgentContext) -> tuple[str, str]:
             max_tokens        = ctx.max_tokens,
             temperature       = ctx.temperature,
             provider_override = ctx.provider_override,
+            private                = ctx.private,
+            allow_webui_on_private = ctx.allow_webui_on_private,
         )
 
         logger.info(f"[Agent] Step {step+1}/{MAX_STEPS}: {len(reply)} chars from {used_provider}")

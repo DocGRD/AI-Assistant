@@ -1,5 +1,13 @@
 # Project-State.md — M10 revision
 
+> **STATUS: IMPLEMENTED (2026-06-25).** This revision is the spec that was built (Slice 1: generic
+> adapter + registry loading; Slice 2: providers, privacy/task routing, tracker, health floor).
+> Two refinements were made during implementation: **(a) per-model routing** — one provider is built
+> per active row (route keys include `groq:llama-3.1-8b-instant`), not one per provider_key; and
+> **(b) private + WebUI is the user's choice** — a `private` turn never silently hands off to a web AI;
+> each interface offers an explicit opt-in (`allow_webui_on_private`). NVIDIA/OpenRouter remain
+> `candidate` (registered, never routed).
+
 Drop-in replacement for **Milestone 10**, plus a short patch-list for the rest of the doc.
 Reflects the four decisions: (1) generic OpenAI-compatible provider, (2) private-flag routing,
 (3) propose/commit auto-update from a machine-readable source, (4) Gemini as default.

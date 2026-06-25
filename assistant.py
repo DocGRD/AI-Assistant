@@ -147,6 +147,9 @@ def run_startup_diagnostics(
     else:
         print("\n  ✗  No API providers — Web UI fallback will be used.")
 
+    # M10 — live provider registry table (active vs candidate, health, ≥3 floor warning)
+    print(router.startup_report())
+
     print("\n  Assistant Online")
     print(sep + "\n")
 
@@ -188,11 +191,15 @@ VAULT_COMMANDS = {
     "vault:research":  ("generate_research_prompt", "Usage: vault:research <question>"),
     "vault:import":    ("import_research",          "Usage: vault:import\n<paste external AI response>"),
     "vault:summarise": ("summarise_research",       "Usage: vault:summarise <path to research note>"),
+    "vault:update-providers": ("update_providers",  "Usage: vault:update-providers [provider|apply]"),
 }
 
 READ_TOOLS = {"read_note", "search_vault", "list_vault", "get_linked_notes", "summarise_research"}
 
-VALID_PROVIDERS = ("groq", "google", "webui", "auto")
+# Tools that may run with no input (e.g. vault:list root, vault:update-providers propose).
+NO_INPUT_OK = {"list_vault", "update_providers"}
+
+VALID_PROVIDERS = ("groq", "google", "cerebras", "webui", "auto")
 
 
 def handle_vault_command(
@@ -212,7 +219,7 @@ def handle_vault_command(
     tool_name, usage = VAULT_COMMANDS[prefix]
     tool_input = parts[1].strip() if len(parts) > 1 else ""
 
-    if not tool_input and tool_name not in ("list_vault",):
+    if not tool_input and tool_name not in NO_INPUT_OK:
         return f"Missing input. {usage}"
 
     result = registry.run(tool_name, tool_input)
@@ -353,7 +360,7 @@ def main() -> None:
     ctx_mgr:   ContextManager | None = None
 
     if vault_path and Path(vault_path).exists():
-        registry = ToolRegistry(vault_path)
+        registry = ToolRegistry(vault_path, config.all())
         memory   = MemoryManager(vault_path)
         ctx_mgr  = ContextManager(router.registry)
     else:
@@ -443,7 +450,9 @@ def main() -> None:
     print("Vault write  : vault:create | vault:update")
     print("Research     : vault:research | vault:import | vault:summarise")
     print("Memory       : remember: <fact>")
-    print("Provider     : /use groq | /use google | /use webui | /use auto")
+    print("Provider     : /use groq | /use google | /use cerebras | /use webui | /use auto")
+    print("Privacy      : private on/off  |  allow-webui on/off  (private routes only to no-train providers)")
+    print("Providers    : vault:update-providers [provider|apply]")
     print("Info         : tools | models | context | status | verbose on/off")
     print("Session      : clear | exit\n")
     if http_server and http_server.is_available():
@@ -454,6 +463,8 @@ def main() -> None:
 
     # ── Chat loop ──────────────────────────────────────────────────────────
     provider_override: str | None = None
+    private_mode:        bool = False   # M10 — route only to trains_on_data=no providers
+    allow_webui_private: bool = False   # M10 — permit WebUI handoff while private
 
     while True:
         try:
@@ -486,10 +497,27 @@ def main() -> None:
             print(f"[Verbose {state}]\n")
             continue
 
+        if user_input.lower() in ("private on", "private off"):
+            private_mode = user_input.lower() == "private on"
+            if private_mode:
+                print("[Private ON — routing only to providers that do NOT train on data "
+                      "(Google excluded). WebUI handoff disabled unless 'allow-webui on'.]\n")
+            else:
+                print("[Private OFF — normal routing.]\n")
+            continue
+
+        if user_input.lower() in ("allow-webui on", "allow-webui off"):
+            allow_webui_private = user_input.lower() == "allow-webui on"
+            state = "ON — WebUI handoff permitted for private turns" if allow_webui_private \
+                else "OFF — WebUI handoff blocked for private turns"
+            print(f"[Allow-WebUI {state}]\n")
+            continue
+
         if user_input.lower().startswith("/use "):
             target = user_input[5:].strip().lower()
-            if target not in VALID_PROVIDERS:
-                print(f"[Unknown provider '{target}'. Options: {', '.join(VALID_PROVIDERS)}]\n")
+            valid = set(VALID_PROVIDERS) | set(router.available_models)
+            if target not in valid:
+                print(f"[Unknown provider '{target}'. Options: {', '.join(sorted(valid))}]\n")
             elif target == "auto":
                 provider_override = None
                 print("[Provider: AUTO — smart routing active]\n")
@@ -503,6 +531,8 @@ def main() -> None:
             for name, avail in router.status().items():
                 print(f"  {'✓' if avail else '✗'}  {name.capitalize()}")
             print(f"  Provider mode: {provider_override.upper() if provider_override else 'AUTO'}")
+            print(f"  Private mode : {'ON' if private_mode else 'OFF'}"
+                  f"{'  (allow-webui ON)' if allow_webui_private else ''}")
             print(f"  Verbose: {'ON' if is_verbose() else 'OFF'}")
             if http_server and http_server.is_available():
                 host = config.get("host", "127.0.0.1")
@@ -601,6 +631,8 @@ def main() -> None:
                  ep_vault_fn       = ep_vault,
                  ep_error_fn       = ep_error,
                  tools_used        = tools_used,
+                 private                = private_mode,
+                 allow_webui_on_private = allow_webui_private,
              )
              reply, used_provider = run_agent_loop(agent_ctx)
 
@@ -628,6 +660,10 @@ def main() -> None:
 
         except ProviderError as exc:
             print(f"\n[Error] {exc}\n")
+            if private_mode and not allow_webui_private:
+                print("[This turn was PRIVATE — only no-train providers were tried and the WebUI "
+                      "handoff was disabled. To permit a WebUI handoff (exposes content to a web AI), "
+                      "type 'allow-webui on' and resend.]\n")
             logger.error(f"Provider error: {exc}")
             with history_lock:
                 if history and history[-1].role == "user":

@@ -5,9 +5,9 @@ vault, keeps its memory as Markdown, and routes every request across **free-tier
 only. It runs headless in the background; you interact through the Obsidian sidebar plugin or by
 tagging a note for the vault watcher. The terminal exists only for debugging.
 
-> **Status:** Milestones 1–8 complete and tested. Milestone 9 (context-aware plugin + in-place
-> editing) and Milestone 10 (provider registry + free-endpoint tracker) are in progress.
-> M10 is the current focus.
+> **Status:** Milestones 1–8 and **10 complete and tested**. Milestone 9 (context-aware plugin +
+> in-place editing) is in progress and is the current focus. M10 delivered a registry-driven,
+> privacy- and task-aware provider layer with a self-updating registry and health monitoring.
 
 ---
 
@@ -16,7 +16,11 @@ tagging a note for the vault watcher. The terminal exists only for debugging.
 - **Headless by default.** Starts a vault watcher + local HTTP API with no terminal. `--terminal` for interactive debugging.
 - **Reads and writes the vault autonomously** through a shared agent loop (`MAX_STEPS = 10`) used by all three entry points (terminal, HTTP server, watcher).
 - **Memory as Markdown.** System prompt, web-AI prompt, user profile, learned facts, per-project notes, and crash-safe daily episode logs all live in `AI/` as plain notes.
-- **Multi-provider routing across free tiers** (Groq, Google AI Studio), with a Universal Web Handoff that packages a clean prompt for any web AI (ChatGPT / Claude / Gemini) and integrates the response back into the vault.
+- **Registry-driven multi-provider routing across free tiers** (Groq, Google AI Studio, Cerebras; NVIDIA/OpenRouter registered as candidates). Providers are rows in `AI/System/Provider-Registry.md` served by **one** generic OpenAI-compatible adapter — adding a provider is a Markdown edit, not new code.
+- **Privacy- and task-aware selection.** Turns flagged `private` route only to providers that do not train on submitted data (Google is excluded), and never to the web handoff unless you opt in. Large/long-form requests prefer high-volume providers; short turns prefer the default.
+- **Health monitoring with a ≥3-provider floor.** Success/failure is tracked from real traffic only (never by probing); a provider that fails repeatedly is flagged and skipped, and the startup report warns when fewer than three providers are healthy.
+- **Self-updating registry (propose/commit).** `vault:update-providers` fetches a machine-readable source, writes a proposal to `Provider-Registry-proposed.md`, and only `vault:update-providers apply` commits it — the live registry is never overwritten autonomously.
+- **Universal Web Handoff** packages a clean prompt for any web AI (ChatGPT / Claude / Gemini) and integrates the response back into the vault.
 - **Three separate prompts**, never mixed: system prompt (vault tools), web-AI partner prompt (no vault syntax), and memory context.
 
 ## Interfaces
@@ -88,7 +92,8 @@ Vault system files live under `AI/System/`:
   text); the plugin shows it in an interactive dialog where you approve or keep editing. Nothing is
   overwritten autonomously. Sub-note granularity (word / paragraph / whole-note) lives in the plugin,
   which owns the editor offsets; the watcher path stays whole-note.
-- **M10 — Provider registry + free-endpoint tracker.** A live `Provider-Registry.md`, a generic
-  OpenAI-compatible provider driven by it, a tracker that proposes updates from a known machine-readable
-  source (web-AI handoff as fallback), and task- and privacy-aware routing with a ≥3-healthy-provider floor.
+- ✅ **M10 — Provider registry + free-endpoint tracker (done).** A live `Provider-Registry.md`, one
+  generic OpenAI-compatible adapter driven by it, a propose/commit tracker (`vault:update-providers`,
+  web-AI handoff as fallback), task- and privacy-aware routing, and per-provider health tracking with a
+  ≥3-healthy-provider floor.
 - Later: project awareness, self-testing agent (`vault:shell` whitelist + test runner), local "muscle-memory" scripts.

@@ -133,18 +133,63 @@ class ErrorEvent:
     timestamp:  float = field(default_factory=time.time)
 
 
+# A provider is marked unhealthy after this many CONSECUTIVE real-traffic failures.
+UNHEALTHY_THRESHOLD = 3
+
+
 class SessionErrorLog:
 
     def __init__(self):
         self._events: list[ErrorEvent] = []
+        # Milestone 10 — per-provider health from REAL traffic only (never probing).
+        self._consecutive: dict[str, int] = {}   # consecutive failures since last success
+        self._success:     dict[str, int] = {}   # total successes this session
+        self._fail:        dict[str, int] = {}    # total failures this session
 
     def record(self, provider: str, error_type: str, tokens_est: int = 0) -> None:
         event = ErrorEvent(provider=provider, error_type=error_type, tokens_est=tokens_est)
         self._events.append(event)
+        self._consecutive[provider] = self._consecutive.get(provider, 0) + 1
+        self._fail[provider]        = self._fail.get(provider, 0) + 1
         logger.info(
             f"[ModelRegistry] Error recorded — provider={provider} "
-            f"type={error_type} tokens≈{tokens_est}"
+            f"type={error_type} tokens≈{tokens_est} "
+            f"(consecutive={self._consecutive[provider]})"
         )
+
+    # ------------------------------------------------------------------
+    # Health (Milestone 10)
+    # ------------------------------------------------------------------
+
+    def record_success(self, provider: str) -> None:
+        """A real request succeeded — reset the consecutive-failure counter."""
+        self._success[provider] = self._success.get(provider, 0) + 1
+        if self._consecutive.get(provider, 0):
+            logger.info(f"[ModelRegistry] {provider} recovered — health reset")
+        self._consecutive[provider] = 0
+
+    def is_healthy(self, provider: str) -> bool:
+        """Healthy until UNHEALTHY_THRESHOLD consecutive failures accumulate."""
+        return self._consecutive.get(provider, 0) < UNHEALTHY_THRESHOLD
+
+    def just_went_unhealthy(self, provider: str) -> bool:
+        """True only on the exact failure that crosses the threshold (for one-shot flags)."""
+        return self._consecutive.get(provider, 0) == UNHEALTHY_THRESHOLD
+
+    def unhealthy_providers(self) -> list[str]:
+        return [p for p, c in self._consecutive.items() if c >= UNHEALTHY_THRESHOLD]
+
+    def health_summary(self) -> str:
+        if not (self._success or self._fail):
+            return "No provider traffic recorded this session."
+        lines = ["Provider health this session:"]
+        names = sorted(set(self._success) | set(self._fail))
+        for p in names:
+            ok  = self._success.get(p, 0)
+            bad = self._fail.get(p, 0)
+            flag = "" if self.is_healthy(p) else "  ⚠ UNHEALTHY"
+            lines.append(f"  {p:<28} ok={ok} fail={bad} consec={self._consecutive.get(p, 0)}{flag}")
+        return "\n".join(lines)
 
     def recent_rate_limits(self, provider: str, within_seconds: int = 65) -> int:
         cutoff = time.time() - within_seconds
@@ -198,8 +243,9 @@ class ModelRegistry:
         # Start from the hardcoded specs (a complete working fallback), then
         # merge the provider registry OVER them (file wins). webui has no
         # registry row, so it always survives as the final fallback.
-        self.specs     = dict(MODEL_SPECS)
-        self.error_log = SessionErrorLog()
+        self.specs        = dict(MODEL_SPECS)
+        self.error_log    = SessionErrorLog()
+        self.last_updated = "unknown"
         self._load_registry(config or {})
 
     def _load_registry(self, config: dict) -> None:
@@ -217,7 +263,9 @@ class ModelRegistry:
         loader.seed()
 
         seen: set[str] = set()
-        for spec in loader.load():
+        specs_loaded = loader.load()
+        self.last_updated = loader.last_updated
+        for spec in specs_loaded:
             # First row for a provider_key takes the bare key (overwrites the
             # hardcoded fallback — file wins). A repeated key (e.g. the second
             # Groq model) is registered under "<provider>:<model_id>".
@@ -264,6 +312,100 @@ class ModelRegistry:
 
         logger.warning(f"[ModelRegistry] No suitable provider for {estimated_tokens} tokens")
         return None
+
+    # ------------------------------------------------------------------
+    # Privacy- and task-aware selection (Milestone 10)
+    # ------------------------------------------------------------------
+
+    # Base preference order (design §10.4 / Provider-Registry "Routing intent").
+    # Unknown route keys sort after these but before webui (appended separately).
+    DEFAULT_PREFERENCE = ["google", "groq", "cerebras", "groq:llama-3.1-8b-instant"]
+
+    # Above this (estimated input + planned response) a request is "high volume"
+    # and we prefer batch/volume providers.
+    LARGE_TOKENS = 8_000
+
+    def _tags(self, spec: ModelSpec) -> set[str]:
+        """Lowercased word tags from a spec's strengths, for task matching."""
+        tags: set[str] = set()
+        for s in spec.strengths:
+            for word in s.replace(",", " ").split():
+                tags.add(word.strip().lower())
+        return tags
+
+    def route_order(
+        self,
+        available:       list[str],
+        private:         bool = False,
+        est_tokens:      int  = 0,
+        response_tokens: int  = 2048,
+        long_form:       bool = False,
+        want_tools:      bool = False,
+    ) -> list[str]:
+        """
+        Return route keys to try, best first. Pure and testable.
+
+        Order of filtering (privacy FIRST, per design):
+          1. start from active built route keys in `available` (webui excluded —
+             it is appended by the router as a separate fallback; candidate rows
+             are never in `available` because the router never builds them).
+          2. PRIVACY: if private, drop every model whose trains_on_data != "no".
+          3. HEALTH: drop models the error log marks unhealthy.
+          4. SIZE: drop models that cannot fit the request.
+          5. TASK RANK: order by (task bucket, default preference index).
+        """
+        total = est_tokens + response_tokens
+        high_volume = long_form or total >= self.LARGE_TOKENS
+
+        candidates: list[str] = []
+        for name in available:
+            spec = self.specs.get(name)
+            if spec is None or spec.provider == "webui" or spec.status != "active":
+                continue
+            if private and (spec.trains_on_data or "").lower() != "no":
+                continue                                   # 2. privacy filter FIRST
+            if not self.error_log.is_healthy(name):
+                continue                                   # 3. health filter
+            if total > spec.context_window or est_tokens > spec.tpm_limit:
+                continue                                   # 4. size feasibility
+            candidates.append(name)
+
+        def default_index(name: str) -> int:
+            try:
+                return self.DEFAULT_PREFERENCE.index(name)
+            except ValueError:
+                return len(self.DEFAULT_PREFERENCE)        # unknown → after known
+
+        def bucket(name: str) -> int:
+            spec = self.specs[name]
+            tags = self._tags(spec)
+            if high_volume:
+                if tags & {"volume", "batch", "high-volume"}:
+                    return 0
+                if "long-context" in tags or spec.context_window >= 500_000:
+                    return 1
+                return 2
+            if want_tools:
+                return 0 if (tags & {"tool-use", "tool", "tools"}) else 1
+            return 0                                        # default short request
+
+        candidates.sort(key=lambda n: (bucket(n), default_index(n)))
+        logger.info(
+            f"[ModelRegistry] route_order(private={private}, high_volume={high_volume}) "
+            f"→ {candidates}"
+        )
+        return candidates
+
+    def healthy_active_provider_keys(self, available: list[str]) -> set[str]:
+        """Distinct provider_keys that are active, built, and currently healthy (for the ≥3 floor)."""
+        keys: set[str] = set()
+        for name in available:
+            spec = self.specs.get(name)
+            if spec is None or spec.provider == "webui" or spec.status != "active":
+                continue
+            if self.error_log.is_healthy(name):
+                keys.add(spec.provider)
+        return keys
 
     def capability_report(self) -> str:
         lines = ["\n--- Model Capabilities ---"]
