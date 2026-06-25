@@ -22,19 +22,11 @@ from providers.base_provider import (
     ProviderRateLimitError,
     ProviderWebUIHandoff,   # not caught — allowed to propagate
 )
-from providers.groq_provider    import GroqProvider
-from providers.google_provider  import GoogleProvider
+from providers.openai_compatible_provider import OpenAICompatibleProvider
 from providers.webui_provider   import WebUIProvider
 from providers.model_registry   import ModelRegistry, estimate_tokens
 
 logger = logging.getLogger("assistant")
-
-# Add new providers here only — nothing else changes
-_PROVIDER_CLASSES: dict[str, type[BaseProvider]] = {
-    "groq":   GroqProvider,
-    "google": GoogleProvider,
-    "webui":  WebUIProvider,
-}
 
 
 class ProviderRouter:
@@ -59,7 +51,7 @@ class ProviderRouter:
         self._temperature   = config.get("temperature",  0.7)
 
         self._providers: dict[str, BaseProvider] = {}
-        self._registry = ModelRegistry()
+        self._registry = ModelRegistry(self._config)
         self._init_providers()
 
     # ------------------------------------------------------------------
@@ -67,22 +59,50 @@ class ProviderRouter:
     # ------------------------------------------------------------------
 
     def _init_providers(self) -> None:
-        # Always initialise api providers first, then webui (no key needed)
-        for name in [self._default_name, self._fallback_name, "webui"]:
-            if name in self._providers:
+        """
+        Milestone 10: build one generic OpenAICompatibleProvider per ACTIVE
+        registry row (keyed by provider_key — the first active row wins when a
+        provider has several models). webui is always added as the special,
+        keyless final fallback. A provider with no API key, or a row that
+        cannot be built, is skipped exactly as before.
+        """
+        for key, spec in self._registry.specs.items():
+            # webui is a virtual provider — no key, no base_url, handled specially.
+            if spec.provider == "webui":
+                if "webui" not in self._providers:
+                    self._providers["webui"] = WebUIProvider(self._config)
+                    logger.info("[Router] Provider ready: webui")
                 continue
-            cls = _PROVIDER_CLASSES.get(name)
-            if cls is None:
-                logger.warning(f"[Router] Unknown provider '{name}' — skipping.")
+
+            if spec.status != "active":
                 continue
+            if not spec.base_url:
+                continue
+            # Only the canonical provider per provider_key is routed in this slice.
+            if spec.provider in self._providers:
+                logger.info(
+                    f"[Router] '{spec.provider}:{spec.model_id}' registered but not "
+                    f"routed (canonical row already built)."
+                )
+                continue
+
+            api_key = self._config.get(f"{spec.provider}_api_key", "")
+            if not str(api_key).strip():
+                logger.info(f"[Router] {spec.provider} skipped — no '{spec.provider}_api_key' in settings.")
+                continue
+
             try:
-                self._providers[name] = cls(self._config)
-                logger.info(f"[Router] Provider ready: {name}")
+                self._providers[spec.provider] = OpenAICompatibleProvider(spec, api_key, self._config)
+                logger.info(f"[Router] Provider ready: {spec.provider} ({spec.model_id})")
             except ProviderAuthError as exc:
-                logger.warning(f"[Router] {name} skipped — auth error: {exc}")
+                logger.warning(f"[Router] {spec.provider} skipped — auth error: {exc}")
             except ProviderError as exc:
-                logger.warning(f"[Router] {name} skipped — error: {exc}")
-            # WebUIProvider never raises here — no auth needed
+                logger.warning(f"[Router] {spec.provider} skipped — error: {exc}")
+
+        # Guarantee webui exists even if it has no registry row.
+        if "webui" not in self._providers:
+            self._providers["webui"] = WebUIProvider(self._config)
+            logger.info("[Router] Provider ready: webui (fallback)")
 
     # ------------------------------------------------------------------
     # Public API
@@ -198,7 +218,17 @@ class ProviderRouter:
     # ------------------------------------------------------------------
 
     def status(self) -> dict[str, bool]:
-        return {name: (name in self._providers) for name in _PROVIDER_CLASSES}
+        # Report the configured default/fallback plus webui, and any other
+        # active provider that was built — preserving the old shape (groq,
+        # google, webui all appear) for startup diagnostics and the `status` cmd.
+        names: list[str] = []
+        for name in (self._default_name, self._fallback_name, "webui"):
+            if name not in names:
+                names.append(name)
+        for name in self._providers:
+            if name not in names:
+                names.append(name)
+        return {name: (name in self._providers) for name in names}
 
     def capability_report(self) -> str:
         return self._registry.capability_report()

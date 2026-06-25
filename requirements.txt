@@ -13,3 +13,8 @@ google-genai
 # Milestone 6 (HTTP server for Obsidian plugin)
 fastapi
 uvicorn[standard]
+
+# Milestone 10 (generic OpenAI-compatible provider adapter)
+# One adapter speaks the OpenAI Chat Completions API to every registry endpoint
+# (Groq, Google's OpenAI-compatible endpoint, etc.).
+openai

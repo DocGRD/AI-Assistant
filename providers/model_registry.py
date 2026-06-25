@@ -30,6 +30,12 @@ class ModelSpec:
     strengths:       list[str]
     weaknesses:      list[str]
     notes:           str = ""
+    # Milestone 10 — fields carried by the provider registry. Defaulted so the
+    # hardcoded specs below and any existing callers still construct cleanly.
+    base_url:        str = ""
+    status:          str = "active"
+    trains_on_data:  str = ""
+    tpd_limit:       int = 0
 
 
 MODEL_SPECS: dict[str, ModelSpec] = {
@@ -41,6 +47,8 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         tpm_limit       = 6_000,
         rpm_limit       = 30,
         rpd_limit       = 14_400,
+        base_url        = "https://api.groq.com/openai/v1",
+        status          = "active",
         strengths       = [
             "very fast inference",
             "strong general reasoning",
@@ -65,6 +73,8 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         tpm_limit       = 250_000,
         rpm_limit       = 3,
         rpd_limit       = 20,
+        base_url        = "https://generativelanguage.googleapis.com/v1beta/openai/",
+        status          = "active",
         strengths       = [
             "enormous context window (1M tokens)",
             "excellent for long documents and large vault loads",
@@ -184,9 +194,39 @@ def estimate_tokens(messages: list, system_prompt: str = "") -> int:
 
 class ModelRegistry:
 
-    def __init__(self):
-        self.specs     = MODEL_SPECS
+    def __init__(self, config: dict | None = None):
+        # Start from the hardcoded specs (a complete working fallback), then
+        # merge the provider registry OVER them (file wins). webui has no
+        # registry row, so it always survives as the final fallback.
+        self.specs     = dict(MODEL_SPECS)
         self.error_log = SessionErrorLog()
+        self._load_registry(config or {})
+
+    def _load_registry(self, config: dict) -> None:
+        """Seed + load AI/System/Provider-Registry.md and merge over the fallbacks."""
+        vault_path = config.get("vault_path", "")
+        if not vault_path:
+            logger.info("[ModelRegistry] No vault_path — using hardcoded provider specs only")
+            return
+
+        from pathlib import Path
+        from providers.registry_loader import RegistryLoader   # lazy: avoid import cycle
+
+        registry_path = Path(vault_path) / "AI" / "System" / "Provider-Registry.md"
+        loader = RegistryLoader(registry_path)
+        loader.seed()
+
+        seen: set[str] = set()
+        for spec in loader.load():
+            # First row for a provider_key takes the bare key (overwrites the
+            # hardcoded fallback — file wins). A repeated key (e.g. the second
+            # Groq model) is registered under "<provider>:<model_id>".
+            if spec.provider in seen:
+                key = f"{spec.provider}:{spec.model_id}"
+            else:
+                key = spec.provider
+                seen.add(spec.provider)
+            self.specs[key] = spec
 
     def spec(self, provider: str) -> Optional[ModelSpec]:
         return self.specs.get(provider)
