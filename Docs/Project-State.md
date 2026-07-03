@@ -2,9 +2,12 @@
 
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
-*Status: **v1.0 — release ready.** Milestones 1–29 implemented and tested (302 automated tests green), and
-deployed end-to-end (Linux systemd service with GPU-accelerated embeddings, driven by the Obsidian plugin
-over the LAN). The M21–M29 roadmap is complete.*
+*Status: **v1.0.0 — released publicly 2026-07-03** (GitHub pre-release "beta v1.0.0" + BRAT, MIT licensed).
+Milestones 1–29 implemented and tested (302 automated tests green), and deployed end-to-end (Linux systemd
+service with GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN). The M21–M29 roadmap is
+complete. **Where to resume:** see [Post-v1.0 — Release Status & Next Work](#post-v10--release-status--next-work)
+at the end of this document — it records the one open release chore, the discovery next-step, and the
+scoped-but-deferred clean-architecture refactor.*
 
 ---
 
@@ -1415,6 +1418,80 @@ direct `system` path; nothing changes until then (`trash` stays recoverable → 
 prompt (×3) reworded to "propose-and-approve"; `_restructure_proposal()` parses op + src/dst.
 Tests: proposal generation ends the turn in one step + move-path parsing (294 green). Verified
 live in the plugin (natural-language move → card → Approve → file moved).
+
+---
+
+## Post-v1.0 — Release Status & Next Work
+
+*This section is the resume point. Everything above documents what was built; this documents where the
+project stands after the public release and what the next session should pick up.*
+
+### Release — done 2026-07-03 ✅
+- **Public repo:** https://github.com/DocGRD/AI-Assistant (visibility: public). `main`, `dev`, and tag
+  `v1.0.0` all point at a single **clean-slate commit** authored as
+  `Glenn Dewar <203316586+DocGRD@users.noreply.github.com>` (ID-prefixed GitHub noreply — credits the
+  contribution graph while hiding the real email). The Linux box clone is synced to the same commit; the
+  service is online.
+- **GitHub Release:** a **pre-release** titled "beta v1.0.0" on tag `v1.0.0`, with the three plugin assets
+  attached — `main.js` (51,385 B), `manifest.json` (397 B), `styles.css` (21,662 B). Pre-release is the
+  correct state for BRAT (BRAT reads the latest release including pre-releases).
+- **Distribution:** **BRAT** → *Add beta plugin* → `DocGRD/AI-Assistant` → enable **AI Assistant** → point
+  its ⚙ settings at the Python service. `LICENSE` = MIT; `obsidian-plugin/versions.json` maps `1.0.0` →
+  minAppVersion `1.4.0`.
+- **One open release chore:** the repo **Topics** were not set. Add them via the repo page → About ⚙ →
+  Topics: `obsidian obsidian-plugin ai rag llm local-first self-hosted knowledge-management second-brain`.
+  (Helps GitHub/Google discovery; the user is on no social platforms, so organic search + BRAT is the
+  current reach.)
+
+### Discovery next step (deferred): official Obsidian Community-plugins directory
+The built-in **Community plugins** browser inside Obsidian is the highest-reach, no-social-account way to
+be found. It is **not yet submitted**, and there are three real blockers to resolve first:
+1. **Dedicated plugin-only repo required.** The directory's validation expects `manifest.json` at the
+   **repo root**; this repo is a Python-service + plugin **monorepo** (plugin lives under
+   `obsidian-plugin/`). A separate companion repo containing just the plugin (manifest at root + a release
+   with `main.js`/`manifest.json`/`styles.css`) is needed.
+2. **Plugin id collision.** The current id `ai-assistant` is **already taken** in the directory
+   (5,337 plugins as of 2026-07-03). A new **unique id** must be chosen for the directory submission
+   (BRAT is unaffected — it installs by repo, not id).
+3. **Submission is a review PR** to `obsidianmd/obsidian-releases` from the user's own GitHub account
+   (adds an entry to `community-plugins.json`); review can take weeks.
+- Tooling note: `gh` CLI **2.96.0 is installed** on the Windows box (`C:\Program Files\GitHub CLI\gh.exe`)
+  but was **never authenticated** — the v1.0.0 release was published via the GitHub web UI. A future
+  session can `gh auth login` (interactive, user-run) and then drive release/topic/PR steps.
+
+### Deferred: clean-architecture refactor (scoped 2026-07-03, NOT started)
+A "full rewrite" was discussed, scoped, then **cancelled before any code changed** — the plan below is the
+agreed direction so it can resume cold without re-deriving.
+- **Direction chosen (by the user):** an **in-place, behavior-preserving refactor** optimizing for
+  **clean architecture / maintainability** — explicitly *not* a ground-up rewrite. The 302-test suite is
+  the safety net and gets extended where the refactor exposes seams.
+- **Hard constraints:** freeze the **HTTP contract** (the plugin depends on the exact endpoints/shapes) and
+  the **vault on-disk layout** (`AI/Memory/Episodes/…`, `AI/System/…`, index at `data/vault_index/`, etc.).
+  External behavior must be identical before and after.
+- **Diagnosis (milestone-accretion smell):** two God files —
+  - `assistant_core/server/core.py` (**1150 LOC**): the `/chat` handler alone is **~500 lines** (~452→956)
+    fusing HTTP transport + context assembly + routing + agent loop + edit/QA/handoff branching.
+  - `assistant_core/app.py` (**1008 LOC**): simultaneously the composition root, the headless-runtime loop,
+    and venv/handoff plumbing.
+  - plus **13 orphan top-level modules** dumped at `assistant_core/` root with no cohesive home:
+    `agent_loop`, `vault_commands`, `editing`, `scripts_runner` (→ an **agent** package);
+    `consolidation`, `scheduler`, `episodes`, `task_ledger` (→ **memory/autonomy**);
+    `research_roundtrip` (→ **web/research**); `query`, `provenance` (→ **knowledge/rag**);
+    `paths`, `diagnostics` (→ a **platform** package).
+- **Target sketch:** a **thin `server/`** (routes + pydantic schemas only) sitting over an extracted
+  **service layer** (chat / edit / qa / settings / restructure services); the orphan modules regrouped into
+  the cohesive packages named above; `app.py` split into a composition root + a headless runner. Keep
+  already-cohesive packages (`providers`, `rag`, `graph`, `media`) intact.
+- **Open scoping decisions — NOT finalized** (the user dismissed these questions, then cancelled). Re-confirm
+  both **before** writing any code:
+  1. **Scope:** Python service only, or backend **+** the TypeScript plugin (`ChatView.ts` has also grown
+     large, but has far less automated coverage).
+  2. **Depth:** full layered re-architecture (regroup everything; high import churn across ~90 files +
+     36 test modules), or focused (decompose the two God files + rehome the 13 orphans only; ~80% of the
+     clarity, ~half the churn).
+- **Execution discipline (agreed):** slice it so the full **302-test** suite is green after every slice;
+  after the refactor, run the live **GUI/box E2E** pass (see the GUI-harness and Linux-box deploy notes)
+  before re-tagging a new version.
 
 ---
 
