@@ -1,0 +1,51 @@
+# AI Assistant — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Milestone 1 (foundation)
+python-dotenv
+
+# Milestone 2 (AI providers)
+# NOTE: the bespoke groq / google-genai SDK adapters were removed in the
+#       package reorg — every provider now routes through the one generic
+#       OpenAI-compatible REST adapter (the `openai` package below), so those
+#       SDKs are no longer dependencies.
+
+# Milestone 6 (HTTP server for Obsidian plugin)
+fastapi
+uvicorn[standard]
+
+# Milestone 10 (generic OpenAI-compatible provider adapter)
+# One adapter speaks the OpenAI Chat Completions API to every registry endpoint
+# (Groq, Google's OpenAI-compatible endpoint, etc.).
+openai
+
+# Milestone 11 (zero-cost local Vault QA / RAG)
+# Local embeddings (fastembed downloads BAAI/bge-small-en-v1.5 once, then offline)
+# + a numpy vector index. No vault content leaves the machine.
+# Indexing runs on the always-on Linux box, not the laptop.
+# GPU box: run `install/install.sh --gpu` (or see Docs/DEPLOYMENT.md §1) — it installs the
+#          CUDA-12 stack (fastembed-gpu + onnxruntime-gpu==1.22.0 + nvidia-*-cu12) and you set
+#          "embedding_device": "cuda". Pin the CUDA-12 build — the latest targets CUDA 13.
+fastembed
+numpy
+
+# Milestone 19 (image/handwriting OCR — OPTIONAL, local fallback only)
+# Image OCR prefers the free multimodal models already in the registry (no install).
+# For an offline/printed-text fallback, install BOTH the Python wrapper AND the
+# tesseract binary (e.g. `apt install tesseract-ocr` / Windows installer). Excalidraw
+# text extraction needs neither — it's pure parsing.
+# pytesseract
+# Pillow
+
+# Milestone 21 (web-capable research) — search is keyless (DuckDuckGo HTML, no dep).
+# OPTIONAL: better main-text extraction from fetched pages. Falls back to a built-in
+# HTML->text stripper when absent. For a more reliable search API, set tavily_api_key.
+# trafilatura
+
+# Milestone 22 (document ingestion — OPTIONAL, per format). Plain .txt/.md need nothing.
+# pypdf         # PDF text extraction
+# ebooklib      # EPUB
+# python-docx   # Word .docx
+
+# Milestone 27 (audio transcription — OPTIONAL, local + free). Sermon/lecture audio.
+# faster-whisper

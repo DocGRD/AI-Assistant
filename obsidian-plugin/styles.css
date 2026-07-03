@@ -1,0 +1,838 @@
+/* AI Assistant Plugin — Chat Sidebar Styles (Milestone 7) */
+
+.ai-assistant-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 14px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+.ai-assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.ai-assistant-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ai-assistant-mode {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.ai-assistant-mode-http {
+  background-color: var(--color-green);
+  color: var(--text-on-accent);
+}
+
+.ai-assistant-mode-vault {
+  background-color: var(--color-orange);
+  color: var(--text-on-accent);
+}
+
+/* ── Provider bar (dropdown + privacy) ───────────────────────────────── */
+/* Header groups: title/badge on the left; provider + private + gear on the right */
+.ai-assistant-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ai-assistant-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.ai-assistant-provider-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+/* M10 — registry-driven provider dropdown */
+.ai-assistant-provider-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ai-assistant-provider-select {
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+  max-width: 150px;
+  text-overflow: ellipsis;
+}
+
+.ai-assistant-provider-select:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.ai-assistant-provider-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.ai-assistant-provider-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.ai-assistant-provider-btn.active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+/* Web UI button gets a distinct colour when active */
+.ai-assistant-provider-btn[data-provider="webui"].active {
+  background-color: var(--color-purple, #8b5cf6);
+  border-color: var(--color-purple, #8b5cf6);
+}
+
+/* M13 — quick-action bar */
+.ai-assistant-quick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ai-assistant-quick-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ai-assistant-quick-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* M12 — Vault QA scope input */
+.ai-assistant-qa-scope {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  max-width: 40%;
+}
+
+/* M12 — related-notes panel under the provider bar */
+.ai-assistant-related {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ai-assistant-related-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ai-assistant-related-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ai-assistant-related-open {
+  border: none;
+  background: var(--background-secondary);
+  color: var(--text-accent, var(--text-normal));
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.ai-assistant-related-add {
+  border: none;
+  border-left: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.ai-assistant-related-open:hover,
+.ai-assistant-related-add:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+/* Related-notes dropdown button (pick any number → context) */
+.ai-assistant-related-dropdown {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+.ai-assistant-related-dropdown:hover { background-color: var(--background-modifier-hover); }
+
+/* Actions ▾ button on the Send line */
+.ai-assistant-actions-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+.ai-assistant-actions-btn:hover { background-color: var(--background-modifier-hover); }
+
+/* Vault QA scope row above the input (shown only when Vault QA is on) */
+.ai-assistant-qa-scope-row {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+.ai-assistant-qa-scope-icon { font-size: 12px; }
+.ai-assistant-qa-scope-row .ai-assistant-qa-scope { flex: 1; max-width: none; }
+
+/* M12 — @-mention chips above the input */
+.ai-assistant-mentions {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.ai-assistant-mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.ai-assistant-mention-remove {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+}
+
+.ai-assistant-mention-remove:hover {
+  color: var(--text-normal);
+}
+
+/* M9 — selection-context badge above the input */
+.ai-assistant-selection-badge {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  background-color: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.ai-assistant-selection-badge-clear {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.ai-assistant-selection-badge-clear:hover {
+  color: var(--text-normal);
+}
+
+/* M9 — edit toggle in the selection badge */
+.ai-assistant-edit-toggle {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  border-radius: 8px;
+  font-size: 10px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+.ai-assistant-edit-toggle.active {
+  background-color: var(--color-orange, #f59e0b);
+  border-color: var(--color-orange, #f59e0b);
+  color: var(--text-on-accent, #fff);
+}
+
+/* M9 — proposed-edit dialog */
+.ai-assistant-proposal {
+  border-left: 3px solid var(--color-orange, #f59e0b);
+}
+
+.ai-assistant-proposal-intent {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+
+.ai-assistant-proposal-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-assistant-proposal-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Original/proposed rendered as Markdown (not raw code blocks) */
+.ai-assistant-proposal-before .ai-assistant-proposal-md,
+.ai-assistant-proposal-after .ai-assistant-proposal-md {
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ai-assistant-proposal-before .ai-assistant-proposal-md {
+  background-color: rgba(239, 68, 68, 0.12);
+}
+
+.ai-assistant-proposal-after .ai-assistant-proposal-md {
+  background-color: rgba(34, 197, 94, 0.14);
+}
+
+/* Tighten margins of Markdown blocks rendered inside a proposal card */
+.ai-assistant-proposal-md > :first-child { margin-top: 0; }
+.ai-assistant-proposal-md > :last-child  { margin-bottom: 0; }
+.ai-assistant-proposal-md p  { margin: 4px 0; }
+.ai-assistant-proposal-md ul,
+.ai-assistant-proposal-md ol { margin: 4px 0; padding-left: 20px; }
+
+.ai-assistant-proposal-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ai-assistant-proposal-replace {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 8px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ai-assistant-proposal-keep {
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.ai-assistant-proposal-cancel {
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.ai-assistant-proposal-cancel:hover {
+  color: var(--text-error, #ef4444);
+  border-color: var(--text-error, #ef4444);
+}
+
+.ai-assistant-proposal-done {
+  font-size: 12px;
+  color: var(--color-green, #22c55e);
+  font-weight: 600;
+}
+
+/* M9 — word-edit option chips */
+.ai-assistant-proposal-word-original {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 2px 0 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  background-color: rgba(239, 68, 68, 0.12);
+}
+
+.ai-assistant-proposal-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.ai-assistant-option-chip {
+  border: 1px solid var(--interactive-accent);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ai-assistant-option-chip:hover {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.ai-assistant-proposal-applied {
+  opacity: 0.7;
+}
+
+/* M11 — Vault QA toggle */
+.ai-assistant-vaultqa-btn.active {
+  background-color: var(--color-blue, #3b82f6);
+  border-color: var(--color-blue, #3b82f6);
+  color: var(--text-on-accent, #fff);
+}
+
+/* M11 — Vault QA source chips */
+.ai-assistant-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 8px;
+  padding: 0 12px;
+}
+
+.ai-assistant-sources-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ai-assistant-source-chip {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-accent, var(--text-normal));
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ai-assistant-source-chip:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+/* M16 — source surfaced via the link/tag graph (not pure vector similarity) */
+.ai-assistant-source-graph {
+  border-style: dashed;
+  border-color: var(--text-accent, var(--interactive-accent));
+}
+
+/* M10 — Private toggle gets a distinct colour when active */
+.ai-assistant-private-btn.active {
+  background-color: var(--color-green, #22c55e);
+  border-color: var(--color-green, #22c55e);
+  color: var(--text-on-accent, #fff);
+}
+
+/* ── Status bar ──────────────────────────────────────────────────────── */
+.ai-assistant-status {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.ai-assistant-status-online {
+  color: var(--color-green);
+}
+
+.ai-assistant-status-offline {
+  color: var(--color-orange);
+}
+
+/* ── Messages area ───────────────────────────────────────────────────── */
+.ai-assistant-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Let the user select & copy chat text — Obsidian leaves set user-select:none,
+   sometimes with !important, so we override with !important on the messages subtree. */
+.ai-assistant-messages,
+.ai-assistant-messages * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+.ai-assistant-body { cursor: text; }
+
+.ai-assistant-history-header {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 11px;
+  margin-bottom: 4px;
+  padding: 4px;
+  border-top: 1px dashed var(--background-modifier-border);
+  border-bottom: 1px dashed var(--background-modifier-border);
+}
+
+/* ── Individual messages ─────────────────────────────────────────────── */
+.ai-assistant-message {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ai-assistant-message.ai-assistant-history {
+  opacity: 0.65;
+}
+
+.ai-assistant-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ai-assistant-body {
+  padding: 8px 10px;
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+/* User messages */
+.ai-assistant-user .ai-assistant-label {
+  text-align: right;
+}
+
+.ai-assistant-user .ai-assistant-body {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  align-self: flex-end;
+  max-width: 90%;
+}
+
+/* Assistant messages */
+.ai-assistant-assistant .ai-assistant-body {
+  background-color: var(--background-secondary);
+  max-width: 100%;
+}
+
+.ai-assistant-assistant .ai-assistant-body p:first-child { margin-top: 0; }
+.ai-assistant-assistant .ai-assistant-body p:last-child  { margin-bottom: 0; }
+
+.ai-assistant-assistant .ai-assistant-body pre {
+  background-color: var(--background-primary);
+  border-radius: 4px;
+  padding: 8px;
+  overflow-x: auto;
+}
+
+.ai-assistant-assistant .ai-assistant-body code {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+}
+
+/* Error messages */
+.ai-assistant-error .ai-assistant-label {
+  color: var(--color-red);
+}
+
+.ai-assistant-error .ai-assistant-body {
+  background-color: var(--background-modifier-error);
+  color: var(--text-error);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+/* Waiting indicator */
+.ai-assistant-waiting .ai-assistant-body {
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+.ai-assistant-dots {
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+/* ── Web Handoff block ───────────────────────────────────────────────── */
+.ai-assistant-handoff .ai-assistant-label {
+  color: var(--color-purple, #8b5cf6);
+}
+
+.ai-assistant-handoff .ai-assistant-body {
+  background-color: var(--background-secondary);
+  border: 1px solid var(--color-purple, #8b5cf6);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.ai-assistant-handoff .ai-assistant-body p {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.ai-assistant-copy-btn {
+  background-color: var(--color-purple, #8b5cf6);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: opacity 0.15s;
+}
+
+.ai-assistant-copy-btn:hover {
+  opacity: 0.85;
+}
+
+.ai-assistant-handoff-preview {
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+/* ── Input area ──────────────────────────────────────────────────────── */
+.ai-assistant-input-area {
+  border-top: 1px solid var(--background-modifier-border);
+  padding: 8px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-assistant-input {
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: var(--font-text);
+  font-size: 13px;
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.ai-assistant-input:focus {
+  border-color: var(--interactive-accent);
+}
+
+/* Handoff-return mode: highlight the textarea so user knows it's different */
+.ai-assistant-container[data-chat-mode="handoff-awaiting-response"] .ai-assistant-input {
+  border-color: var(--color-purple, #8b5cf6);
+  background-color: var(--background-secondary);
+}
+
+.ai-assistant-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Button row ──────────────────────────────────────────────────────── */
+.ai-assistant-btn-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ai-assistant-send-btn {
+  flex: 1;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+/* Handoff-return mode: button turns purple */
+.ai-assistant-container[data-chat-mode="handoff-awaiting-response"] .ai-assistant-send-btn {
+  background-color: var(--color-purple, #8b5cf6);
+}
+
+.ai-assistant-send-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.ai-assistant-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-assistant-clear-btn,
+.ai-assistant-refresh-btn {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.ai-assistant-clear-btn:hover,
+.ai-assistant-refresh-btn:hover {
+  background-color: var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+.ai-assistant-shutdown-btn {
+  background-color: var(--background-modifier-hover);
+  color: var(--color-red, #ef4444);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.ai-assistant-shutdown-btn:hover {
+  background-color: var(--background-modifier-error);
+}
+
+.ai-assistant-vault-actions {
+  padding: 4px 10px;
+  margin-top: 4px;
+}
+
+.ai-assistant-vault-action-notice {
+  font-size: 11px;
+  color: var(--color-green);
+  font-style: italic;
+}
+/* M17 — Memory review panel (nightly consolidation proposals) */
+.ai-assistant-memory-review {
+  margin: 6px 8px;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  flex-shrink: 0;          /* never steal the chat input's space */
+}
+.ai-assistant-memory-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.ai-assistant-memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;       /* many proposals scroll INSIDE the panel, not off-screen */
+  overflow-y: auto;
+}
+.ai-assistant-memory-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ai-assistant-memory-btns { display: flex; gap: 6px; margin-top: 6px; }
+
+/* Sidebar header gear (open settings) */
+.ai-assistant-header { display: flex; align-items: center; gap: 6px; }
+.ai-assistant-gear {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 2px 4px;
+  color: var(--text-muted);
+}
+.ai-assistant-gear:hover { color: var(--text-normal); }
+
+/* 📎 attach button (paperclip) */
+.ai-assistant-attach-btn {
+  padding: 2px 6px;
+  font-size: 14px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+}
+.ai-assistant-attach-btn:hover { background: var(--background-modifier-hover); }

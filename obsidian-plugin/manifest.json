@@ -1,0 +1,10 @@
+{
+  "id": "ai-assistant",
+  "name": "AI Assistant",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Chat with your local AI assistant directly inside Obsidian. Connects to the Python service via HTTP, or falls back to vault-file mode for remote devices.",
+  "author": "Glenn Dewar",
+  "authorUrl": "https://github.com/DocGRD/AI-Assistant",
+  "isDesktopOnly": false
+}

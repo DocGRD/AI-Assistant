@@ -1,0 +1,44 @@
+# Ignore Archive directory
+Archive/
+obsidian-plugin/node_modules/
+_pycache__/
+# Ignore log files
+*.log  
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+# Ignore build artifacts
+dist/
+build/
+# Ignore IDE specific files
+.vscode/
+.idea/
+# Ignore environment files
+.env
+# Ignore backup files
+*.bak
+# Ignore temporary files
+*.tmp
+# Ignore compiled Python files
+*.pyc
+# Ignore Obsidian plugin development files
+obsidian-plugin/dist/
+obsidian-plugin/build/
+# ignore settings (moved under the package in the reorg; old path kept for safety)
+assistant_core/config/settings.json
+config/settings.json
+log/
+# Ignore Python compiled files
+__pycache__/
+*.pyc
+
+# Ignore all log files in the logs directory
+logs/*.log
+logs/*.log.*
+
+# M11 — local RAG vector index (per-machine, rebuildable from the vault)
+data/
+
+
+# stray temp logs anywhere
+*.log

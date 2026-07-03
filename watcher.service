@@ -1,0 +1,53 @@
+# AI Assistant — systemd service unit file
+# BUG-002: headless mode fix
+#
+# Save this file to: /etc/systemd/system/ai-assistant.service
+# (or copy from vault: AI/System/watcher.service)
+#
+# Installation:
+#   sudo cp watcher.service /etc/systemd/system/ai-assistant.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable ai-assistant
+#   sudo systemctl start ai-assistant
+#
+# Check status:
+#   sudo systemctl status ai-assistant
+#   journalctl -u ai-assistant -f
+#
+# IMPORTANT: edit the paths below to match your Linux machine.
+
+[Unit]
+Description=AI Assistant — Vault watcher + HTTP server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=glenn
+WorkingDirectory=/home/glenn/assistant-core
+
+# The service lives in the assistant_core package (run with `python -m`).
+# Headless is the default with no TTY; the `python assistant.py` shim also works.
+ExecStart=/home/glenn/assistant-core/.venv/bin/python -m assistant_core
+
+# Secrets — never put API keys in this file directly.
+# Create /home/glenn/.ai-assistant-env with:
+#   GROQ_API_KEY=gsk_...
+#   GOOGLE_API_KEY=AIza...
+# Then reference in settings.json as the keys, OR set them here:
+EnvironmentFile=/home/glenn/.ai-assistant-env
+
+# Restart on crash, but not on clean exit
+Restart=on-failure
+RestartSec=10
+
+# Give it 30 seconds to write the episode footer on shutdown
+TimeoutStopSec=30
+
+# Log everything to journald (readable with journalctl -u ai-assistant)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-assistant
+
+[Install]
+WantedBy=multi-user.target
