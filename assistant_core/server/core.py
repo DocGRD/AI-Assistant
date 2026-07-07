@@ -835,7 +835,19 @@ class AssistantServer:
 
             effective_message = req.message
             if context_blocks:
-                effective_message = "\n\n---\n\n".join(context_blocks + [req.message])
+                # Frame injected context as BACKGROUND, clearly separated from the user's
+                # actual request — otherwise a model reads the open note + a terse message
+                # ("test") and assumes the user pasted the note. The label tells it to
+                # answer the message and use the notes only if relevant.
+                joined_ctx = "\n\n---\n\n".join(context_blocks)
+                effective_message = (
+                    "=== BACKGROUND (notes the user currently has open — reference only if "
+                    "relevant to their message; do NOT assume the user pasted or is asking "
+                    "about this) ===\n\n"
+                    f"{joined_ctx}\n\n"
+                    "=== USER MESSAGE (respond to THIS) ===\n\n"
+                    f"{req.message}"
+                )
 
             # Privacy: any injected private source (active note or a mention) forces
             # no-train routing so its content can't leak to a training provider.

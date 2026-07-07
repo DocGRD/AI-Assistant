@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from assistant_core.tools.base_tool import BaseTool, ToolResult
+from assistant_core.links import neutralize_dangling
 
 logger = logging.getLogger("assistant")
 
@@ -25,8 +26,9 @@ def _normalise_path(rel_path: str) -> str:
 class UpdateNoteTool(BaseTool):
     """Appends content to an existing vault note."""
 
-    def __init__(self, vault_path: str):
+    def __init__(self, vault_path: str, config: dict | None = None):
         self._vault = Path(vault_path)
+        self._link_policy = (config or {}).get("link_validation", "strip")
 
     @property
     def name(self) -> str:
@@ -65,17 +67,25 @@ class UpdateNoteTool(BaseTool):
                 )
             )
 
+        # M30 — strip fabricated [[links]] to notes that don't exist before appending.
+        content, removed_links = neutralize_dangling(content, self._vault, self._link_policy)
+
         timestamp    = datetime.now().strftime("%Y-%m-%d %H:%M")
         append_block = f"\n\n---\n*Appended by AI Assistant — {timestamp}*\n\n{content}\n"
+        if removed_links:
+            append_block += "\n*Removed unresolved links: " + ", ".join(removed_links) + "*\n"
+            logger.info(f"[update_note] Neutralized {len(removed_links)} dangling link(s): {removed_links}")
 
         try:
             with open(target, "a", encoding="utf-8") as fh:
                 fh.write(append_block)
             logger.info(f"[update_note] Appended {len(append_block)} chars to: {rel_path}")
+            note = f" ({len(removed_links)} unresolved link(s) removed)" if removed_links else ""
             return ToolResult(
                 success  = True,
-                output   = f"✓ Appended to: {rel_path}",
-                metadata = {"path": rel_path, "appended_chars": len(append_block)},
+                output   = f"✓ Appended to: {rel_path}{note}",
+                metadata = {"path": rel_path, "appended_chars": len(append_block),
+                            "removed_links": removed_links},
             )
         except Exception as exc:
             logger.error(f"[update_note] Failed: {exc}")

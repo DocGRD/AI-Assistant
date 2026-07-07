@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from assistant_core.tools.base_tool import BaseTool, ToolResult
+from assistant_core.links import neutralize_dangling
 
 logger = logging.getLogger("assistant")
 
@@ -73,8 +74,9 @@ def _warn_suspicious_path(rel_path: str, logger: logging.Logger) -> None:
 class CreateNoteTool(BaseTool):
     """Creates a new Markdown note in the vault."""
 
-    def __init__(self, vault_path: str):
+    def __init__(self, vault_path: str, config: dict | None = None):
         self._vault = Path(vault_path)
+        self._link_policy = (config or {}).get("link_validation", "strip")
 
     @property
     def name(self) -> str:
@@ -123,15 +125,24 @@ class CreateNoteTool(BaseTool):
             header  = f"# {Path(rel_path).stem}\n\n"
             content = header + content
 
-        final_content = content + f"\n\n---\n*Created by AI Assistant — {timestamp}*\n"
+        # M30 — strip fabricated [[links]] to notes that don't exist before writing.
+        content, removed_links = neutralize_dangling(content, self._vault, self._link_policy)
+
+        final_content = content
+        if removed_links:
+            final_content += "\n\n---\n*Removed unresolved links: " + ", ".join(removed_links) + "*"
+            logger.info(f"[create_note] Neutralized {len(removed_links)} dangling link(s): {removed_links}")
+        final_content += f"\n\n---\n*Created by AI Assistant — {timestamp}*\n"
 
         try:
             target.write_text(final_content, encoding="utf-8")
             logger.info(f"[create_note] Created: {rel_path} ({len(final_content)} chars)")
+            note = f" ({len(removed_links)} unresolved link(s) removed)" if removed_links else ""
             return ToolResult(
                 success  = True,
-                output   = f"✓ Note created: {rel_path}",
-                metadata = {"path": rel_path, "size_chars": len(final_content)},
+                output   = f"✓ Note created: {rel_path}{note}",
+                metadata = {"path": rel_path, "size_chars": len(final_content),
+                            "removed_links": removed_links},
             )
         except Exception as exc:
             logger.error(f"[create_note] Failed: {exc}")

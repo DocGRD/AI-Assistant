@@ -185,6 +185,13 @@ class ChatContextInjectionTests(unittest.TestCase):
         self.assertIn("[Selected text — paragraph]", sent)     # selection label + scope
         self.assertIn("> The quick brown fox.", sent)          # selection quoted
         self.assertIn("What does this say?", sent)             # original message preserved
+        # Framing: injected context is labelled BACKGROUND and the user's message is
+        # clearly the request — so the model doesn't mistake the open note for pasted input.
+        self.assertIn("=== BACKGROUND", sent)
+        self.assertIn("=== USER MESSAGE (respond to THIS) ===", sent)
+        self.assertLess(sent.index("=== BACKGROUND"), sent.index("=== USER MESSAGE"))
+        # the message comes after the background marker
+        self.assertGreater(sent.index("What does this say?"), sent.index("=== USER MESSAGE"))
 
     def test_plain_message_unaffected(self):
         resp = self.client.post("/chat", json={"message": "hello"})

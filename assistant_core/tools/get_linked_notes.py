@@ -12,15 +12,13 @@ Output: The content of the target note followed by each linked note,
 """
 
 import logging
-import re
 from pathlib import Path
 
 from assistant_core.tools.base_tool import BaseTool, ToolResult
+from assistant_core.links import link_targets, resolve_link
 
 logger = logging.getLogger("assistant")
 
-# Matches [[Link]] and [[Link|Alias]] style wikilinks
-WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]")
 MAX_LINKED_NOTES = 10   # cap to avoid flooding the context window
 
 
@@ -44,7 +42,7 @@ class GetLinkedNotesTool(BaseTool):
             return ToolResult(success=False, output="No note name or path provided.")
 
         # Resolve the root note
-        root_path = self._resolve(target)
+        root_path = resolve_link(target, self._vault)
         if root_path is None:
             return ToolResult(
                 success=False,
@@ -56,9 +54,8 @@ class GetLinkedNotesTool(BaseTool):
             f"# {root_path.relative_to(self._vault)}\n\n{root_content}"
         ]
 
-        # Extract wikilinks from the root note
-        links = WIKILINK_RE.findall(root_content)
-        unique_links = list(dict.fromkeys(links))  # deduplicate, preserve order
+        # Extract wikilinks from the root note (deduped, order-preserving)
+        unique_links = link_targets(root_content)
 
         loaded = 0
         missing = []
@@ -70,7 +67,7 @@ class GetLinkedNotesTool(BaseTool):
                 )
                 break
 
-            linked_path = self._resolve(link)
+            linked_path = resolve_link(link, self._vault)
             if linked_path is None:
                 missing.append(link)
                 continue
@@ -103,22 +100,6 @@ class GetLinkedNotesTool(BaseTool):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _resolve(self, name: str) -> Path | None:
-        """Find a note by relative path or by stem name search."""
-        # Try direct relative path
-        candidate = self._vault / name
-        if not candidate.suffix:
-            candidate = candidate.with_suffix(".md")
-        if candidate.exists():
-            return candidate
-
-        # Search by stem
-        stem = Path(name).stem.lower()
-        matches = [p for p in self._vault.rglob("*.md") if p.stem.lower() == stem]
-        if len(matches) == 1:
-            return matches[0]
-        return None
 
     def _read(self, path: Path) -> str:
         try:
