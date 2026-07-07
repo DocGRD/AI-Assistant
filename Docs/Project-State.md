@@ -3,9 +3,11 @@
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
 *Status: **v1.0.0 — released publicly 2026-07-03** (GitHub pre-release "beta v1.0.0" + BRAT, MIT licensed).
-Milestones 1–29 implemented and tested (302 automated tests green), and deployed end-to-end (Linux systemd
-service with GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN). The M21–M29 roadmap is
-complete. **Where to resume:** see [Post-v1.0 — Release Status & Next Work](#post-v10--release-status--next-work)
+Milestones 1–31 implemented and tested (327 automated tests green), and deployed end-to-end (Linux systemd
+service with GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN). Post-release work
+(2026-07-07): the plugin was renamed **AI Assistant GRD** (id `ai-assistant-grd`, unique for the directory),
+and **M30 (anti-hallucination) + M31 (chunked edits)** landed. **Where to resume:** see
+[Post-v1.0 — Release Status & Next Work](#post-v10--release-status--next-work)
 at the end of this document — it records the one open release chore, the discovery next-step, and the
 scoped-but-deferred clean-architecture refactor.*
 
@@ -1418,6 +1420,42 @@ direct `system` path; nothing changes until then (`trash` stays recoverable → 
 prompt (×3) reworded to "propose-and-approve"; `_restructure_proposal()` parses op + src/dst.
 Tests: proposal generation ends the turn in one step + move-path parsing (294 green). Verified
 live in the plugin (natural-language move → card → Approve → file moved).
+
+---
+
+### M30 — Model Robustness & Anti-Hallucination ✅ (implemented)
+
+Make the assistant reliable across the diverse free-tier model pool — stop the fake
+`[[links]]`, stop mistaking the open note for pasted input, and verify facts before trusting them.
+Behavior-preserving; 302→323 tests.
+
+- **Context framing** (`server/core.py` `/chat`): injected notes are wrapped as labelled
+  `=== BACKGROUND … ===` / `=== USER MESSAGE (respond to THIS) ===` so a model no longer treats the
+  open note as the user's message (the "typed *test* → 'I see you posted this note'" bug).
+- **Fake-`[[link]]` killer** (`assistant_core/links.py`): `neutralize_dangling` resolves every wikilink
+  against the real vault and strips dead ones to plain text + a footnote of what was removed. Applied in
+  `create_note`/`update_note` (all write paths). Config `link_validation: strip|flag|off` (default strip).
+  `get_linked_notes` reuses the shared resolver (single source of truth).
+- **Capability- & tier-aware routing** (`providers/model_registry.py`): `derive_tier()` +
+  `ModelSpec.tier` (small/mid/large from the model id); `route_order(task=…)` + `TASK_PROFILE` keep
+  factual tasks (qa/research/graph) on larger models and tiny models last. Neutral when no task given →
+  M10 order unchanged. Threaded via `router.generate(task=…)` from the QA + edit paths.
+- **Tier-aware prompting** (`providers/provider_router.py`): a per-tier addendum appended to the selected
+  model's system prompt — small models get hard "use only provided context; never invent notes/links/
+  quotes/citations; say 'I don't know'" rules; large models are left alone.
+- **Verification pipeline** (`assistant_core/verify.py` `guard_answer`): if a QA answer isn't grounded in
+  the vault (M25 provenance), escalate to a larger model, then web-search real citations (M21) and attach
+  them; flag ⚠ only if still unverifiable. **Private content never hits the web** (flag only). Wired into
+  server Vault QA. Config `hallucination_guard: escalate_web|flag|off` (default escalate_web).
+- **Deferred:** self-consistency sampling (`self_consistency_k`, config stub).
+- **Tests:** `test_links.py`, `test_verify.py`, additions to `test_routing.py` / `test_chat_context.py`.
+
+### M31 — Section-Chunked Large Edits ✅ (implemented)
+
+A large selection no longer truncates: `editing.split_for_edit()` splits it at paragraph boundaries,
+`server/core.py` `_handle_edit` edits each section under the token cap and reassembles them into **one**
+proposal (per-section failure keeps that section's original). Small selections keep the single-call path.
+Tests in `test_editing.py` + a server reassembly test. 327 tests green.
 
 ---
 
