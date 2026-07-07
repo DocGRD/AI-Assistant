@@ -2,7 +2,20 @@
 
 import unittest
 
-from assistant_core.tools.calc import CalcTool, safe_eval
+from assistant_core.tools.calc import CalcTool, safe_eval, maybe_answer_arithmetic
+
+
+class ArithmeticInterceptTests(unittest.TestCase):
+    def test_plain_expressions_answered(self):
+        self.assertEqual(maybe_answer_arithmetic("4 + 6 ="), "4 + 6 = 10")
+        self.assertEqual(maybe_answer_arithmetic("4 + 6"), "4 + 6 = 10")
+        self.assertEqual(maybe_answer_arithmetic("what is 3 * 7?"), "3 * 7 = 21")
+        self.assertEqual(maybe_answer_arithmetic("compute (2+3)*4"), "(2+3)*4 = 20")
+
+    def test_non_arithmetic_returns_none(self):
+        for m in ["hello", "what is love", "4", "the year 2024", "search for 5 + 6 notes",
+                  "", "note 42"]:
+            self.assertIsNone(maybe_answer_arithmetic(m), m)
 
 
 class SafeEvalTests(unittest.TestCase):

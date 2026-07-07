@@ -511,6 +511,16 @@ class AssistantServer:
                     provider_used="system", actual_provider="system", timestamp=ts,
                 )
 
+            # M32 — a plain arithmetic query ("4 + 6 =") is answered deterministically,
+            # BEFORE any model runs, so basic math is always correct and can't be argued wrong.
+            from assistant_core.tools.calc import maybe_answer_arithmetic
+            _arith = maybe_answer_arithmetic(req.message)
+            if _arith is not None:
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                logger.info(f"[Server] Arithmetic answered deterministically: {_arith}")
+                return HandoffResponse(status="ok", reply=_arith, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # Explicit `vault:` command → run the tool directly (like the terminal),
             # NOT through the agent loop. Stops the plugin sending e.g. `vault:research`
             # to the LLM, which then "kept working" instead of just returning the result.

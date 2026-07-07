@@ -10,6 +10,7 @@ names, attributes, comprehensions, or calls other than a few numeric helpers.
 import ast
 import math
 import operator
+import re
 
 from assistant_core.tools.base_tool import BaseTool, ToolResult
 
@@ -59,6 +60,35 @@ def _fmt(value) -> str:
             return str(int(value))
         return f"{value:.10g}"
     return str(value)
+
+
+_ARITH_RE = re.compile(r"^[0-9\s.+\-*/()%]+$")
+_PREFIXES = ("what is", "what's", "whats", "calculate", "compute", "evaluate",
+             "solve", "how much is", "how many is")
+
+
+def maybe_answer_arithmetic(message: str) -> "str | None":
+    """
+    If `message` is a plain arithmetic query ("4 + 6 =", "what is 3*7?"), compute it
+    deterministically and return "expr = result". Else None. This runs BEFORE the model
+    so basic math is always right and can never be argued into a wrong answer.
+    """
+    s = (message or "").strip().rstrip("?").strip()
+    low = s.lower()
+    for p in _PREFIXES:
+        if low.startswith(p):
+            s = s[len(p):].strip()
+            break
+    s = s.rstrip("=").strip()
+    if not s or not _ARITH_RE.match(s):
+        return None
+    if not any(op in s for op in "+-*/%") or not any(c.isdigit() for c in s):
+        return None                     # need a real operation on numbers
+    try:
+        value = safe_eval(s)
+    except Exception:
+        return None
+    return f"{s} = {_fmt(value)}"
 
 
 class CalcTool(BaseTool):
