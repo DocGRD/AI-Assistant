@@ -267,6 +267,10 @@ class AgentContext:
     # can't run it autonomously; instead it stages a proposal here and ends the turn.
     # The server surfaces it as a proposal the user approves (one click) to execute.
     pending_restructure:     dict | None = None
+    # M33 — config + rag so the agent can run the rich commands (webresearch, ingest,
+    # guide, passage, …) via vault_dispatch.run_extended.
+    config:                  dict = field(default_factory=dict)
+    rag:                     Any = None
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +402,20 @@ def run_agent_loop(ctx: AgentContext) -> tuple[str, str]:
 
             tool_name = VAULT_COMMANDS.get(prefix)
             if tool_name is None:
+                # M33 — rich commands (webresearch/ingest/query/sources/passage/guide/
+                # ocr/analyze/graph/transcribe/cards/review) the agent may now run.
+                from assistant_core.vault_dispatch import run_extended
+                ext_arg = parts[1].strip() if len(parts) > 1 else ""
+                ext = run_extended(prefix, ext_arg, ctx)
+                if ext is not None:
+                    icon = "✓" if ext.success else "✗"
+                    tool_results.append(f"[Tool result for `{prefix}`]\n{icon} {ext.output}")
+                    ctx.tools_used.append(prefix)
+                    ledger.record(step + 1, used_provider, prefix, ext.success, (ext_arg or ext.output)[:120])
+                    if ext.terminal and ext.success:
+                        terminal_output = ext.output
+                    print(f"\n[Agent executing: {prefix}] {icon}")
+                    continue
                 tool_results.append(f"[Unknown command: {prefix}]")
                 continue
 

@@ -930,6 +930,8 @@ class AssistantServer:
                     ep_error_fn       = self._ep_error,
                     tools_used        = tools_used,
                     source_label      = "plugin",
+                    config            = self._config,
+                    rag               = self._rag,
                     private                = effective_private,
                     allow_webui_on_private = req.allow_webui_on_private,
                     max_steps              = self._config.get("max_agent_steps", 10),

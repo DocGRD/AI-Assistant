@@ -233,6 +233,8 @@ class RequestHandler:
             private                = private,
             allow_webui_on_private = allow_webui,
             max_steps              = self._router.config.get("max_agent_steps", 10),
+            config                 = self._router.config,
+            rag                    = None,
         )
 
         try:

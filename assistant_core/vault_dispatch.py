@@ -1,0 +1,219 @@
+"""
+Extended vault: command dispatch — Milestone 33.
+
+The agent loop's built-in command table (`agent_loop.VAULT_COMMANDS`) only covers the
+basic read/write tools. The *rich* commands — autonomous web research, ingest, OCR,
+graph, structured query, provenance, scripture, flashcards — existed ONLY as
+server/terminal intercepts the agent could not reach, so "look on the web for X" fell
+back to the paste-into-a-web-AI handoff (`vault:research`) instead of the autonomous
+`vault:webresearch`.
+
+`run_extended` gives the agent loop those same handlers (reusing the existing functions).
+Each result is classified:
+  - inject=True  → feed the result back so the agent presents/uses it (research, query…)
+  - terminal=True → the result IS the answer; end the turn (ingest, ocr, cards…)
+Privacy is honored: web research is refused on a private turn.
+"""
+
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+
+logger = logging.getLogger("assistant")
+
+# Commands handled here (everything the agent may run beyond agent_loop.VAULT_COMMANDS).
+EXTENDED_COMMANDS = {
+    "vault:webresearch", "vault:ingest", "vault:ocr", "vault:analyze", "vault:graph",
+    "vault:graph-merge", "vault:guide", "vault:query", "vault:sources", "vault:passage",
+    "vault:transcribe", "vault:cards", "vault:review",
+}
+
+
+@dataclass
+class ExtResult:
+    output:   str
+    success:  bool = True
+    terminal: bool = False   # True → output IS the answer; loop ends
+
+
+def run_extended(prefix: str, arg: str, ctx) -> "ExtResult | None":
+    """Run a rich command for the agent loop. Returns None if `prefix` isn't ours."""
+    prefix = prefix.lower()
+    if prefix not in EXTENDED_COMMANDS:
+        return None
+    vault   = (ctx.config or {}).get("vault_path")
+    router  = ctx.router
+    rag     = getattr(ctx, "rag", None)
+    private = bool(getattr(ctx, "private", False))
+    arg     = (arg or "").strip()
+
+    try:
+        if prefix == "vault:webresearch":
+            if private:
+                return ExtResult("Web research is disabled on a private turn (it would send "
+                                 "content to the web). Answer from the vault, or the user can "
+                                 "re-ask without privacy.", success=False, terminal=True)
+            if not arg:
+                return ExtResult("Usage: vault:webresearch <question>", success=False, terminal=True)
+            from assistant_core.web.research import run_web_research
+            rep = run_web_research(arg, router, ctx.config, rag=rag, private=False)
+            if rep.get("error"):
+                return ExtResult(f"Web research could not run: {rep['error']}.", success=False, terminal=True)
+            summary = ""
+            try:
+                sp = Path(vault) / rep["summary_path"]
+                summary = _strip_frontmatter(sp.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+            _episode(ctx, "webresearch", arg[:80])
+            out = (f"Autonomous web research complete — saved to {rep['summary_path']} "
+                   f"({len(rep['sources'])} source(s)). Findings:\n\n{summary}")
+            return ExtResult(out)   # inject → agent presents the findings
+
+        if prefix == "vault:sources":
+            from assistant_core.provenance import find_sources
+            if not arg:
+                return ExtResult("Usage: vault:sources <claim>", success=False, terminal=True)
+            rep = find_sources(vault, arg)
+            if not rep["sources"]:
+                return ExtResult("⚠ Unsourced — no notes contain these terms.")
+            tag = "" if rep["sourced"] else "⚠ Weakly sourced.\n\n"
+            return ExtResult(tag + "Supporting notes:\n" + "\n".join(
+                f"- {s['path']} ({s['matched']}/{s['of']} terms)" for s in rep["sources"]))
+
+        if prefix == "vault:query":
+            from assistant_core.query import structured_search
+            if not arg:
+                return ExtResult('Usage: vault:query tag:sermon "phrase" path:"06 - Projects"',
+                                 success=False, terminal=True)
+            hits = structured_search(vault, arg)
+            return ExtResult(f"No notes match `{arg}`." if not hits else
+                             f"{len(hits)} note(s) match `{arg}`:\n" + "\n".join(f"- {h['path']}" for h in hits))
+
+        if prefix == "vault:passage":
+            from assistant_core.scripture.passage import build_passage_guide
+            if not arg:
+                return ExtResult("Usage: vault:passage <e.g. 1 John 2:18-20>", success=False, terminal=True)
+            rep = build_passage_guide(vault, router, arg, rag=rag)
+            if rep.get("error"):
+                return ExtResult(rep["error"], success=False)
+            _episode(ctx, "passage", arg[:80])
+            notes = f"\n\n*Notes: {', '.join(rep['notes'][:8])}*" if rep.get("notes") else ""
+            return ExtResult(f"**Passage: {rep['ref']}**\n\n{rep['guide']}{notes}")
+
+        if prefix == "vault:guide":
+            from assistant_core.graph.guide import build_guide
+            if not arg:
+                return ExtResult("Usage: vault:guide <topic>", success=False, terminal=True)
+            rep = build_guide(vault, router, arg, rag=rag,
+                              include_private=bool((ctx.config or {}).get("graph_include_private", False)))
+            if rep.get("error"):
+                return ExtResult(rep["error"], success=False)
+            _episode(ctx, "guide", arg[:80])
+            src = f"\n\n*Sources: {', '.join(rep['sources'][:8])}*" if rep.get("sources") else ""
+            return ExtResult(f"**Guide: {rep['entity']}**\n\n{rep['guide']}{src}")
+
+        # ---- action commands (terminal confirmation) ----
+        if prefix == "vault:ingest":
+            from assistant_core.ingest.ingest import ingest_file
+            if not arg:
+                return ExtResult("Usage: vault:ingest <path to document>", success=False, terminal=True)
+            rep = ingest_file(vault, arg, ctx.config, rag=rag, router=router)
+            if rep.get("error"):
+                return ExtResult(f"Ingest failed: {rep['error']}.", success=False, terminal=True)
+            _episode(ctx, "ingest", f"{arg} → {rep['note_path']}")
+            return ExtResult(f"Ingested {rep['format']} ({rep['pages']} page(s), {rep['chars']} chars) "
+                             f"→ {rep['note_path']} — now searchable.", terminal=True)
+
+        if prefix == "vault:ocr":
+            from assistant_core.media.ocr import OcrEngine, make_vision_fn
+            if not arg:
+                return ExtResult("Usage: vault:ocr <note>", success=False, terminal=True)
+            engine = OcrEngine(vault, vision_fn=make_vision_fn(router, ctx.config))
+            rep = engine.ocr_note(arg, private=private)
+            if rep.get("error"):
+                return ExtResult(f"OCR: {rep['error']}", success=False, terminal=True)
+            _episode(ctx, "ocr", f"{arg} → {rep.get('sidecar')}")
+            return ExtResult(f"OCR: {rep['ocred']}/{rep['images']} image(s) → {rep['sidecar']}.", terminal=True)
+
+        if prefix == "vault:analyze":
+            from assistant_core.media.ocr import analyze_image
+            if not arg:
+                return ExtResult("Usage: vault:analyze <image>", success=False, terminal=True)
+            text, err = analyze_image(vault, arg, router, ctx.config, private=private)
+            if err:
+                return ExtResult(f"Image analysis failed: {err}.", success=False, terminal=True)
+            _episode(ctx, "analyze", arg[:80])
+            return ExtResult(f"**Image: {arg}**\n\n{text}", terminal=True)
+
+        if prefix == "vault:graph":
+            from assistant_core.graph.job import build_graph_for_note
+            if not arg:
+                return ExtResult("Usage: vault:graph <note>", success=False, terminal=True)
+            rep = build_graph_for_note(vault, router, arg)
+            if rep.get("error"):
+                return ExtResult(f"Graph: {rep['error']}", success=False, terminal=True)
+            _episode(ctx, "graph", f"{arg}: {rep.get('triples', 0)}")
+            return ExtResult(f"Graph: {rep['triples']} relationship(s) from {arg}.", terminal=True)
+
+        if prefix == "vault:graph-merge":
+            from assistant_core.graph.store import merge_entities
+            sep = "->" if "->" in arg else ("=>" if "=>" in arg else None)
+            if not sep:
+                return ExtResult("Usage: vault:graph-merge <canonical> -> <alias>", success=False, terminal=True)
+            canon, alias = (p.strip() for p in arg.split(sep, 1))
+            ok = merge_entities(vault, canon, alias)
+            return ExtResult(f"Merged '{alias}' → '{canon}'." if ok else
+                             "Could not merge (check both entities exist and differ).", success=ok, terminal=True)
+
+        if prefix == "vault:transcribe":
+            from assistant_core.media.audio import transcribe_to_sidecar
+            if not arg:
+                return ExtResult("Usage: vault:transcribe <audio>", success=False, terminal=True)
+            rep = transcribe_to_sidecar(vault, arg, ctx.config, rag=rag)
+            if rep.get("error"):
+                return ExtResult(f"Transcription failed: {rep['error']}.", success=False, terminal=True)
+            _episode(ctx, "transcribe", arg[:80])
+            return ExtResult(f"Transcribed ({rep['chars']} chars) → {rep['sidecar']} — now searchable.", terminal=True)
+
+        if prefix == "vault:cards":
+            from assistant_core.study.cards import generate_cards, add_cards
+            if not arg:
+                return ExtResult("Usage: vault:cards <note>", success=False, terminal=True)
+            res = ctx.registry.run("read_note", arg) if ctx.registry else None
+            if not res or not getattr(res, "success", False):
+                return ExtResult(f"Could not read {arg}.", success=False, terminal=True)
+            cards = generate_cards(router, res.output)
+            added = add_cards(vault, cards, (getattr(res, "metadata", None) or {}).get("path", arg))
+            _episode(ctx, "cards", f"{arg}: {added}")
+            return ExtResult(f"Added {added} review card(s) from {arg} (of {len(cards)} generated).", terminal=True)
+
+        if prefix == "vault:review":
+            from assistant_core.study.cards import due_cards
+            due = due_cards(vault)
+            if not due:
+                return ExtResult("No cards due for review. 🎉", terminal=True)
+            return ExtResult(f"{len(due)} card(s) due:\n\n" + "\n\n".join(
+                f"**Q:** {c['q']}\n**A:** {c['a']}  _(from {c['source']})_" for c in due[:10]), terminal=True)
+
+    except Exception as exc:
+        logger.error(f"[vault_dispatch] {prefix} failed: {exc}")
+        return ExtResult(f"{prefix} failed: {exc}", success=False, terminal=True)
+
+    return None
+
+
+def _episode(ctx, kind: str, detail: str) -> None:
+    if getattr(ctx, "memory", None) and getattr(ctx, "ep_vault_fn", None):
+        try:
+            ctx.memory.append_episode(ctx.ep_vault_fn(kind, detail + " [agent]"))
+        except Exception:
+            pass
+
+
+def _strip_frontmatter(text: str) -> str:
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            return text[end + 4:].lstrip("\n")
+    return text

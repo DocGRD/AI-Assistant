@@ -941,6 +941,8 @@ def main() -> None:
                  private                = private_mode,
                  allow_webui_on_private = allow_webui_private,
                  max_steps              = config.get("max_agent_steps", 10),
+                 config                 = config.all(),
+                 rag                    = rag_service,
              )
              reply, used_provider = run_agent_loop(agent_ctx)
 
