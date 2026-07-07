@@ -40,10 +40,11 @@ class _FakeRouter:
 
     def generate(self, messages, system_prompt="", max_tokens=2048, temperature=0.7,
                  provider_override=None, private=False, allow_webui_on_private=False,
-                 allow_webui=True):
+                 allow_webui=True, task=None):
         self.captured_last_message = messages[-1].content if messages else ""
         self.captured_private = private
         self.captured_allow_webui = allow_webui
+        self.captured_task = task
         # The edit flow calls with allow_webui=False; simulate exhaustion when asked.
         if not allow_webui and self._raise_on_edit:
             from assistant_core.providers.base_provider import ProviderError

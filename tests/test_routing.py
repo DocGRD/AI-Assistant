@@ -66,6 +66,31 @@ class RoutingTests(unittest.TestCase):
         self.assertTrue(order, "expected at least one provider for a large request")
         self.assertEqual(order[0], "cerebras")
 
+    # ---- M30: capability/tier-aware task routing --------------------------
+
+    def test_no_task_preserves_default_order(self):
+        # Task-aware ranking must be neutral when no task is passed (M10 order intact).
+        base = self.reg.route_order(ACTIVE, private=False, est_tokens=200, response_tokens=500)
+        chat = self.reg.route_order(ACTIVE, private=False, est_tokens=200, response_tokens=500, task="chat")
+        self.assertEqual(base[0], "groq")
+        self.assertEqual(base, chat)   # "chat" profile is neutral too
+
+    def test_qa_task_keeps_small_model_last(self):
+        # A factual QA turn should not lead with the tiny 8B model; larger tiers rank first.
+        order = self.reg.route_order(ACTIVE, private=False, est_tokens=200, response_tokens=500, task="qa")
+        self.assertTrue(order)
+        self.assertNotEqual(order[0], "groq:llama-3.1-8b-instant")   # small never first for QA
+        # the 8B (small tier) is ranked after at least one large-tier model
+        self.assertGreater(order.index("groq:llama-3.1-8b-instant"), 0)
+
+    def test_tier_derivation(self):
+        from assistant_core.providers.model_registry import derive_tier
+        self.assertEqual(derive_tier("llama-3.1-8b-instant"), "small")
+        self.assertEqual(derive_tier("qwen3-32b"), "mid")
+        self.assertEqual(derive_tier("llama-3.3-70b-versatile"), "large")
+        self.assertEqual(derive_tier("gpt-oss-120b"), "large")
+        self.assertEqual(derive_tier("llama-4-maverick-17b-128e-instruct"), "large")
+
     # ---- candidates never chosen -----------------------------------------
 
     def test_candidates_never_selected(self):

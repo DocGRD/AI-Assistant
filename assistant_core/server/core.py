@@ -201,6 +201,7 @@ class AssistantServer:
                 messages, system_prompt=edit_sys,
                 max_tokens=req.max_tokens, temperature=req.temperature,
                 provider_override=override, private=private, allow_webui=False,
+                task="edit",
             )
         except (ProviderError, ProviderWebUIHandoff) as exc:
             logger.warning(f"[Server] Edit providers exhausted: {exc}")

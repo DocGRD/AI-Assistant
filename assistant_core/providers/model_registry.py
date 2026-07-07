@@ -7,12 +7,55 @@ Changes from Milestone 6:
     and serves as the guaranteed final fallback.
 """
 
+import re
 import time
 import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
 logger = logging.getLogger("assistant")
+
+
+# ---------------------------------------------------------------------------
+# Tier + task-capability routing (Milestone 30)
+# ---------------------------------------------------------------------------
+
+def derive_tier(model_id: str) -> str:
+    """
+    Rough capability tier from a model id's parameter count — 'small' | 'mid' | 'large'.
+    Used to keep hard/factual tasks off tiny models and to pick an escalation target.
+    """
+    mid = (model_id or "").lower()
+    if "maverick" in mid:                    # big MoE despite 17B active params
+        return "large"
+    m = re.search(r"(\d+)\s*b", mid)
+    if m:
+        n = int(m.group(1))
+        if n < 14:
+            return "small"
+        if n <= 45:
+            return "mid"
+        return "large"
+    if "mini" in mid or "nano" in mid or "small" in mid:
+        return "small"
+    if any(k in mid for k in ("opus", "gpt-4", "70", "120", "405", "large")):
+        return "large"
+    return "mid"                             # unknown (e.g. gemini-flash) → middle
+
+
+# task → (prefer a larger tier?, desired strength tags). Absent/unknown task ⇒ neutral.
+TASK_PROFILE: dict[str, tuple[bool, set[str]]] = {
+    "qa":       (True,  {"reasoning", "quality"}),
+    "research": (True,  {"reasoning", "quality"}),
+    "verify":   (True,  {"reasoning", "quality"}),
+    "graph":    (True,  {"reasoning"}),
+    "extract":  (True,  {"reasoning"}),
+    "edit":     (False, {"quality"}),
+    "grammar":  (False, set()),
+    "code":     (False, {"code"}),
+    "chat":     (False, set()),
+}
+_TIER_RANK = {"large": 0, "mid": 1, "small": 2}
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +79,11 @@ class ModelSpec:
     status:          str = "active"
     trains_on_data:  str = ""
     tpd_limit:       int = 0
+
+    @property
+    def tier(self) -> str:
+        """'small' | 'mid' | 'large' — derived from the model id (M30)."""
+        return derive_tier(self.model_id)
 
 
 MODEL_SPECS: dict[str, ModelSpec] = {
@@ -350,6 +398,7 @@ class ModelRegistry:
         response_tokens: int  = 2048,
         long_form:       bool = False,
         want_tools:      bool = False,
+        task:            str | None = None,
     ) -> list[str]:
         """
         Return route keys to try, best first. Pure and testable.
@@ -398,10 +447,22 @@ class ModelRegistry:
                 return 0 if (tags & {"tool-use", "tool", "tools"}) else 1
             return 0                                        # default short request
 
-        candidates.sort(key=lambda n: (bucket(n), default_index(n)))
+        # M30 — task-aware capability ranking. Neutral (0,0) when no task is given or
+        # the task is unknown, so callers that don't pass a task keep the M10 ordering.
+        prefer_larger, want = TASK_PROFILE.get((task or "").lower(), (False, set()))
+
+        def cap_key(name: str) -> tuple[int, int]:
+            if not prefer_larger and not want:
+                return (0, 0)
+            spec = self.specs[name]
+            tier_rank = _TIER_RANK.get(spec.tier, 1) if prefer_larger else 0
+            match     = len(want & self._tags(spec)) if want else 0
+            return (tier_rank, -match)                       # larger tier first, more matches first
+
+        candidates.sort(key=lambda n: (bucket(n), *cap_key(n), default_index(n)))
         logger.info(
-            f"[ModelRegistry] route_order(private={private}, high_volume={high_volume}) "
-            f"→ {candidates}"
+            f"[ModelRegistry] route_order(private={private}, high_volume={high_volume}, "
+            f"task={task}) → {candidates}"
         )
         return candidates
 

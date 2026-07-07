@@ -37,7 +37,7 @@ def run_vault_qa(router, retriever, question: str, k: int = 6, force_private: bo
 
     answer, used = router.generate(
         messages, system_prompt=QA_SYSTEM, max_tokens=max_tokens, temperature=temperature,
-        private=private, allow_webui=False,
+        private=private, allow_webui=False, task="qa",
     )
 
     sources: list[str] = []
