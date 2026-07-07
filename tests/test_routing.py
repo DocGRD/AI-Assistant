@@ -132,5 +132,26 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(healthy, {"groq"})        # only groq's key remains healthy
 
 
+class PromptTierTests(unittest.TestCase):
+    """M30 — tier-aware prompt addenda appended to the selected model's system prompt."""
+
+    def test_small_gets_hard_anti_invention_rules(self):
+        from assistant_core.providers.provider_router import tier_addendum
+        small = tier_addendum("small")
+        self.assertIn("NEVER invent", small)
+        self.assertIn("I don't know", small)
+        self.assertIn("[[wikilinks]]", small)
+
+    def test_large_gets_no_addendum(self):
+        from assistant_core.providers.provider_router import tier_addendum
+        self.assertEqual(tier_addendum("large"), "")
+
+    def test_mid_grounds_without_nagging(self):
+        from assistant_core.providers.provider_router import tier_addendum
+        mid = tier_addendum("mid")
+        self.assertIn("Ground your answer", mid)
+        self.assertNotIn("STRICT", mid)
+
+
 if __name__ == "__main__":
     unittest.main()

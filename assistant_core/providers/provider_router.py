@@ -29,6 +29,31 @@ from assistant_core.providers.model_registry   import ModelRegistry, estimate_to
 logger = logging.getLogger("assistant")
 
 
+# M30 — tier-aware prompting. Appended to the system prompt for the *selected* model,
+# so small models get hard anti-hallucination rules while capable models aren't nagged.
+# This is the single biggest lever against invented links / quotes / citations.
+PROMPT_TIERS: dict[str, str] = {
+    "small": (
+        "\n\n[STRICT RESPONSE RULES]\n"
+        "- Answer only what is asked; be concise.\n"
+        "- Use ONLY the notes and context provided above. If the answer is not there, "
+        "reply \"I don't know\" — never guess.\n"
+        "- NEVER invent notes, [[wikilinks]], quotes, numbers, dates, or citations. "
+        "Only write a [[link]] to a note you were actually shown.\n"
+    ),
+    "mid": (
+        "\n\n[Response rules]\n"
+        "- Ground your answer in the provided notes/context; if you don't know, say so "
+        "instead of guessing. Do not fabricate [[links]], quotes, or citations.\n"
+    ),
+    "large": "",   # capable models: no extra hand-holding
+}
+
+
+def tier_addendum(tier: str) -> str:
+    return PROMPT_TIERS.get(tier, PROMPT_TIERS["mid"])
+
+
 class ProviderRouter:
     """
     Routes generate() calls to the best available provider.
@@ -194,7 +219,12 @@ class ProviderRouter:
 
             try:
                 logger.info(f"[Router] Sending to: {name}")
-                result = provider.generate(messages, system_prompt, mt, temp)
+                # M30 — reinforce anti-hallucination rules for smaller models.
+                spec = self._registry.specs.get(name)
+                sys_prompt = system_prompt
+                if spec is not None and spec.provider != "webui":
+                    sys_prompt = system_prompt + tier_addendum(spec.tier)
+                result = provider.generate(messages, sys_prompt, mt, temp)
                 # result is a str from all real providers
                 self._registry.error_log.record_success(name)
                 return result, name
