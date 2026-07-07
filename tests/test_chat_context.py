@@ -274,6 +274,33 @@ class EditFlowTests(unittest.TestCase):
         # The edit path must NOT allow the chat webui fallback.
         self.assertFalse(router.captured_allow_webui)
 
+    def test_large_selection_is_chunked_into_one_proposal(self):
+        # A selection larger than the edit cap is split, each section edited, and the
+        # results reassembled into ONE proposal (M31 — no more truncation).
+        from assistant_core import editing
+        big = "\n\n".join(f"Paragraph {i} " + ("word " * 200) for i in range(12))
+        self.assertGreater(len(big), editing.EDIT_CHUNK_CHARS)
+        n_sections = len(editing.split_for_edit(big))
+        self.assertGreater(n_sections, 1)
+
+        router = _FakeRouter(edit_reply="EDITED")
+        client = _make_client(router)
+        resp = client.post("/chat", json={
+            "message": "tighten the prose",
+            "edit": True,
+            "active_note_path": "AI/Notes/big.md",
+            "selection": {"text": big, "from": {"line": 0, "ch": 0},
+                          "to": {"line": 50, "ch": 0}, "scope": "section"},
+        })
+        self.assertEqual(resp.status_code, 200, resp.text)
+        data = resp.json()
+        prop = data["proposal"]
+        self.assertIsNotNone(prop)
+        self.assertEqual(prop["original_text"], big)                 # full original preserved
+        self.assertEqual(prop["replacement"], "\n\n".join(["EDITED"] * n_sections))
+        self.assertEqual(prop["replacement"].count("EDITED"), n_sections)  # every section edited
+        self.assertIn("sections", data["reply"])                     # user told it was chunked
+
     def test_word_scope_returns_parsed_options(self):
         # Reply with numbering/bullets/quotes + a fence → parsed to clean options.
         router = _FakeRouter(edit_reply="```\n1. swift\n- rapid\n\"speedy\"\nswift\n```")

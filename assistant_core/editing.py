@@ -34,6 +34,40 @@ BEGIN_MARK = "<!-- AI-EDIT-PROPOSAL"
 END_MARK   = "AI-EDIT-PROPOSAL-END -->"
 PROPOSAL_HEADING = "## Assistant Proposed Edit"
 
+# M31 — a single edit call is capped at max_tokens, so a large selection's rewrite gets
+# truncated. Above this size we split the selection, edit each part, and reassemble.
+EDIT_CHUNK_CHARS = 3500
+
+
+def split_for_edit(text: str, max_chars: int = EDIT_CHUNK_CHARS) -> list[str]:
+    """
+    Split `text` into ordered chunks each ≤ max_chars, preferring paragraph boundaries
+    (blank lines); a single oversized paragraph is hard-split. Returns [text] when it
+    already fits. Reassemble edited chunks with "\\n\\n".join(...).
+    """
+    text = text or ""
+    if len(text) <= max_chars:
+        return [text]
+    units: list[str] = []
+    for para in re.split(r"\n\s*\n", text):
+        while len(para) > max_chars:
+            units.append(para[:max_chars])
+            para = para[max_chars:]
+        units.append(para)
+    chunks: list[str] = []
+    cur = ""
+    for u in units:
+        if not cur:
+            cur = u
+        elif len(cur) + 2 + len(u) <= max_chars:
+            cur += "\n\n" + u
+        else:
+            chunks.append(cur)
+            cur = u
+    if cur:
+        chunks.append(cur)
+    return chunks
+
 
 # ---------------------------------------------------------------------------
 # Reply cleaning

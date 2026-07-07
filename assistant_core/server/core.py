@@ -193,26 +193,53 @@ class AssistantServer:
         edit_sys  = editing.EDIT_WORD_SYSTEM if is_word else editing.EDIT_SYSTEM
         user_body = (f"Instruction: {req.message}\n\nWord/phrase: {original}" if is_word
                      else f"Instruction: {req.message}\n\nRegion to revise:\n{original}")
-        messages  = [Message(role="user", content=user_body)]
         logger.info(f"[Server] /chat edit — scope={scope} private={private} ({len(original)} chars)")
 
-        try:
-            reply, used = self._router.generate(
-                messages, system_prompt=edit_sys,
-                max_tokens=req.max_tokens, temperature=req.temperature,
-                provider_override=override, private=private, allow_webui=False,
-                task="edit",
-            )
-        except (ProviderError, ProviderWebUIHandoff) as exc:
-            logger.warning(f"[Server] Edit providers exhausted: {exc}")
-            return self._edit_handoff_response(req, original, private, ts)
-
-        if is_word:
-            options     = editing.parse_options(reply)
-            replacement = options[0] if options else editing.clean_edit_reply(reply)
+        options: list[str] = []
+        sections = 1
+        # M31 — a large selection would truncate in one capped call; split it, edit each
+        # section, reassemble into one proposal.
+        if (not is_word) and len(original) > editing.EDIT_CHUNK_CHARS:
+            chunks   = editing.split_for_edit(original)
+            sections = len(chunks)
+            logger.info(f"[Server] Large edit — splitting into {sections} sections")
+            edited: list[str] = []
+            used = None
+            for i, ch in enumerate(chunks):
+                body = f"Instruction: {req.message}\n\nRegion to revise:\n{ch}"
+                try:
+                    rep, used = self._router.generate(
+                        [Message(role="user", content=body)], system_prompt=edit_sys,
+                        max_tokens=req.max_tokens, temperature=req.temperature,
+                        provider_override=override, private=private, allow_webui=False,
+                        task="edit",
+                    )
+                    edited.append(editing.clean_edit_reply(rep))
+                except (ProviderError, ProviderWebUIHandoff) as exc:
+                    if i == 0:                       # nothing usable — hand off as before
+                        logger.warning(f"[Server] Edit providers exhausted: {exc}")
+                        return self._edit_handoff_response(req, original, private, ts)
+                    logger.warning(f"[Server] Edit section {i+1}/{sections} failed ({exc}); keeping original")
+                    edited.append(ch)
+            replacement = "\n\n".join(edited)
         else:
-            options     = []
-            replacement = editing.clean_edit_reply(reply)
+            messages = [Message(role="user", content=user_body)]
+            try:
+                reply, used = self._router.generate(
+                    messages, system_prompt=edit_sys,
+                    max_tokens=req.max_tokens, temperature=req.temperature,
+                    provider_override=override, private=private, allow_webui=False,
+                    task="edit",
+                )
+            except (ProviderError, ProviderWebUIHandoff) as exc:
+                logger.warning(f"[Server] Edit providers exhausted: {exc}")
+                return self._edit_handoff_response(req, original, private, ts)
+            if is_word:
+                options     = editing.parse_options(reply)
+                replacement = options[0] if options else editing.clean_edit_reply(reply)
+            else:
+                replacement = editing.clean_edit_reply(reply)
+
         offsets  = {"from": sel.get("from"), "to": sel.get("to")}
         proposal = editing.make_proposal(
             note_path=req.active_note_path, scope=scope, intent=req.message,
@@ -221,8 +248,10 @@ class AssistantServer:
         )
         if self._memory and self._ep_vault:
             self._memory.append_episode(self._ep_vault("propose_edit", f"{scope} on {req.active_note_path} [plugin]"))
+        reply_msg = ("Proposed edit ready — review and Replace." if sections == 1
+                     else f"Proposed edit ready ({sections} sections) — review and Replace.")
         return HandoffResponse(
-            status="ok", reply="Proposed edit ready — review and Replace.",
+            status="ok", reply=reply_msg,
             provider_used=used, actual_provider=used, timestamp=ts, proposal=proposal,
         )
 

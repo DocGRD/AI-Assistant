@@ -32,6 +32,28 @@ class EditingHelpersTests(unittest.TestCase):
         # heading reference may include leading '#'
         self.assertTrue(editing.section_text(body, "## Notes")[1])
 
+    def test_split_for_edit_small_is_single_chunk(self):
+        self.assertEqual(editing.split_for_edit("short text", 3500), ["short text"])
+
+    def test_split_for_edit_chunks_large_text_in_order(self):
+        paras = [f"Paragraph number {i} " + ("x" * 300) for i in range(10)]
+        text = "\n\n".join(paras)
+        chunks = editing.split_for_edit(text, max_chars=800)
+        self.assertGreater(len(chunks), 1)
+        for c in chunks:
+            self.assertLessEqual(len(c), 800)
+        # order preserved: every paragraph appears, in sequence, across the chunks
+        joined = "\n\n".join(chunks)
+        self.assertEqual([p.split()[2] for p in text.split("\n\n")],
+                         [str(i) for i in range(10)])
+        for i in range(10):
+            self.assertIn(f"Paragraph number {i} ", joined)
+
+    def test_split_for_edit_hard_splits_one_huge_paragraph(self):
+        chunks = editing.split_for_edit("y" * 5000, max_chars=1000)
+        self.assertEqual(len(chunks), 5)
+        self.assertEqual("".join(chunks), "y" * 5000)
+
     def test_proposal_block_roundtrip(self):
         prop = editing.make_proposal(
             note_path="n.md", scope="section", intent="tighten",
