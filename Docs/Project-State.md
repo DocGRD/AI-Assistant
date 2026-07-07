@@ -5,7 +5,7 @@
 *Status: **v1.0.0 — released publicly 2026-07-03** (GitHub pre-release "beta v1.0.0" + BRAT, MIT licensed).
 Milestones 1–31 implemented and tested (327 automated tests green), and deployed end-to-end (Linux systemd
 service with GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN). Post-release work
-(2026-07-07): the plugin was renamed **AI Assistant GRD** (id `ai-assistant-grd`, unique for the directory),
+(2026-07-07): the plugin was renamed **Loremaster** (id `loremaster` — a meaningful name, verified unused across all 5,456 directory plugins),
 and **M30 (anti-hallucination) + M31 (chunked edits)** landed. **Where to resume:** see
 [Post-v1.0 — Release Status & Next Work](#post-v10--release-status--next-work)
 at the end of this document — it records the one open release chore, the discovery next-step, and the
