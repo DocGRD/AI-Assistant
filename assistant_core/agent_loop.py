@@ -55,6 +55,7 @@ VAULT_COMMANDS = {
     "vault:research":  "generate_research_prompt",
     "vault:summarise": "summarise_research",
     "vault:summarize": "summarise_research",   # accept the American spelling too
+    "vault:calc":      "calc",                 # M32 — deterministic arithmetic
 }
 
 # Commands that cannot run autonomously — return a helpful message instead
@@ -78,7 +79,7 @@ BLOCKED_COMMANDS: dict[str, str] = {
     # now *proposes* them for one-click user approval. See RESTRUCTURE_COMMANDS below.
 }
 
-READ_TOOLS = {"read_note", "search_vault", "list_vault", "find_notes", "get_linked_notes", "summarise_research"}
+READ_TOOLS = {"read_note", "search_vault", "list_vault", "find_notes", "get_linked_notes", "summarise_research", "calc"}
 
 # M20 — "deliverable" tools: their output IS the answer. Once one runs, the loop
 # returns it and stops, instead of continuing to "finish" work the user didn't ask

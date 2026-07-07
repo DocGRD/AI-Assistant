@@ -153,5 +153,17 @@ class PromptTierTests(unittest.TestCase):
         self.assertNotIn("STRICT", mid)
 
 
+class TaskTemperatureTests(unittest.TestCase):
+    """M32 — factual tasks clamp the temperature toward deterministic."""
+
+    def test_factual_tasks_capped(self):
+        from assistant_core.providers.provider_router import TASK_MAX_TEMP
+        self.assertEqual(TASK_MAX_TEMP["math"], 0.0)
+        self.assertLessEqual(TASK_MAX_TEMP["verify"], 0.3)
+        self.assertLessEqual(TASK_MAX_TEMP["qa"], 0.3)
+        # chat/creative is not in the map → keeps caller temperature
+        self.assertNotIn("chat", TASK_MAX_TEMP)
+
+
 if __name__ == "__main__":
     unittest.main()

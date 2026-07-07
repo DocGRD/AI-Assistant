@@ -34,9 +34,10 @@ VAULT_COMMANDS = {
     "vault:summarise": ("summarise_research",       "Usage: vault:summarise <path to research note>"),
     "vault:summarize": ("summarise_research",       "Usage: vault:summarize <path to research note>"),
     "vault:update-providers": ("update_providers",  "Usage: vault:update-providers [provider|apply]"),
+    "vault:calc":      ("calc",                     "Usage: vault:calc <expression>  e.g. 4 + 6"),
 }
 
-READ_TOOLS = {"read_note", "search_vault", "list_vault", "find_notes", "get_linked_notes", "summarise_research"}
+READ_TOOLS = {"read_note", "search_vault", "list_vault", "find_notes", "get_linked_notes", "summarise_research", "calc"}
 
 # Tools that may run with no input (e.g. vault:list root, vault:update-providers propose).
 NO_INPUT_OK = {"list_vault", "update_providers"}

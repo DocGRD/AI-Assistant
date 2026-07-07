@@ -113,6 +113,8 @@ If a vault: command fails (✗) or returns nothing useful, do not blindly repeat
 
 Before answering questions about topics that might be in the vault, search or read relevant notes first. Do not answer from general knowledge when specific vault knowledge exists.
 
+For ANY arithmetic or calculation — even something that looks trivial like "4 + 6" — call `vault:calc <expression>` and use its result. Never compute in your head, and never trust a number you did not get from `vault:calc`. If you already stated a number and the user disputes it, recompute with `vault:calc` rather than repeating yourself.
+
 Before writing code or plans, check AI/Memory/Projects/ for relevant context.
 
 After significant decisions, offer to save them with vault:update.

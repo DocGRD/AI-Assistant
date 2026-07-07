@@ -17,6 +17,7 @@ from assistant_core.tools.research_prompt import ResearchPromptTool
 from assistant_core.tools.import_research import ImportResearchTool
 from assistant_core.tools.summarise_research import SummariseResearchTool
 from assistant_core.tools.provider_tracker import ProviderTrackerTool
+from assistant_core.tools.calc import CalcTool
 
 logger = logging.getLogger("assistant")
 
@@ -53,6 +54,7 @@ class ToolRegistry:
             ImportResearchTool(self._vault_path, title_fn=title_fn),
             SummariseResearchTool(self._vault_path),
             ProviderTrackerTool(self._vault_path, self._config),
+            CalcTool(),
         ]
         for tool in vault_tools:
             self._tools[tool.name] = tool

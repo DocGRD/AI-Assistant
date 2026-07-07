@@ -54,6 +54,15 @@ def tier_addendum(tier: str) -> str:
     return PROMPT_TIERS.get(tier, PROMPT_TIERS["mid"])
 
 
+# M32 — factual/reasoning turns should be near-deterministic. Cap the temperature per
+# task so a high creative temp can't produce (and then anchor on) a confident wrong
+# number/fact. Chat/creative turns (no task) keep the caller's temperature.
+TASK_MAX_TEMP: dict[str, float] = {
+    "math": 0.0, "verify": 0.2, "extract": 0.2, "graph": 0.2, "code": 0.2,
+    "qa": 0.3, "edit": 0.3, "research": 0.3,
+}
+
+
 class ProviderRouter:
     """
     Routes generate() calls to the best available provider.
@@ -175,6 +184,8 @@ class ProviderRouter:
         """
         mt   = max_tokens  if max_tokens  is not None else self._max_tokens
         temp = temperature if temperature is not None else self._temperature
+        if task in TASK_MAX_TEMP:                       # M32 — deterministic factual turns
+            temp = min(temp, TASK_MAX_TEMP[task])
 
         est_tokens  = estimate_tokens(messages, system_prompt)
         high_volume = (est_tokens + mt) >= self._registry.LARGE_TOKENS
