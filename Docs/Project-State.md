@@ -3,10 +3,10 @@
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
 *Status: **v1.0.0 — released publicly 2026-07-03** (GitHub pre-release "beta v1.0.0" + BRAT, MIT licensed).
-Milestones 1–31 implemented and tested (327 automated tests green), and deployed end-to-end (Linux systemd
+Milestones 1–33 implemented and tested (344 automated tests green), and deployed end-to-end (Linux systemd
 service with GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN). Post-release work
 (2026-07-07): the plugin was renamed **Loremaster** (id `loremaster` — a meaningful name, verified unused across all 5,456 directory plugins),
-and **M30 (anti-hallucination) + M31 (chunked edits)** landed. **Where to resume:** see
+and **M30 (anti-hallucination), M31 (chunked edits), M32 (deterministic math), M33 (agent full-command access + autonomous web research)** landed. **Where to resume:** see
 [Post-v1.0 — Release Status & Next Work](#post-v10--release-status--next-work)
 at the end of this document — it records the one open release chore, the discovery next-step, and the
 scoped-but-deferred clean-architecture refactor.*
@@ -1456,6 +1456,32 @@ A large selection no longer truncates: `editing.split_for_edit()` splits it at p
 `server/core.py` `_handle_edit` edits each section under the token cap and reassembles them into **one**
 proposal (per-section failure keeps that section's original). Small selections keep the single-call path.
 Tests in `test_editing.py` + a server reassembly test. 327 tests green.
+
+---
+
+### M32 — Deterministic Math ✅ (implemented)
+
+A free model asserted "4 + 6 = 12" and doubled down. Fix: never let the model guess arithmetic.
+- `assistant_core/tools/calc.py` — `CalcTool` (safe AST evaluator; `vault:calc`) + `maybe_answer_arithmetic()`.
+- `server/core.py` `/chat` answers a plain arithmetic query (`4 + 6 =`, `what is 3*7?`) **deterministically
+  before any model runs** (`provider=system`) — always correct, can't be argued wrong.
+- `provider_router` clamps temperature for factual tasks (`TASK_MAX_TEMP`: math=0.0 … qa/edit=0.3).
+- System prompt: use `vault:calc` for all arithmetic. Live-verified (4+6=10, 3*7=21, (2+3)*4=20).
+
+### M33 — Agent Full-Command Access + Autonomous Web Research ✅ (implemented)
+
+Root cause of "it does the webui paste-thing instead of webresearch": the system prompt *forbade* the
+agent from emitting the rich command set, and those commands lived only as server/terminal intercepts.
+- `assistant_core/vault_dispatch.py` `run_extended()` — gives the agent loop the rich commands
+  (webresearch / ingest / query / sources / passage / guide / ocr / analyze / graph / transcribe / cards /
+  review), reusing existing handlers; inject-vs-terminal classification; **web refused on private turns**.
+- `agent_loop` routes emitted non-basic `vault:` commands to `run_extended`; `AgentContext` gains
+  `config` + `rag` (threaded from server/terminal/watcher).
+- Prompt rewritten: the agent MAY use these; **use `vault:webresearch` for web lookups** (not
+  `vault:research`/webui). `import`/`discover`/`reindex`/`test`/`run-script` stay user-only; restructuring
+  stays propose/commit. Live-verified: "look on the web for…" → autonomous cited research, no paste-prompt.
+- *Deferred:* deduping the server/app intercepts through `run_extended` (internal cleanup; overlaps the
+  clean-architecture refactor).
 
 ---
 
