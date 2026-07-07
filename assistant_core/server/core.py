@@ -257,11 +257,22 @@ class AssistantServer:
             return HandoffResponse(status="ok", provider_used="system", actual_provider="system",
                                    timestamp=ts, reply="No relevant notes found for that question.", sources=[])
 
+        # M30 — hallucination guard: if the answer isn't grounded in the vault, escalate
+        # to a larger model and/or web-verify with real citations (private → flag only).
+        from assistant_core.verify import guard_answer
+        qa_private = bool(req.private) or any(self._note_is_private(s) for s in res.get("sources", []))
+        answer, gstatus = guard_answer(
+            res["answer"], req.message, self._router, self._config.get("vault_path"),
+            self._config, private=qa_private,
+        )
+        if gstatus not in ("off", "grounded"):
+            logger.info(f"[Server] Vault QA hallucination-guard → {gstatus}")
+
         if self._memory and self._ep_chat:
             self._memory.append_episode(self._ep_chat(f"[plugin vault-qa] {req.message}",
-                                                      res["answer"], provider=res["provider"]))
+                                                      answer, provider=res["provider"]))
         return HandoffResponse(
-            status="ok", reply=res["answer"], provider_used=res["provider"],
+            status="ok", reply=answer, provider_used=res["provider"],
             actual_provider=res["provider"], timestamp=ts, sources=res["sources"],
             source_kinds=res.get("source_kinds", []),
         )
