@@ -71,7 +71,7 @@ class UpdateNoteTool(BaseTool):
         content, removed_links = neutralize_dangling(content, self._vault, self._link_policy)
 
         timestamp    = datetime.now().strftime("%Y-%m-%d %H:%M")
-        append_block = f"\n\n---\n*Appended by AI Assistant — {timestamp}*\n\n{content}\n"
+        append_block = f"\n\n---\n*Appended by Loremaster — {timestamp}*\n\n{content}\n"
         if removed_links:
             append_block += "\n*Removed unresolved links: " + ", ".join(removed_links) + "*\n"
             logger.info(f"[update_note] Neutralized {len(removed_links)} dangling link(s): {removed_links}")

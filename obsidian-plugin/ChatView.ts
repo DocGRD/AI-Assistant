@@ -356,7 +356,7 @@ export class ChatView extends ItemView {
     }
 
     getViewType():    string { return CHAT_VIEW_TYPE; }
-    getDisplayText(): string { return "AI Assistant"; }
+    getDisplayText(): string { return "Loremaster"; }
     getIcon():        string { return "bot"; }
 
     async onOpen(): Promise<void> {
@@ -388,7 +388,7 @@ export class ChatView extends ItemView {
         // toggle, and the settings gear on the right (all on one row).
         const header = container.createDiv("ai-assistant-header");
         const headLeft = header.createDiv("ai-assistant-head-left");
-        headLeft.createEl("span", { text: "AI Assistant", cls: "ai-assistant-title" });
+        headLeft.createEl("span", { text: "Loremaster", cls: "ai-assistant-title" });
         this.modeEl = headLeft.createEl("span", { cls: "ai-assistant-mode" });
 
         const headRight = header.createDiv("ai-assistant-head-right");
@@ -725,7 +725,7 @@ export class ChatView extends ItemView {
         if (cmd === "/settings" || cmd === "/config") {
             const setting = (this.app as any).setting;
             if (setting) { setting.open(); setting.openTabById?.("ai-assistant"); }
-            new Notice("Control panel: Settings → AI Assistant → 'Service settings (control panel)' → Load.");
+            new Notice("Control panel: Settings → Loremaster → 'Service settings (control panel)' → Load.");
             return true;
         }
         if (cmd === "/help") {
@@ -1286,7 +1286,7 @@ export class ChatView extends ItemView {
             setting.open();
             setting.openTabById(this.plugin.manifest.id);
         } else {
-            new Notice("Open Settings → AI Assistant.");
+            new Notice("Open Settings → Loremaster.");
         }
     }
 
@@ -1679,7 +1679,7 @@ export class ChatView extends ItemView {
         proposal.offsets = null;        // force the vault (anchor) apply path
         if (!proposal.note_path) proposal.note_path = file.path;
         this.renderEditProposal(proposal);
-        new Notice("A staged edit proposal is ready to review in the AI Assistant panel.");
+        new Notice("A staged edit proposal is ready to review in the Loremaster panel.");
     }
 
     private extractProposalFromContent(content: string): EditProposal | null {

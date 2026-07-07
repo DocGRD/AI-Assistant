@@ -167,7 +167,7 @@ class ImportResearchTool(BaseTool):
 
 ---
 
-*Imported by AI Assistant — Milestone 5*
+*Imported by Loremaster — Milestone 5*
 """
 
         return formatted

@@ -31,7 +31,7 @@ export default class AIAssistantPlugin extends Plugin {
         this.registerView(CHAT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ChatView(leaf, this));
 
         // Ribbon button — opens the chat sidebar
-        this.addRibbonIcon("bot", "Open AI Assistant", () => {
+        this.addRibbonIcon("bot", "Open Loremaster", () => {
             this.activateChatView();
         });
 
@@ -119,7 +119,7 @@ class AIAssistantSettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        containerEl.createEl("h2", { text: "AI Assistant Settings" });
+        containerEl.createEl("h2", { text: "Loremaster Settings" });
 
         // Connection section
         containerEl.createEl("h3", { text: "Service connection" });

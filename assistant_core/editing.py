@@ -200,7 +200,7 @@ def render_proposal_block(proposal: dict) -> str:
     return (
         f"\n\n{PROPOSAL_HEADING}\n\n"
         f"{BEGIN_MARK}\n{payload}\n{END_MARK}\n\n"
-        f"> Proposed replacement for {where}. Open this note in the AI Assistant plugin to "
+        f"> Proposed replacement for {where}. Open this note in the Loremaster plugin to "
         f"review and **Replace**, or delete this section to reject.\n"
     )
 

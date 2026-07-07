@@ -132,7 +132,7 @@ class CreateNoteTool(BaseTool):
         if removed_links:
             final_content += "\n\n---\n*Removed unresolved links: " + ", ".join(removed_links) + "*"
             logger.info(f"[create_note] Neutralized {len(removed_links)} dangling link(s): {removed_links}")
-        final_content += f"\n\n---\n*Created by AI Assistant — {timestamp}*\n"
+        final_content += f"\n\n---\n*Created by Loremaster — {timestamp}*\n"
 
         try:
             target.write_text(final_content, encoding="utf-8")
