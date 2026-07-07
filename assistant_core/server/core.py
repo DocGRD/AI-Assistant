@@ -882,11 +882,14 @@ class AssistantServer:
                 # answer the message and use the notes only if relevant.
                 joined_ctx = "\n\n---\n\n".join(context_blocks)
                 effective_message = (
-                    "=== BACKGROUND (notes the user currently has open — reference only if "
-                    "relevant to their message; do NOT assume the user pasted or is asking "
-                    "about this) ===\n\n"
+                    "=== BACKGROUND CONTEXT (the notes the user currently has open) ===\n"
+                    "This is reference material ONLY. Do NOT quote, echo, summarize, or describe "
+                    "it unless the user's message below explicitly asks you to. The user did NOT "
+                    "paste this and is not necessarily asking about it.\n\n"
                     f"{joined_ctx}\n\n"
-                    "=== USER MESSAGE (respond to THIS) ===\n\n"
+                    "=== USER MESSAGE (respond to THIS and only this) ===\n"
+                    "If the message is unclear, trivial, or a greeting, reply briefly and ask what "
+                    "they'd like to do — do NOT dump the background.\n\n"
                     f"{req.message}"
                 )
 

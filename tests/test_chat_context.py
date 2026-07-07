@@ -189,7 +189,8 @@ class ChatContextInjectionTests(unittest.TestCase):
         # Framing: injected context is labelled BACKGROUND and the user's message is
         # clearly the request — so the model doesn't mistake the open note for pasted input.
         self.assertIn("=== BACKGROUND", sent)
-        self.assertIn("=== USER MESSAGE (respond to THIS) ===", sent)
+        self.assertIn("=== USER MESSAGE", sent)
+        self.assertIn("Do NOT quote, echo, summarize", sent)   # anti-dump instruction present
         self.assertLess(sent.index("=== BACKGROUND"), sent.index("=== USER MESSAGE"))
         # the message comes after the background marker
         self.assertGreater(sent.index("What does this say?"), sent.index("=== USER MESSAGE"))

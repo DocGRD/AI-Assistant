@@ -459,7 +459,13 @@ class ModelRegistry:
             match     = len(want & self._tags(spec)) if want else 0
             return (tier_rank, -match)                       # larger tier first, more matches first
 
-        candidates.sort(key=lambda n: (bucket(n), *cap_key(n), default_index(n)))
+        def curated(name: str) -> int:
+            # Curated (fast, known-good) providers always outrank discovered/candidate ones —
+            # capability only reorders WITHIN a group, so a capable-but-slow provider (e.g. a
+            # timing-out nvidia endpoint) can never jump ahead of the curated defaults.
+            return 0 if name in self.DEFAULT_PREFERENCE else 1
+
+        candidates.sort(key=lambda n: (bucket(n), curated(n), *cap_key(n), default_index(n)))
         logger.info(
             f"[ModelRegistry] route_order(private={private}, high_volume={high_volume}, "
             f"task={task}) → {candidates}"
