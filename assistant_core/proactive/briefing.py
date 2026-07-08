@@ -132,6 +132,17 @@ def build_briefing(vault, config: dict | None = None, rag=None, router=None,
         lines.append("- Run `vault:analytics` for the full report.")
         lines.append("")
 
+    # M39 — surface open action items pulled from notes (AI/Tasks/).
+    try:
+        from assistant_core import tasks
+        actions = tasks.open_actions(vault)
+    except Exception:
+        actions = []
+    if actions:
+        lines.append(f"## Open actions ({len(actions)})")
+        lines += [f"- [ ] {a}" for a in actions]
+        lines.append("")
+
     # M37 — surface possible contradictions across the vault (deterministic, bounded).
     try:
         from assistant_core import contradiction

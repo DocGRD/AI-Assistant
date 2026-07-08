@@ -354,6 +354,48 @@ class ApprovalsEndpointTests(unittest.TestCase):
 
 
 @unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
+class GoalsEndpointTests(unittest.TestCase):
+    """M39 — GET /goals + POST /goals/control."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from assistant_core.goals import store
+        self.store = store
+        self.tmp = tempfile.mkdtemp()
+        self._g = store._GOALS_FILE
+        store._GOALS_FILE = Path(self.tmp) / "goals.json"
+        g = store.create_goal("Do a thing", ["a", "b"])
+        store.set_status(g["slug"], "running")
+        self.slug = g["slug"]
+
+    def tearDown(self):
+        self.store._GOALS_FILE = self._g
+
+    def _client(self):
+        import threading
+        from fastapi.testclient import TestClient
+        server = AssistantServer(
+            router=_Router(), memory=None, registry=_FakeReg(), history=[],
+            history_lock=threading.Lock(),
+            config={"host": "127.0.0.1", "vault_path": self.tmp}, system_prompt="S")
+        return TestClient(server._app)
+
+    def test_list_and_control(self):
+        c = self._client()
+        d = c.get("/goals").json()
+        g = next(x for x in d["goals"] if x["slug"] == self.slug)
+        self.assertEqual(g["status"], "running")
+        self.assertEqual(g["total"], 2)
+        r = c.post("/goals/control", json={"slug": self.slug, "action": "pause"}).json()
+        self.assertEqual(r["status"], "paused")
+        self.assertEqual(self.store.get_goal(self.slug)["status"], "paused")
+
+    def test_bad_action_400(self):
+        self.assertEqual(self._client().post("/goals/control", json={"slug": "x", "action": "boom"}).status_code, 400)
+
+
+@unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
 class ContradictionsEndpointTests(unittest.TestCase):
     """M37 — vault:contradictions runs the deterministic detector via /chat (provider=system)."""
 

@@ -47,10 +47,13 @@ class GoalWorker:
         from assistant_core.background import governor
 
         for goal in store.load_goals():
-            if goal["status"] != "running":
+            if goal["status"] != "running" or not store.due(goal):   # M39 — recurring not-yet-due
                 continue
             sub = store.next_pending(goal)
-            if sub is None:                                  # nothing left → done
+            if sub is None:                                  # nothing left
+                if store.rearm_recurring(goal):              # M39 — recurring goal loops
+                    store.render_note(self._vault, store.get_goal(goal["slug"]))
+                    continue
                 store.set_status(goal["slug"], "done")
                 store.render_note(self._vault, store.get_goal(goal["slug"]))
                 logger.info(f"[Goals] '{goal['slug']}' complete.")
@@ -58,6 +61,9 @@ class GoalWorker:
             if not governor.may_run(self._config):           # foreground busy / budget spent
                 logger.debug("[Goals] deferring — governor.")
                 return False
+            if not store.budget_ok(goal):                    # M39 — per-goal daily cap
+                logger.info(f"[Goals] '{goal['slug']}' hit its daily budget — pausing until tomorrow.")
+                continue
             logger.info(f"[Goals] '{goal['slug']}' step {sub['id']+1}: {sub['task'][:80]}")
             try:
                 result = self._run_subtask(sub["task"])
@@ -66,6 +72,7 @@ class GoalWorker:
                 sub["status"], sub["result"] = "failed", f"error: {exc}"
                 logger.warning(f"[Goals] step failed: {exc}")
             governor.record_background_call()
+            store.record_spend(goal)                         # M39 — count against the goal's budget
             store.upsert_goal(goal)
             store.render_note(self._vault, goal)
             return True                                      # one subtask per tick (paced)

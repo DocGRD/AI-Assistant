@@ -290,6 +290,12 @@ interface StatusResponse {
 interface HistoryMessage { role: string; content: string; }
 interface HistoryResponse { messages: HistoryMessage[]; count: number; }
 
+// M39 — running-goals panel
+interface Goal {
+    slug: string; description: string; status: string;
+    done: number; total: number; recurring: string; template: string;
+}
+
 // M36 — unified Approvals inbox (organize + memory + goals)
 interface ApprovalItem { itemkind: string; value: string; label: string; }
 interface Approval {
@@ -361,6 +367,7 @@ export class ChatView extends ItemView {
     private relatedPaths: string[] = []; // paths currently offered by the Related dropdown
     private qaScopeEl!: HTMLElement;   // Vault QA scope row (shown when Vault QA is on)
     private proactiveEl!: HTMLElement; // M36 — unified Approvals inbox + briefing
+    private goalsEl!: HTMLElement;     // M39 — running-goals panel
 
     constructor(leaf: WorkspaceLeaf, plugin: AIAssistantPlugin) {
         super(leaf);
@@ -376,6 +383,7 @@ export class ChatView extends ItemView {
         await this.loadStatus();
         await this.loadHistory();
         void this.refreshProactive();          // M36 — unified Approvals inbox + today's briefing
+        void this.refreshGoals();              // M39 — running goals panel
         // M9 — surface staged edit proposals; M12 — refresh related notes, on file open.
         this.registerEvent(this.app.workspace.on("file-open", (f) => {
             if (f) { void this.checkNoteForProposal(f); void this.refreshRelated(f); }
@@ -416,6 +424,10 @@ export class ChatView extends ItemView {
         // M36 — unified Approvals inbox (organize + memory + goals) + briefing (hidden until any).
         this.proactiveEl = container.createDiv("ai-assistant-proactive");
         this.proactiveEl.style.display = "none";
+
+        // M39 — running goals with progress + pause/resume/cancel (hidden until any).
+        this.goalsEl = container.createDiv("ai-assistant-proactive");
+        this.goalsEl.style.display = "none";
 
         this.statusEl = container.createDiv("ai-assistant-status");
         this.statusEl.setText("Connecting...");
@@ -1477,6 +1489,70 @@ export class ChatView extends ItemView {
             new Notice(`Approval ${action} failed: ${e instanceof Error ? e.message : e}`);
         }
         void this.refreshProactive();
+    }
+
+    // ------------------------------------------------------------------
+    // M39 — Goals panel: running goals with progress + pause/resume/cancel
+    // ------------------------------------------------------------------
+    private async refreshGoals(): Promise<void> {
+        if (!this.goalsEl) return;
+        const { host, port } = this.plugin.settings;
+        try {
+            const resp = await fetch(`http://${host}:${port}/goals`, {
+                signal: AbortSignal.timeout(3000), headers: this.apiHeaders(),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const goals = (await resp.json() as { goals: Goal[] }).goals ?? [];
+            this.renderGoals(goals.filter(g => g.status === "running" || g.status === "paused"));
+        } catch {
+            this.goalsEl.style.display = "none";
+        }
+    }
+
+    private renderGoals(goals: Goal[]): void {
+        this.goalsEl.empty();
+        if (goals.length === 0) { this.goalsEl.style.display = "none"; return; }
+        this.goalsEl.style.display = "block";
+        this.goalsEl.createEl("div", { text: `🎯 Goals — ${goals.length} active`, cls: "ai-assistant-memory-title" });
+
+        for (const g of goals) {
+            const box = this.goalsEl.createDiv("ai-assistant-proactive-item");
+            const head = box.createDiv("ai-assistant-proactive-head");
+            const tags = [g.recurring && `↻ ${g.recurring}`, g.template && `⚙ ${g.template}`].filter(Boolean).join(" · ");
+            head.createEl("span", {
+                text: `${g.description}  (${g.done}/${g.total})${tags ? " · " + tags : ""}`,
+                cls: "ai-assistant-proactive-note",
+            });
+            const openBtn = head.createEl("button", { text: "Open", cls: "ai-assistant-quick-btn" });
+            openBtn.addEventListener("click", () => void this.app.workspace.openLinkText(`AI/System/Goals/${g.slug}.md`, "", false));
+
+            const btns = box.createDiv("ai-assistant-memory-btns");
+            if (g.status === "running")
+                btns.createEl("button", { text: "Pause", cls: "ai-assistant-quick-btn" })
+                    .addEventListener("click", () => void this.goalControl(g.slug, "pause"));
+            else
+                btns.createEl("button", { text: "Resume", cls: "ai-assistant-quick-btn" })
+                    .addEventListener("click", () => void this.goalControl(g.slug, "resume"));
+            btns.createEl("button", { text: "Cancel", cls: "ai-assistant-quick-btn" })
+                .addEventListener("click", () => void this.goalControl(g.slug, "cancel"));
+        }
+    }
+
+    private async goalControl(slug: string, action: "pause" | "resume" | "cancel"): Promise<void> {
+        const { host, port } = this.plugin.settings;
+        try {
+            const resp = await fetch(`http://${host}:${port}/goals/control`, {
+                method: "POST",
+                headers: this.apiHeaders({ "Content-Type": "application/json" }),
+                body: JSON.stringify({ slug, action }),
+                signal: AbortSignal.timeout(6000),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            new Notice(`Goal ${action}d: ${slug}`);
+        } catch (e) {
+            new Notice(`Goal ${action} failed: ${e instanceof Error ? e.message : e}`);
+        }
+        void this.refreshGoals();
     }
 
     private addMention(path: string): void {

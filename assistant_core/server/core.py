@@ -837,6 +837,25 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # M39 — action layer: extract a note's to-dos into a tracked checklist.
+            if _first == "vault:actions":
+                from assistant_core import tasks
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                parts = req.message.split(None, 1)
+                note = parts[1].strip() if len(parts) > 1 else (req.active_note_path or "")
+                if not note:
+                    return HandoffResponse(status="ok", reply="Usage: vault:actions <note> (or open a note first)",
+                                           provider_used="system", actual_provider="system", timestamp=ts)
+                if not note.endswith(".md"):
+                    note += ".md"
+                rel, n = tasks.write_actions(self._config.get("vault_path"), note, self._router)
+                reply = (f"Extracted {n} action item(s) → {rel} (propose-only; tick them there)."
+                         if rel else f"No action items found in {note}.")
+                if self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("actions", rel or note))
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # M38 — vault analytics report (read-only "explain my vault").
             if _first == "vault:analytics":
                 from assistant_core import analytics
@@ -890,7 +909,7 @@ class AssistantServer:
 
             if _first == "vault:goal":
                 from assistant_core.goals import store as gstore
-                from assistant_core.goals.planner import plan_goal
+                from assistant_core.goals.planner import plan_goal, plan_from_template, detect_template
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 arg = req.message.strip()[len("vault:goal"):].strip()
                 verb = arg.split(None, 1)[0].lower() if arg else ""
@@ -903,16 +922,45 @@ class AssistantServer:
                     g = gstore.set_status(rest, "paused" if verb == "pause" else "cancelled")
                     reply = f"Goal `{rest}` {verb}d." if g else f"No goal `{rest}`."
                 elif not arg:
-                    reply = "Usage: vault:goal <description>  ·  vault:goal approve|pause|resume|cancel <slug>"
+                    reply = ("Usage: vault:goal <description>  ·  vault:goal --template "
+                             "research|digest|study <arg>  ·  vault:goal approve|pause|resume|cancel <slug>\n"
+                             "Flags: --recurring daily|weekly|monthly · --budget <calls/day>")
                 else:
-                    plan = plan_goal(arg, self._router)
+                    # M39 — parse optional flags out of the description
+                    tmpl = recurring = ""
+                    budget = 0
+                    def _flag(name, cast=str):
+                        nonlocal arg
+                        m = re.search(rf"--{name}\s+(\S+)", arg)
+                        if m:
+                            arg = (arg[:m.start()] + arg[m.end():]).strip()
+                            return cast(m.group(1))
+                        return None
+                    tmpl = _flag("template") or ""
+                    recurring = _flag("recurring") or ""
+                    budget = _flag("budget", int) or 0
+                    # a bare "research X" / "digest X" / "study X" auto-selects a template
+                    if not tmpl:
+                        auto = detect_template(arg)
+                        if auto:
+                            tmpl, arg = auto, arg.split(None, 1)[1] if len(arg.split(None, 1)) > 1 else arg
+                    plan = plan_from_template(tmpl, arg) if tmpl else None
+                    if plan is None:
+                        plan = plan_goal(arg, self._router)
                     if not plan["subtasks"]:
                         reply = "Could not plan that goal — try rephrasing."
                     else:
-                        g = gstore.create_goal(arg, plan["subtasks"], plan["estimate"])
+                        g = gstore.create_goal(arg, plan["subtasks"], plan["estimate"],
+                                               recurring=recurring, budget=budget,
+                                               template=plan.get("template", ""))
                         gstore.render_note(self._config.get("vault_path"), g)
                         steps = "\n".join(f"{i+1}. {s}" for i, s in enumerate(plan["subtasks"]))
-                        reply = (f"**Planned goal** `{g['slug']}` — {plan['estimate']}\n\n{steps}\n\n"
+                        extra = []
+                        if plan.get("template"): extra.append(f"template: {plan['template']}")
+                        if recurring: extra.append(f"recurring: {recurring}")
+                        if budget: extra.append(f"budget: {budget}/day")
+                        tag = (" · " + " · ".join(extra)) if extra else ""
+                        reply = (f"**Planned goal** `{g['slug']}` — {plan['estimate']}{tag}\n\n{steps}\n\n"
                                  f"Approve to run in the background: `vault:goal approve {g['slug']}`")
                         if self._memory and self._ep_vault:
                             self._memory.append_episode(self._ep_vault("goal_planned", g["slug"]))
@@ -1385,6 +1433,29 @@ class AssistantServer:
             if not aid:
                 raise HTTPException(status_code=400, detail="id required")
             return {"id": aid, **reject_approval(self._config.get("vault_path"), aid, payload.get("item"))}
+
+        # ── M39 goals panel: list + running-goal controls (approval is in /approvals) ──
+        @app.get("/goals")
+        async def goals_list():
+            from assistant_core.goals import store as gs
+            out = []
+            for g in gs.load_goals():
+                done, total = gs.progress(g)
+                out.append({"slug": g["slug"], "description": g["description"],
+                            "status": g["status"], "done": done, "total": total,
+                            "recurring": g.get("recurring", ""), "template": g.get("template", "")})
+            return {"goals": out}
+
+        @app.post("/goals/control")
+        async def goals_control(payload: dict):
+            from assistant_core.goals import store as gs
+            payload = payload or {}
+            slug, action = payload.get("slug"), payload.get("action")
+            status_map = {"resume": "running", "pause": "paused", "cancel": "cancelled"}
+            if not slug or action not in status_map:
+                raise HTTPException(status_code=400, detail="slug + action(resume|pause|cancel) required")
+            g = gs.set_status(slug, status_map[action])
+            return {"ok": bool(g), "slug": slug, "status": status_map[action]}
 
         # ── GET /status ─────────────────────────────────────────────────────
         @app.get("/status", response_model=StatusResponse)

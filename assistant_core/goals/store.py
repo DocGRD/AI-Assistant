@@ -60,7 +60,8 @@ def upsert_goal(goal: dict) -> None:
     save_goals(goals)
 
 
-def create_goal(description: str, subtasks: list[str], estimate: str = "") -> dict:
+def create_goal(description: str, subtasks: list[str], estimate: str = "",
+                recurring: str = "", budget: int = 0, template: str = "") -> dict:
     base = slugify(description)
     existing = {g["slug"] for g in load_goals()}
     slug, n = base, 2
@@ -69,11 +70,63 @@ def create_goal(description: str, subtasks: list[str], estimate: str = "") -> di
     goal = {
         "slug": slug, "description": description, "status": "proposed",
         "estimate": estimate, "created": datetime.now().isoformat(timespec="seconds"),
+        "recurring": recurring, "budget": int(budget or 0), "template": template,
+        "spent_today": 0, "spent_date": "", "not_before": "",
         "subtasks": [{"id": i, "task": t, "status": "pending", "result": ""}
                      for i, t in enumerate(subtasks)],
     }
     upsert_goal(goal)
     return goal
+
+
+# ── M39 (D-autonomy) — recurring re-arm + per-goal daily budget cap ──────────
+
+_INTERVAL_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
+
+
+def due(goal: dict, now: datetime | None = None) -> bool:
+    """A running goal is due unless a recurring re-arm scheduled it for later."""
+    nb = goal.get("not_before")
+    if not nb:
+        return True
+    try:
+        return (now or datetime.now()) >= datetime.fromisoformat(nb)
+    except Exception:
+        return True
+
+
+def budget_ok(goal: dict, now: datetime | None = None) -> bool:
+    """False when the goal has used up its per-day call budget (0 = unlimited)."""
+    cap = int(goal.get("budget") or 0)
+    if cap <= 0:
+        return True
+    today = (now or datetime.now()).strftime("%Y-%m-%d")
+    if goal.get("spent_date") != today:
+        return True                              # a new day → budget resets on next spend
+    return int(goal.get("spent_today") or 0) < cap
+
+
+def record_spend(goal: dict, now: datetime | None = None) -> None:
+    today = (now or datetime.now()).strftime("%Y-%m-%d")
+    if goal.get("spent_date") != today:
+        goal["spent_date"], goal["spent_today"] = today, 0
+    goal["spent_today"] = int(goal.get("spent_today") or 0) + 1
+
+
+def rearm_recurring(goal: dict, now: datetime | None = None) -> bool:
+    """If the goal recurs, reset its subtasks and schedule the next run; return True if re-armed."""
+    from datetime import timedelta
+    interval = _INTERVAL_DAYS.get((goal.get("recurring") or "").lower())
+    if not interval:
+        return False
+    now = now or datetime.now()
+    for s in goal["subtasks"]:
+        s["status"], s["result"] = "pending", ""
+    goal["not_before"] = (now + timedelta(days=interval)).isoformat(timespec="seconds")
+    goal["status"] = "running"
+    upsert_goal(goal)
+    logger.info(f"[Goals] '{goal['slug']}' re-armed ({goal['recurring']}) → next {goal['not_before']}")
+    return True
 
 
 def set_status(slug: str, status: str) -> dict | None:
