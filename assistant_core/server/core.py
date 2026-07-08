@@ -138,6 +138,18 @@ class AssistantServer:
         )
         self._thread.start()
         logger.info(f"[Server] HTTP server started on http://{self._host}:{self._port}")
+
+        # M35 — start the goal worker (background, governor-paced) unless disabled.
+        if self._config.get("goals_enabled", True):
+            try:
+                from assistant_core.goals.worker import GoalWorker
+                self._goal_worker = GoalWorker(
+                    self._config.get("vault_path"), self._config, self._run_goal_subtask,
+                    tick_seconds=int(self._config.get("goal_tick_seconds", 60)))
+                self._goal_worker.start()
+            except Exception as exc:
+                logger.warning(f"[Goals] worker not started: {exc}")
+
         if self._host in ("0.0.0.0", "::"):
             auth = " (X-API-Key required)" if self._api_token else " — NO AUTH; set api_token in settings"
             print(f"[HTTP API active — local: http://127.0.0.1:{self._port} | "
@@ -158,7 +170,25 @@ class AssistantServer:
         except Exception:
             return "127.0.0.1"
 
+    def _run_goal_subtask(self, instruction: str) -> str:
+        """M35 — run one goal subtask as an autonomous agent turn (full command access)."""
+        import threading as _th
+        from assistant_core.agent_loop import AgentContext, run_agent_loop
+        ctx = AgentContext(
+            user_input=instruction, history=[], history_lock=_th.Lock(),
+            router=self._router, registry=self._registry, memory=self._memory,
+            ctx_mgr=None, system_prompt=self._system_prompt,
+            max_tokens=int(self._config.get("max_tokens", 4096)),
+            config=self._config, rag=self._rag,
+            max_steps=int(self._config.get("max_agent_steps", 10)),
+            source_label="goal", ep_vault_fn=self._ep_vault,
+        )
+        reply, _ = run_agent_loop(ctx)
+        return reply
+
     def stop(self) -> None:
+        if getattr(self, "_goal_worker", None):
+            self._goal_worker.stop()
         if self._server:
             self._server.should_exit = True
             logger.info("[Server] HTTP server stopping")
@@ -804,6 +834,51 @@ class AssistantServer:
                          f"Auto-organize: scanned {rep['scanned']} note(s); nothing new to propose.")
                 if self._memory and self._ep_vault:
                     self._memory.append_episode(self._ep_vault("organize", str(rep.get('proposal'))))
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
+            # M35 — goal engine controls.
+            if _first == "vault:goals":
+                from assistant_core.goals import store as gstore
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                goals = gstore.load_goals()
+                if not goals:
+                    reply = "No goals yet. Start one with `vault:goal <description>`."
+                else:
+                    reply = "**Goals:**\n" + "\n".join(
+                        f"- `{g['slug']}` — {g['status']} ({gstore.progress(g)[0]}/{gstore.progress(g)[1]}) — {g['description'][:60]}"
+                        for g in goals)
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
+            if _first == "vault:goal":
+                from assistant_core.goals import store as gstore
+                from assistant_core.goals.planner import plan_goal
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                arg = req.message.strip()[len("vault:goal"):].strip()
+                verb = arg.split(None, 1)[0].lower() if arg else ""
+                rest = arg.split(None, 1)[1].strip() if len(arg.split(None, 1)) > 1 else ""
+                if verb in ("approve", "resume"):
+                    g = gstore.set_status(rest, "running")
+                    reply = (f"Goal `{rest}` is now **running** — it will progress in the background."
+                             if g else f"No goal `{rest}`.")
+                elif verb in ("pause", "cancel"):
+                    g = gstore.set_status(rest, "paused" if verb == "pause" else "cancelled")
+                    reply = f"Goal `{rest}` {verb}d." if g else f"No goal `{rest}`."
+                elif not arg:
+                    reply = "Usage: vault:goal <description>  ·  vault:goal approve|pause|resume|cancel <slug>"
+                else:
+                    plan = plan_goal(arg, self._router)
+                    if not plan["subtasks"]:
+                        reply = "Could not plan that goal — try rephrasing."
+                    else:
+                        g = gstore.create_goal(arg, plan["subtasks"], plan["estimate"])
+                        gstore.render_note(self._config.get("vault_path"), g)
+                        steps = "\n".join(f"{i+1}. {s}" for i, s in enumerate(plan["subtasks"]))
+                        reply = (f"**Planned goal** `{g['slug']}` — {plan['estimate']}\n\n{steps}\n\n"
+                                 f"Approve to run in the background: `vault:goal approve {g['slug']}`")
+                        if self._memory and self._ep_vault:
+                            self._memory.append_episode(self._ep_vault("goal_planned", g["slug"]))
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 

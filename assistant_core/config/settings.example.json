@@ -69,5 +69,8 @@
   "briefing_hour": 6,
   "auto_organize_enabled": false,
   "organize_hour": 5,
-  "background_hourly_budget": 60
+  "background_hourly_budget": 60,
+
+  "goals_enabled": true,
+  "goal_tick_seconds": 60
 }

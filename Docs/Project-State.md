@@ -1502,9 +1502,21 @@ existing `scheduler.MaintenanceScheduler`.
   `AI/Proposed/organize-YYYY-MM-DD.md`. **Never modifies a note.** Governor-paced. Config
   `auto_organize_enabled` (default off), `organize_hour`.
 - **On-demand:** `vault:briefing` / `vault:organize` (server intercepts) run them now.
-- **Tests:** `test_governor`, `test_briefing`, `test_organize` (+14 → 358). Deferred: the plugin "Proactive"
-  panel (one-click approve of organize proposals) and **M35 — Goal Engine** (plan→approve→autonomous
-  background execution for big goals like Matthew Henry, on this same governor).
+- **Tests:** `test_governor`, `test_briefing`, `test_organize`. Plugin **Proactive panel** (open briefing +
+  one-click Apply/Dismiss of organize proposals) via `GET /proactive` + `POST /proactive/{apply,reject,run}`;
+  `apply_suggestion` merges tags into frontmatter + appends a re-validated Related section.
+
+### M35 — Goal Engine ✅ (backend implemented)
+
+Set a high-level goal → it's planned, decomposed, and executed **autonomously in the background** on the M34
+governor. `assistant_core/goals/`: `store.py` (canonical `data/goals.json` + readable `AI/System/Goals/
+<slug>.md`; statuses proposed|running|paused|done|cancelled), `planner.py` (`plan_goal` — one low-temp call
+→ 3-12 ordered subtasks + estimate), `worker.py` (`GoalWorker` daemon: **one subtask per tick, governor-
+paced, resumable**; runs each subtask as a full agent-loop turn with M33 command access — web research,
+ingest, create). Controls (server intercepts): `vault:goal <description>` (plan → propose), `vault:goal
+approve|pause|resume|cancel <slug>`, `vault:goals` (status). Worker started in `AssistantServer.start()`
+(`goals_enabled`, `goal_tick_seconds`). Tests: `test_goals` (planner parse, store, worker pacing) — 368
+green. **Deferred:** plugin Goals panel + live Matthew-Henry acceptance.
 
 ---
 
