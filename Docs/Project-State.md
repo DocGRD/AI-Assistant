@@ -2,9 +2,12 @@
 
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
-*Status: **Loremaster v1.5.0 — 2026-07-08** (GitHub pre-release + BRAT, MIT). Milestones 1–40
-implemented and tested (**437 automated tests green**), deployed end-to-end (Linux systemd service with
-GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN).
+*Status: **Loremaster v1.5.2 — 2026-07-08** (v1.5.0 GitHub pre-release + BRAT for the plugin; v1.5.1/v1.5.2
+are backend-only service patch tags — analytics perf on large vaults). Milestones 1–40 implemented and
+tested (**438 automated tests green**), deployed end-to-end (Linux systemd service with GPU-accelerated
+embeddings, driven by the Obsidian plugin over the LAN; **box on `main` at `v1.5.2`**). `vault:analytics`
+runs in ~7s on the 2298-note box vault (was hanging — fixed with index-based link resolution + inverted-
+index unsourced detection).
 The M37–M40 arc (built on dev, GUI-verified on GRDVault, shipped together as v1.5.0):
 - **M37 Trust Everywhere** — `write_guard.py` flags unsourced factual claims on every create/update
   (config `write_guard: off|flag|source`); `contradiction.py` + `vault:contradictions` + briefing section;
