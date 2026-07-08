@@ -35,24 +35,34 @@ def _notes(vault: Path):
 
 
 def link_index(vault) -> dict[str, dict[str, set]]:
-    """{note_rel: {'out': {stems}, 'in': {stems}}} from resolved wikilinks."""
+    """{note_rel: {'out': {rels}, 'in': {rels}}} from wikilinks, resolved **in memory**
+    against a precomputed path/stem map (no per-link disk I/O — matters on large vaults)."""
     vault = Path(vault)
-    idx: dict[str, dict[str, set]] = {}
-    for rel, p in _notes(vault):
-        idx.setdefault(rel, {"out": set(), "in": set()})
+    notes = list(_notes(vault))
+    by_rel = {rel for rel, _ in notes}
+    by_stem: dict[str, str] = {}
+    for rel, _ in notes:
+        by_stem.setdefault(Path(rel).stem.lower(), rel)
+
+    def _resolve(target: str) -> str | None:
+        t = target.strip().replace("\\", "/").lstrip("/")
+        if t in by_rel:
+            return t
+        if t + ".md" in by_rel:
+            return t + ".md"
+        return by_stem.get(Path(t).stem.lower())
+
+    idx: dict[str, dict[str, set]] = {rel: {"out": set(), "in": set()} for rel, _ in notes}
+    for rel, p in notes:
         try:
             text = p.read_text(encoding="utf-8")
         except Exception:
             continue
         for tgt in link_targets(text):
-            dest = resolve_link(tgt, vault)
-            if not dest:
-                continue
-            drel = str(dest.relative_to(vault)).replace("\\", "/")
-            if drel == rel:
-                continue
-            idx[rel]["out"].add(drel)
-            idx.setdefault(drel, {"out": set(), "in": set()})["in"].add(rel)
+            drel = _resolve(tgt)
+            if drel and drel != rel and drel in idx:
+                idx[rel]["out"].add(drel)
+                idx[drel]["in"].add(rel)
     return idx
 
 
@@ -109,8 +119,9 @@ def tag_distribution(vault) -> Counter:
 def unsourced_notes(vault, limit: int = 15, max_scan: int = 400) -> list[str]:
     """Notes asserting factual quantities that nothing else in the vault supports.
 
-    Loads every note's text **once** and checks claims against that in-memory corpus, so it
-    stays fast on large vaults (the naive version re-read the whole vault per note → minutes).
+    Builds a term→notes **inverted index** in one pass, then answers each claim by
+    intersecting its terms' posting lists — so it stays fast even on thousands of notes
+    (the naive cross-scan was O(candidates × corpus × terms) and hung on a 2k-note vault).
     """
     from math import ceil
     from assistant_core.write_guard import _claims
@@ -118,25 +129,34 @@ def unsourced_notes(vault, limit: int = 15, max_scan: int = 400) -> list[str]:
     vault = Path(vault)
 
     corpus: list[tuple[str, str]] = []            # (rel, lowercased text), single disk pass
+    postings: dict[str, set[int]] = {}            # term → indices of notes containing it
     for rel, p in _notes(vault):
         try:
-            corpus.append((rel, p.read_text(encoding="utf-8").lower()))
+            low = p.read_text(encoding="utf-8").lower()
         except Exception:
             continue
+        i = len(corpus)
+        corpus.append((rel, low))
+        for t in set(_terms(low)):
+            postings.setdefault(t, set()).add(i)
 
     out: list[str] = []
-    for rel, low in corpus[:max_scan]:
+    for i, (rel, low) in enumerate(corpus[:max_scan]):
         claims = _claims(low)
         if not claims:
             continue
         supported = False
         for c in claims[:3]:
-            terms = _terms(c)
+            terms = [t for t in _terms(c) if t in postings]
             if not terms:
                 continue
             need = max(2, ceil(len(terms) / 2))
-            if any(orel != rel and sum(1 for t in terms if t in olow) >= need
-                   for orel, olow in corpus):
+            counts: dict[int, int] = {}
+            for t in terms:
+                for j in postings[t]:
+                    if j != i:
+                        counts[j] = counts.get(j, 0) + 1
+            if any(v >= need for v in counts.values()):
                 supported = True
                 break
         if not supported:
