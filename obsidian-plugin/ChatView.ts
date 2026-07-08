@@ -1482,30 +1482,59 @@ export class ChatView extends ItemView {
 
         for (const p of proposals) {
             const box = this.proactiveEl.createDiv("ai-assistant-proactive-item");
-            box.createEl("div", { text: p.note, cls: "ai-assistant-proactive-note" });
-            if (p.tags?.length)
-                box.createEl("div", { text: "Tags: " + p.tags.map(t => "#" + t).join(" ") });
-            if (p.related?.length)
-                box.createEl("div", { text: "Related: " + p.related.map(r => "[[" + r + "]]").join(" ") });
+            // header: note name + Open-note button (M35.1)
+            const head = box.createDiv("ai-assistant-proactive-head");
+            head.createEl("span", { text: p.note, cls: "ai-assistant-proactive-note" });
+            const openBtn = head.createEl("button", { text: "Open note", cls: "ai-assistant-quick-btn" });
+            openBtn.addEventListener("click", () => void this.app.workspace.openLinkText(p.note, "", false));
+
+            // one ✓/✕ chip per tag and per related link — granular apply/dismiss (M35.1)
+            for (const t of p.tags ?? [])
+                this.proactiveChip(box, p.note, "#" + t, { tag: t });
+            for (const r of p.related ?? [])
+                this.proactiveChip(box, p.note, "[[" + r + "]]", { link: r });
+
+            // whole-note fallbacks
             const btns = box.createDiv("ai-assistant-memory-btns");
-            const apply = btns.createEl("button", { text: "Apply", cls: "ai-assistant-quick-btn" });
+            const apply = btns.createEl("button", { text: "Apply all", cls: "ai-assistant-quick-btn" });
             apply.addEventListener("click", () => void this.resolveProactive("apply", p.note));
-            const dismiss = btns.createEl("button", { text: "Dismiss", cls: "ai-assistant-quick-btn" });
+            const dismiss = btns.createEl("button", { text: "Dismiss all", cls: "ai-assistant-quick-btn" });
             dismiss.addEventListener("click", () => void this.resolveProactive("reject", p.note));
         }
     }
 
-    private async resolveProactive(action: "apply" | "reject", note: string): Promise<void> {
+    private proactiveChip(
+        box: HTMLElement, note: string, label: string,
+        sel: { tag?: string; link?: string },
+    ): void {
+        const chip = box.createDiv("ai-assistant-proactive-chip");
+        chip.createEl("span", { text: label, cls: "ai-assistant-proactive-chiplabel" });
+        const ok = chip.createEl("button", { text: "✓", cls: "ai-assistant-quick-btn" });
+        ok.setAttribute("aria-label", "Apply");
+        ok.addEventListener("click", () => void this.resolveProactive("apply", note, sel));
+        const no = chip.createEl("button", { text: "✕", cls: "ai-assistant-quick-btn" });
+        no.setAttribute("aria-label", "Dismiss");
+        no.addEventListener("click", () => void this.resolveProactive("reject", note, sel));
+    }
+
+    private async resolveProactive(
+        action: "apply" | "reject", note: string,
+        sel?: { tag?: string; link?: string },
+    ): Promise<void> {
         const { host, port } = this.plugin.settings;
         try {
+            const body: Record<string, string> = { note };
+            if (sel?.tag) body.tag = sel.tag;
+            if (sel?.link) body.link = sel.link;
             const resp = await fetch(`http://${host}:${port}/proactive/${action}`, {
                 method: "POST",
                 headers: this.apiHeaders({ "Content-Type": "application/json" }),
-                body: JSON.stringify({ note }),
+                body: JSON.stringify(body),
                 signal: AbortSignal.timeout(6000),
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            new Notice(action === "apply" ? `Applied tags/links to ${note}` : "Dismissed.");
+            const what = sel?.tag ? `#${sel.tag}` : sel?.link ? `[[${sel.link}]]` : "tags/links";
+            new Notice(action === "apply" ? `Applied ${what} to ${note}` : `Dismissed ${what}`);
         } catch (e) {
             new Notice(`Proactive ${action} failed: ${e instanceof Error ? e.message : e}`);
         }

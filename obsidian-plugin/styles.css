@@ -798,8 +798,21 @@
   border-top: 1px solid var(--background-modifier-border);
   padding-top: 6px; margin-top: 6px; font-size: 12px;
 }
-.ai-assistant-proactive-note { font-weight: 600; margin-bottom: 2px; }
+.ai-assistant-proactive-note { font-weight: 600; }
 .ai-assistant-proactive-briefing { margin-bottom: 6px; }
+.ai-assistant-proactive-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 6px; margin-bottom: 4px;
+}
+/* M35.1 — one row per suggested tag/link with inline ✓/✕ */
+.ai-assistant-proactive-chip {
+  display: flex; align-items: center; gap: 6px; margin: 2px 0;
+}
+.ai-assistant-proactive-chiplabel {
+  flex: 1; font-family: var(--font-monospace); font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ai-assistant-proactive-chip .ai-assistant-quick-btn { padding: 0 6px; line-height: 18px; }
 .ai-assistant-memory-title {
   font-size: 12px;
   font-weight: 600;

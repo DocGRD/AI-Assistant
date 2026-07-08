@@ -1273,11 +1273,19 @@ class AssistantServer:
 
         @app.post("/proactive/apply")
         async def proactive_apply(payload: dict):
-            from assistant_core.proactive.organize import apply_suggestion, load_pending
+            from assistant_core.proactive.organize import apply_suggestion, apply_one, load_pending
+            payload = payload or {}
             vault = self._config.get("vault_path")
-            note = (payload or {}).get("note")
+            note = payload.get("note")
             if not vault or not note:
                 raise HTTPException(status_code=400, detail="note required")
+            tag, link = payload.get("tag"), payload.get("link")
+            if tag or link:                      # M35.1 — apply just one tag or link
+                kind, value = ("tag", tag) if tag else ("link", link)
+                ok = apply_one(vault, note, kind, value)
+                if ok and self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("organize_apply", f"{note} · {kind}:{value}"))
+                return {"applied": ok, "note": note, "kind": kind, "value": value}
             sugg = next((s for s in load_pending() if s.get("note") == note), None)
             if sugg is None:
                 return {"applied": False, "reason": "not found"}
@@ -1288,11 +1296,17 @@ class AssistantServer:
 
         @app.post("/proactive/reject")
         async def proactive_reject(payload: dict):
-            from assistant_core.proactive.organize import remove_pending
-            note = (payload or {}).get("note")
+            from assistant_core.proactive.organize import reject_one, reject_all
+            payload = payload or {}
+            note = payload.get("note")
             if not note:
                 raise HTTPException(status_code=400, detail="note required")
-            remove_pending(note)
+            tag, link = payload.get("tag"), payload.get("link")
+            if tag or link:                      # M35.1 — dismiss just one tag or link
+                kind, value = ("tag", tag) if tag else ("link", link)
+                reject_one(note, kind, value)
+                return {"rejected": True, "note": note, "kind": kind, "value": value}
+            reject_all(note)
             return {"rejected": True, "note": note}
 
         @app.post("/proactive/run")

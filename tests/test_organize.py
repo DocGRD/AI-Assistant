@@ -7,6 +7,7 @@ from pathlib import Path
 
 from assistant_core.proactive import organize
 from assistant_core.background import governor
+from assistant_core import feedback
 
 
 class _FakeRouter:
@@ -36,10 +37,14 @@ class OrganizeTests(unittest.TestCase):
         self._orig_pending = organize._PENDING_FILE
         organize._STATE_FILE = Path(self.tmp) / "organize_state.json"
         organize._PENDING_FILE = Path(self.tmp) / "organize_pending.json"
+        # isolate feedback so accept/reject counts don't leak between tests or real data/
+        self._orig_fb = feedback._FILE
+        feedback._FILE = Path(self.tmp) / "feedback.json"
 
     def tearDown(self):
         organize._STATE_FILE = self._orig_state
         organize._PENDING_FILE = self._orig_pending
+        feedback._FILE = self._orig_fb
 
     def test_apply_suggestion_commits_and_revalidates(self):
         note = Path(self.tmp) / "Apply Me.md"
@@ -99,6 +104,89 @@ class OrganizeTests(unittest.TestCase):
         rep = organize.run_organize(self.tmp, {}, rag=None, router=_FakeRouter(),
                                     now=datetime(2026, 7, 8, 5, 0))
         self.assertEqual(rep["scanned"], 0)                 # deferred immediately
+
+
+class PerItemTests(unittest.TestCase):
+    """M35.1 — granular per-tag/per-link apply + dismiss + feedback learning."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        v = Path(self.tmp)
+        (v / "Note.md").write_text("Body.\n", encoding="utf-8")
+        (v / "Neighbour.md").write_text("x", encoding="utf-8")
+        (v / "Other.md").write_text("y", encoding="utf-8")
+        self._orig_pending = organize._PENDING_FILE
+        organize._PENDING_FILE = v / "organize_pending.json"
+        self._orig_fb = feedback._FILE
+        feedback._FILE = v / "feedback.json"
+        organize._save_pending([{"note": "Note.md",
+                                 "tags": ["faith", "prayer"],
+                                 "related": ["Neighbour", "Other"]}])
+
+    def tearDown(self):
+        organize._PENDING_FILE = self._orig_pending
+        feedback._FILE = self._orig_fb
+
+    def test_apply_one_tag_leaves_others_pending(self):
+        ok = organize.apply_one(self.tmp, "Note.md", "tag", "faith")
+        self.assertTrue(ok)
+        txt = (Path(self.tmp) / "Note.md").read_text(encoding="utf-8")
+        self.assertIn("faith", txt)
+        self.assertNotIn("prayer", txt)                      # only the one tag applied
+        pend = organize.load_pending()[0]
+        self.assertEqual(pend["tags"], ["prayer"])           # the other tag still pending
+        self.assertEqual(pend["related"], ["Neighbour", "Other"])
+        self.assertTrue(feedback.boosted("tag", "faith"))    # accept recorded
+
+    def test_apply_one_link_adds_related(self):
+        ok = organize.apply_one(self.tmp, "Note.md", "link", "Neighbour")
+        self.assertTrue(ok)
+        txt = (Path(self.tmp) / "Note.md").read_text(encoding="utf-8")
+        self.assertIn("## Related", txt)
+        self.assertIn("[[Neighbour]]", txt)
+        self.assertNotIn("[[Other]]", txt)
+        self.assertEqual(organize.load_pending()[0]["related"], ["Other"])
+
+    def test_apply_one_fabricated_link_rejected(self):
+        self.assertFalse(organize.apply_one(self.tmp, "Note.md", "link", "Ghost"))
+        self.assertNotIn("Ghost", (Path(self.tmp) / "Note.md").read_text(encoding="utf-8"))
+
+    def test_resolving_last_items_drops_note(self):
+        for kind, val in [("tag", "faith"), ("tag", "prayer"),
+                          ("link", "Neighbour"), ("link", "Other")]:
+            organize.apply_one(self.tmp, "Note.md", kind, val)
+        self.assertEqual(organize.load_pending(), [])        # note fully resolved → gone
+
+    def test_rejected_tag_suppressed_next_run(self):
+        # reject the same tag twice → suppressed globally
+        organize.reject_one("Note.md", "tag", "prayer")
+        organize.reject_one("Other.md", "tag", "prayer")
+        self.assertTrue(feedback.suppressed("tag", "prayer"))
+
+        class _Rambler:
+            available_providers = ["groq"]
+            def generate(self, messages, **kw):
+                return "prayer, faith", "groq"
+        tags = organize._suggest_tags(_Rambler(), "content", ["faith"])
+        self.assertNotIn("prayer", tags)                     # suppressed suggestion dropped
+        self.assertIn("faith", tags)
+
+    def test_rejected_link_suppressed_for_that_note(self):
+        organize.reject_one("Note.md", "link", "Other")
+        organize.reject_one("Note.md", "link", "Other")      # per-note scope
+        rag = _FakeRag([{"path": "Other.md"}, {"path": "Neighbour.md"}])
+        links = organize._related_links(rag, "Note.md", self.tmp)
+        self.assertNotIn("Other", links)                     # rejected on this note
+        self.assertIn("Neighbour", links)
+        # a different note is unaffected
+        links2 = organize._related_links(rag, "Elsewhere.md", self.tmp)
+        self.assertIn("Other", links2)
+
+    def test_reject_all_records_rejects(self):
+        organize.reject_all("Note.md")
+        self.assertEqual(organize.load_pending(), [])
+        c = feedback.counts("tag", "faith")
+        self.assertEqual(c["reject"], 1)
 
 
 if __name__ == "__main__":

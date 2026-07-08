@@ -19,6 +19,7 @@ from pathlib import Path
 from assistant_core.paths import DATA_DIR
 from assistant_core.background import governor
 from assistant_core.links import link_exists
+from assistant_core import feedback
 
 logger = logging.getLogger("assistant")
 
@@ -113,8 +114,9 @@ def _suggest_tags(router, content: str, existing: list[str], private: bool = Fal
     out: list[str] = []
     for t in re.split(r"[,\n]", reply or ""):
         nt = _norm_tag(t)
-        if nt and _valid_tag(nt) and nt not in out:
-            out.append(nt)
+        if nt and _valid_tag(nt) and nt not in out and not feedback.suppressed("tag", nt):
+            out.append(nt)                        # drop tags the user keeps rejecting
+    out.sort(key=lambda t: 0 if feedback.boosted("tag", t) else 1)   # prefer accepted tags
     return out[:5]
 
 
@@ -132,8 +134,9 @@ def _related_links(rag, note_path: str, vault) -> list[str]:
         if not path:
             continue
         stem = Path(path).stem
-        if stem not in out and link_exists(stem, vault):
-            out.append(stem)
+        if (stem not in out and link_exists(stem, vault)
+                and not feedback.suppressed("link", stem, scope=note_path)):
+            out.append(stem)                      # drop links the user rejected on this note
     return out[:5]
 
 
@@ -246,7 +249,8 @@ def _merge_tags(text: str, tags: list[str]) -> str:
 
 def apply_suggestion(vault, note: str, tags: list[str] | None = None,
                      related: list[str] | None = None) -> bool:
-    """Commit a proposal: merge tags into frontmatter + append a validated Related section."""
+    """Commit a whole proposal: merge tags + append a validated Related section, and record
+    every applied tag/link as an accept so future suggestions learn from it."""
     p = Path(vault) / note
     if not p.exists():
         remove_pending(note)
@@ -254,15 +258,103 @@ def apply_suggestion(vault, note: str, tags: list[str] | None = None,
     text = p.read_text(encoding="utf-8")
     if tags:
         text = _merge_tags(text, tags)
+        for t in tags:
+            feedback.record("tag", t, True)
     if related and "## Related" not in text:
         # re-validate links at apply time (the vault may have changed since proposal)
         valid = [r for r in related if link_exists(r, vault)]
         if valid:
             text = text.rstrip() + "\n\n## Related\n\n" + "\n".join(f"- [[{r}]]" for r in valid) + "\n"
+            for r in valid:
+                feedback.record("link", r, True, scope=note)
     p.write_text(text, encoding="utf-8")
     remove_pending(note)
     logger.info(f"[Organize] applied suggestion to {note}")
     return True
+
+
+# ---------------------------------------------------------------------------
+# Per-item apply / reject (M35.1) — resolve a single tag or link, and learn from it
+# ---------------------------------------------------------------------------
+
+def _update_pending_item(note: str, kind: str, value: str) -> bool:
+    """Remove one tag/link from a note's pending entry; drop the note once nothing's left."""
+    key = "tags" if kind == "tag" else "related"
+    out, changed = [], False
+    for s in load_pending():
+        if s.get("note") != note:
+            out.append(s)
+            continue
+        vals = [v for v in s.get(key, []) if v != value]
+        if len(vals) != len(s.get(key, [])):
+            changed = True
+        s[key] = vals
+        if s.get("tags") or s.get("related"):
+            out.append(s)          # keep the note while it still has pending items
+    _save_pending(out)
+    return changed
+
+
+def _apply_tag(vault, note: str, tag: str) -> bool:
+    p = Path(vault) / note
+    if not p.exists():
+        remove_pending(note)
+        return False
+    p.write_text(_merge_tags(p.read_text(encoding="utf-8"), [tag]), encoding="utf-8")
+    return True
+
+
+def _apply_link(vault, note: str, link: str) -> bool:
+    p = Path(vault) / note
+    if not p.exists():
+        remove_pending(note)
+        return False
+    if not link_exists(link, vault):          # re-validate at apply time
+        return False
+    text = p.read_text(encoding="utf-8")
+    if f"[[{link}]]" in text:
+        return True                           # already linked — nothing to do
+    if "## Related" in text:
+        text = text.rstrip() + f"\n- [[{link}]]\n"   # add under the existing section
+    else:
+        text = text.rstrip() + f"\n\n## Related\n\n- [[{link}]]\n"
+    p.write_text(text, encoding="utf-8")
+    return True
+
+
+def apply_one(vault, note: str, kind: str, value: str) -> bool:
+    """Apply a single suggested tag or related link, record positive feedback, and remove
+    just that item from pending (dropping the note when nothing's left)."""
+    if kind == "tag":
+        ok = _apply_tag(vault, note, value)
+    elif kind == "link":
+        ok = _apply_link(vault, note, value)
+    else:
+        return False
+    if ok:
+        feedback.record(kind, value, True, scope=(note if kind == "link" else ""))
+        _update_pending_item(note, kind, value)
+        logger.info(f"[Organize] applied {kind} '{value}' to {note}")
+    return ok
+
+
+def reject_one(note: str, kind: str, value: str) -> bool:
+    """Dismiss a single suggested tag/link — record a reject (learning) and drop it from pending."""
+    if kind not in ("tag", "link"):
+        return False
+    feedback.record(kind, value, False, scope=(note if kind == "link" else ""))
+    return _update_pending_item(note, kind, value)
+
+
+def reject_all(note: str) -> None:
+    """Dismiss a whole note's proposal, recording each tag/link as a reject (learning)."""
+    sugg = next((s for s in load_pending() if s.get("note") == note), None)
+    if sugg:
+        for t in sugg.get("tags", []):
+            feedback.record("tag", t, False)
+        for r in sugg.get("related", []):
+            feedback.record("link", r, False, scope=note)
+    remove_pending(note)
 
 
 def _write_proposal(vault, suggestions: list[dict], now: datetime) -> str:
