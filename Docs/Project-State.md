@@ -2,9 +2,16 @@
 
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
-*Status: **Loremaster v1.2.1 — released 2026-07-08** (GitHub pre-release + BRAT, MIT). Milestones 1–35.1
-implemented and tested (**375 automated tests green**), deployed end-to-end (Linux systemd service with
-GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN; box on `main` at `v1.2.1`).
+*Status: **Loremaster v1.3.0 — released 2026-07-08** (GitHub pre-release + BRAT, MIT). Milestones 1–36
+implemented and tested (**394 automated tests green**), deployed end-to-end (Linux systemd service with
+GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN; box on `main` at `v1.3.0`).
+**M36 — Unified Surfaces:** one Approvals inbox (`assistant_core/approvals.py`, `GET/POST /approvals`)
+over the three persisted propose/commit stores (auto-organize, memory-consolidation facts, goal approvals)
+with per-item apply/dismiss + Open-note; a single connective-tissue linking service
+(`assistant_core/linking.py`, vector+graph merge, feedback-aware); generalized feedback across kinds; one
+plugin Approvals panel replacing the separate memory-review + proactive panels. Next milestone **M37**
+(Trust Everywhere — guard every write path + contradiction detection); roadmap M37–M40 in
+`~/.claude/plans/goal-milestone-10-slice-linear-orbit.md`.
 Release history:
 **v1.0.0** (2026-07-03, first public) → **v1.1.0** (rename to Loremaster + M30 anti-hallucination, M31 chunked
 edits, M32 deterministic math, M33 agent full-command access + autonomous web research) → **v1.2.0**
