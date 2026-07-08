@@ -349,6 +349,7 @@ export class ChatView extends ItemView {
     private relatedPaths: string[] = []; // paths currently offered by the Related dropdown
     private qaScopeEl!: HTMLElement;   // Vault QA scope row (shown when Vault QA is on)
     private memoryEl!: HTMLElement;    // M17 — memory-review panel
+    private proactiveEl!: HTMLElement; // M34 — proactive briefing + organize proposals
 
     constructor(leaf: WorkspaceLeaf, plugin: AIAssistantPlugin) {
         super(leaf);
@@ -364,6 +365,7 @@ export class ChatView extends ItemView {
         await this.loadStatus();
         await this.loadHistory();
         void this.refreshMemoryProposals();   // M17 — surface pending memory proposals
+        void this.refreshProactive();          // M34 — briefing + organize proposals
         // M9 — surface staged edit proposals; M12 — refresh related notes, on file open.
         this.registerEvent(this.app.workspace.on("file-open", (f) => {
             if (f) { void this.checkNoteForProposal(f); void this.refreshRelated(f); }
@@ -404,6 +406,9 @@ export class ChatView extends ItemView {
         // M17 — Memory review: pending nightly-consolidation fact proposals (hidden until any).
         this.memoryEl = container.createDiv("ai-assistant-memory-review");
         this.memoryEl.style.display = "none";
+
+        this.proactiveEl = container.createDiv("ai-assistant-proactive");   // M34
+        this.proactiveEl.style.display = "none";
 
         this.statusEl = container.createDiv("ai-assistant-status");
         this.statusEl.setText("Connecting...");
@@ -1434,6 +1439,77 @@ export class ChatView extends ItemView {
             new Notice(`Memory review failed: ${e instanceof Error ? e.message : e}`);
         }
         void this.refreshMemoryProposals();   // re-fetch (the proposal is now resolved)
+    }
+
+    // ------------------------------------------------------------------
+    // M34 — Proactive panel: today's briefing + auto-organize proposals
+    // ------------------------------------------------------------------
+    private async refreshProactive(): Promise<void> {
+        if (!this.proactiveEl) return;
+        const { host, port } = this.plugin.settings;
+        try {
+            const resp = await fetch(`http://${host}:${port}/proactive`, {
+                signal: AbortSignal.timeout(3000), headers: this.apiHeaders(),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json() as {
+                briefing: { path: string; exists: boolean };
+                proposals: { note: string; tags: string[]; related: string[] }[];
+            };
+            this.renderProactive(data.briefing, data.proposals ?? []);
+        } catch {
+            this.proactiveEl.style.display = "none";
+        }
+    }
+
+    private renderProactive(
+        briefing: { path: string; exists: boolean },
+        proposals: { note: string; tags: string[]; related: string[] }[],
+    ): void {
+        this.proactiveEl.empty();
+        if (!briefing.exists && proposals.length === 0) {
+            this.proactiveEl.style.display = "none";
+            return;
+        }
+        this.proactiveEl.style.display = "block";
+        this.proactiveEl.createEl("div", { text: "🗞️ Proactive", cls: "ai-assistant-memory-title" });
+
+        if (briefing.exists) {
+            const row = this.proactiveEl.createDiv("ai-assistant-proactive-briefing");
+            const open = row.createEl("button", { text: "Open today's briefing", cls: "ai-assistant-quick-btn" });
+            open.addEventListener("click", () => void this.app.workspace.openLinkText(briefing.path, "", false));
+        }
+
+        for (const p of proposals) {
+            const box = this.proactiveEl.createDiv("ai-assistant-proactive-item");
+            box.createEl("div", { text: p.note, cls: "ai-assistant-proactive-note" });
+            if (p.tags?.length)
+                box.createEl("div", { text: "Tags: " + p.tags.map(t => "#" + t).join(" ") });
+            if (p.related?.length)
+                box.createEl("div", { text: "Related: " + p.related.map(r => "[[" + r + "]]").join(" ") });
+            const btns = box.createDiv("ai-assistant-memory-btns");
+            const apply = btns.createEl("button", { text: "Apply", cls: "ai-assistant-quick-btn" });
+            apply.addEventListener("click", () => void this.resolveProactive("apply", p.note));
+            const dismiss = btns.createEl("button", { text: "Dismiss", cls: "ai-assistant-quick-btn" });
+            dismiss.addEventListener("click", () => void this.resolveProactive("reject", p.note));
+        }
+    }
+
+    private async resolveProactive(action: "apply" | "reject", note: string): Promise<void> {
+        const { host, port } = this.plugin.settings;
+        try {
+            const resp = await fetch(`http://${host}:${port}/proactive/${action}`, {
+                method: "POST",
+                headers: this.apiHeaders({ "Content-Type": "application/json" }),
+                body: JSON.stringify({ note }),
+                signal: AbortSignal.timeout(6000),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            new Notice(action === "apply" ? `Applied tags/links to ${note}` : "Dismissed.");
+        } catch (e) {
+            new Notice(`Proactive ${action} failed: ${e instanceof Error ? e.message : e}`);
+        }
+        void this.refreshProactive();
     }
 
     private addMention(path: string): void {

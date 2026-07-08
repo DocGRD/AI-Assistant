@@ -1186,6 +1186,53 @@ class AssistantServer:
                                    f"{result['applied']} fact(s) from {req.filename}"))
             return result
 
+        # ── M34 proactive agents (briefing + auto-organize proposals) ────────
+        @app.get("/proactive")
+        async def proactive_state():
+            from assistant_core.proactive.organize import load_pending
+            vault = self._config.get("vault_path")
+            date = datetime.now().strftime("%Y-%m-%d")
+            bpath = f"AI/Briefings/{date}.md"
+            bexists = bool(vault) and (Path(vault) / bpath).exists()
+            return {"briefing": {"path": bpath, "exists": bexists}, "proposals": load_pending()}
+
+        @app.post("/proactive/apply")
+        async def proactive_apply(payload: dict):
+            from assistant_core.proactive.organize import apply_suggestion, load_pending
+            vault = self._config.get("vault_path")
+            note = (payload or {}).get("note")
+            if not vault or not note:
+                raise HTTPException(status_code=400, detail="note required")
+            sugg = next((s for s in load_pending() if s.get("note") == note), None)
+            if sugg is None:
+                return {"applied": False, "reason": "not found"}
+            ok = apply_suggestion(vault, note, sugg.get("tags"), sugg.get("related"))
+            if ok and self._memory and self._ep_vault:
+                self._memory.append_episode(self._ep_vault("organize_apply", note))
+            return {"applied": ok, "note": note}
+
+        @app.post("/proactive/reject")
+        async def proactive_reject(payload: dict):
+            from assistant_core.proactive.organize import remove_pending
+            note = (payload or {}).get("note")
+            if not note:
+                raise HTTPException(status_code=400, detail="note required")
+            remove_pending(note)
+            return {"rejected": True, "note": note}
+
+        @app.post("/proactive/run")
+        async def proactive_run(payload: dict):
+            agent = (payload or {}).get("agent", "")
+            vault = self._config.get("vault_path")
+            if agent == "briefing":
+                from assistant_core.proactive.briefing import write_briefing
+                return {"ran": "briefing", "path": write_briefing(vault, self._config, self._rag, self._router)}
+            if agent == "organize":
+                from assistant_core.proactive.organize import run_organize
+                rep = run_organize(vault, self._config, self._rag, self._router, force=True)
+                return {"ran": "organize", **rep}
+            raise HTTPException(status_code=400, detail="agent must be 'briefing' or 'organize'")
+
         # ── GET /status ─────────────────────────────────────────────────────
         @app.get("/status", response_model=StatusResponse)
         async def status():

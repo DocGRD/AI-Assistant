@@ -24,6 +24,7 @@ logger = logging.getLogger("assistant")
 
 PROPOSED_DIR = "AI/Proposed"
 _STATE_FILE  = DATA_DIR / "organize_state.json"
+_PENDING_FILE = DATA_DIR / "organize_pending.json"   # structured proposals for the plugin
 _SKIP_PREFIXES = ("AI/System", "AI/Memory", "AI/Briefings", "AI/Chat", "AI/Proposed",
                   "AI/Derived", "AI/Graph", "AI/Library", "AI/Research", "AI/Tests",
                   ".trash", ".obsidian")
@@ -190,8 +191,78 @@ def run_organize(vault, config: dict | None = None, rag=None, router=None,
             suggestions.append(s)
 
     proposal = _write_proposal(vault, suggestions, now) if suggestions else None
+    if suggestions:
+        _merge_pending(suggestions)          # structured record for one-click approve
     _write_watermark(now.timestamp())
     return {"notes": len(suggestions), "scanned": scanned, "proposal": proposal}
+
+
+# ---------------------------------------------------------------------------
+# Pending store + apply (used by the plugin Proactive panel)
+# ---------------------------------------------------------------------------
+
+def load_pending() -> list[dict]:
+    try:
+        return json.loads(_PENDING_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def _save_pending(items: list[dict]) -> None:
+    try:
+        _PENDING_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _PENDING_FILE.write_text(json.dumps(items, indent=2), encoding="utf-8")
+    except Exception as exc:
+        logger.debug(f"[Organize] pending write failed: {exc}")
+
+
+def _merge_pending(suggestions: list[dict]) -> None:
+    by_note = {s["note"]: s for s in load_pending()}
+    for s in suggestions:
+        by_note[s["note"]] = {"note": s["note"], "tags": s["tags"], "related": s["related"]}
+    _save_pending(list(by_note.values()))
+
+
+def remove_pending(note: str) -> list[dict]:
+    items = [s for s in load_pending() if s.get("note") != note]
+    _save_pending(items)
+    return items
+
+
+def _merge_tags(text: str, tags: list[str]) -> str:
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
+    if m:
+        fm = m.group(1)
+        tm = re.search(r"^tags:\s*\[?([^\]\n]*)\]?\s*$", fm, re.MULTILINE)
+        if tm:
+            existing = {t.strip().strip("'\"#") for t in re.split(r"[,\s]+", tm.group(1)) if t.strip()}
+            merged = ", ".join(sorted(existing | set(tags)))
+            new_fm = re.sub(r"^tags:.*$", f"tags: [{merged}]", fm, count=1, flags=re.MULTILINE)
+        else:
+            new_fm = fm + f"\ntags: [{', '.join(tags)}]"
+        return text[:m.start()] + f"---\n{new_fm}\n---\n" + text[m.end():]
+    return f"---\ntags: [{', '.join(tags)}]\n---\n\n" + text
+
+
+def apply_suggestion(vault, note: str, tags: list[str] | None = None,
+                     related: list[str] | None = None) -> bool:
+    """Commit a proposal: merge tags into frontmatter + append a validated Related section."""
+    p = Path(vault) / note
+    if not p.exists():
+        remove_pending(note)
+        return False
+    text = p.read_text(encoding="utf-8")
+    if tags:
+        text = _merge_tags(text, tags)
+    if related and "## Related" not in text:
+        # re-validate links at apply time (the vault may have changed since proposal)
+        valid = [r for r in related if link_exists(r, vault)]
+        if valid:
+            text = text.rstrip() + "\n\n## Related\n\n" + "\n".join(f"- [[{r}]]" for r in valid) + "\n"
+    p.write_text(text, encoding="utf-8")
+    remove_pending(note)
+    logger.info(f"[Organize] applied suggestion to {note}")
+    return True
 
 
 def _write_proposal(vault, suggestions: list[dict], now: datetime) -> str:

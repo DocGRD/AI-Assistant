@@ -33,10 +33,28 @@ class OrganizeTests(unittest.TestCase):
         (v / "Real Neighbour.md").write_text("related content", encoding="utf-8")   # exists
         # state file → temp, so the watermark starts clean and doesn't touch real data/
         self._orig_state = organize._STATE_FILE
+        self._orig_pending = organize._PENDING_FILE
         organize._STATE_FILE = Path(self.tmp) / "organize_state.json"
+        organize._PENDING_FILE = Path(self.tmp) / "organize_pending.json"
 
     def tearDown(self):
         organize._STATE_FILE = self._orig_state
+        organize._PENDING_FILE = self._orig_pending
+
+    def test_apply_suggestion_commits_and_revalidates(self):
+        note = Path(self.tmp) / "Apply Me.md"
+        note.write_text("Body here.", encoding="utf-8")
+        (Path(self.tmp) / "Neighbour.md").write_text("x", encoding="utf-8")
+        organize._save_pending([{"note": "Apply Me.md", "tags": ["faith"], "related": ["Neighbour"]}])
+        ok = organize.apply_suggestion(self.tmp, "Apply Me.md", ["faith", "prayer"],
+                                       ["Neighbour", "Ghost Note"])   # Ghost doesn't exist
+        self.assertTrue(ok)
+        txt = note.read_text(encoding="utf-8")
+        self.assertIn("tags: [faith, prayer]", txt)     # merged into frontmatter
+        self.assertIn("## Related", txt)
+        self.assertIn("[[Neighbour]]", txt)
+        self.assertNotIn("Ghost Note", txt)             # re-validated at apply → dropped
+        self.assertEqual(organize.load_pending(), [])   # removed from pending after apply
 
     def test_existing_tags_scanned(self):
         self.assertIn("faith", organize.existing_tags(self.tmp))

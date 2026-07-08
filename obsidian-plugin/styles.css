@@ -784,7 +784,8 @@
   font-style: italic;
 }
 /* M17 — Memory review panel (nightly consolidation proposals) */
-.ai-assistant-memory-review {
+.ai-assistant-memory-review,
+.ai-assistant-proactive {
   margin: 6px 8px;
   padding: 8px;
   border: 1px solid var(--background-modifier-border);
@@ -792,6 +793,13 @@
   background: var(--background-secondary);
   flex-shrink: 0;          /* never steal the chat input's space */
 }
+.ai-assistant-proactive { max-height: 240px; overflow-y: auto; }
+.ai-assistant-proactive-item {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 6px; margin-top: 6px; font-size: 12px;
+}
+.ai-assistant-proactive-note { font-weight: 600; margin-bottom: 2px; }
+.ai-assistant-proactive-briefing { margin-bottom: 6px; }
 .ai-assistant-memory-title {
   font-size: 12px;
   font-weight: 600;
