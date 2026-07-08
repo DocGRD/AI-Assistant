@@ -796,7 +796,8 @@ class AssistantServer:
             if _first == "vault:organize":
                 from assistant_core.proactive.organize import run_organize
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                rep = run_organize(self._config.get("vault_path"), self._config, self._rag, self._router)
+                rep = run_organize(self._config.get("vault_path"), self._config, self._rag,
+                                   self._router, force=True)   # user asked for it now
                 reply = (f"Auto-organize: staged tag/link proposals for {rep['notes']} note(s) → "
                          f"{rep['proposal']} (review and approve — nothing applied yet)."
                          if rep.get("proposal") else

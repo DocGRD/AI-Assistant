@@ -75,7 +75,19 @@ def existing_tags(vault, limit: int = 40) -> list[str]:
 
 def _norm_tag(t: str) -> str:
     t = t.strip().strip("#'\"").lower().replace(" ", "-")
-    return re.sub(r"[^a-z0-9/_-]", "", t)
+    return re.sub(r"[^a-z0-9/_-]", "", t).strip("-")
+
+
+_TAG_DENY = {"no-matching-tags", "none", "na", "n-a", "tags", "tag", "no-tags",
+             "untagged", "no-tag", "matching", "empty"}
+
+
+def _valid_tag(t: str) -> bool:
+    # A real tag is short with few hyphens; this rejects prose the model turned into a
+    # hyphenated blob ("consider-adding-a-new-tag-...") when it ignored "list only",
+    # plus obvious "no tags" refusals — so we get clean tags or nothing, never junk.
+    return (2 <= len(t) <= 25 and t.count("-") <= 2 and not t[0].isdigit()
+            and t not in _TAG_DENY)
 
 
 def _suggest_tags(router, content: str, existing: list[str], private: bool = False) -> list[str]:
@@ -83,9 +95,10 @@ def _suggest_tags(router, content: str, existing: list[str], private: bool = Fal
         return []
     from assistant_core.providers.base_provider import Message
     prompt = (
-        "Suggest 2-5 topical tags for the note below. Strongly prefer reusing these existing "
-        f"vault tags when they fit: {', '.join(existing[:40]) or '(none yet)'}. "
-        "Return ONLY a comma-separated list of tags, lowercase, no '#'. Do not invent unrelated tags.\n\n"
+        "Output 2-5 topical tags for the note below as a COMMA-SEPARATED LIST and nothing else — "
+        "no sentences, no explanation. Each tag is 1-2 words, lowercase. Strongly prefer reusing "
+        f"these existing vault tags when they fit: {', '.join(existing[:40]) or '(none yet)'}. "
+        "If nothing fits, output an empty line.\n\n"
         f"{content[:2000]}"
     )
     try:
@@ -94,10 +107,12 @@ def _suggest_tags(router, content: str, existing: list[str], private: bool = Fal
     except Exception as exc:
         logger.info(f"[Organize] tag call failed: {exc}")
         return []
+    # If the model ignored the format and wrote a sentence, the comma-split yields long
+    # hyphenated blobs — _valid_tag drops them, so we get clean tags or nothing (never junk).
     out: list[str] = []
     for t in re.split(r"[,\n]", reply or ""):
         nt = _norm_tag(t)
-        if nt and nt not in out:
+        if nt and _valid_tag(nt) and nt not in out:
             out.append(nt)
     return out[:5]
 
@@ -136,7 +151,7 @@ def suggest_for_note(note_path: str, content: str, vault, rag, router,
 
 
 def run_organize(vault, config: dict | None = None, rag=None, router=None,
-                 now: datetime | None = None, max_notes: int = 20) -> dict:
+                 now: datetime | None = None, max_notes: int = 20, force: bool = False) -> dict:
     config = config or {}
     now = now or datetime.now()
     vault = Path(vault)
@@ -161,7 +176,7 @@ def run_organize(vault, config: dict | None = None, rag=None, router=None,
     for mt, rel, p in candidates:
         if scanned >= max_notes:
             break
-        if not governor.may_run(config):
+        if not force and not governor.may_run(config):   # force = user ran it on demand
             logger.info("[Organize] deferring remaining notes — governor (foreground/budget)")
             break
         try:

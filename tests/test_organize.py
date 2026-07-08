@@ -63,6 +63,19 @@ class OrganizeTests(unittest.TestCase):
         # …but the source note is UNCHANGED (propose-only)
         self.assertEqual((Path(self.tmp) / "New Note.md").read_text(encoding="utf-8"), before)
 
+    def test_rambling_reply_yields_clean_tags_not_junk(self):
+        class _Rambler:
+            available_providers = ["groq"]
+            def generate(self, messages, **kw):
+                return ("no matching tags, consider adding a new tag (homestead or rocket "
+                        "stove), but based on the given options", "groq")
+        tags = organize._suggest_tags(_Rambler(), "content", ["faith"])
+        for t in tags:                                  # nothing long/hyphen-blobby survives
+            self.assertLessEqual(len(t), 25)
+            self.assertLessEqual(t.count("-"), 2)
+        self.assertNotIn("no-matching-tags", tags)
+        self.assertNotIn("consider-adding-a-new-tag-homestead-or-rocket-stove", tags)
+
     def test_governor_defers_stops_work(self):
         governor.mark_foreground_activity(cooldown_s=999)   # foreground "busy"
         rep = organize.run_organize(self.tmp, {}, rag=None, router=_FakeRouter(),
