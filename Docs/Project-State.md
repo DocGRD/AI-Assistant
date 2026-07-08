@@ -2,11 +2,14 @@
 
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
-*Status: **v1.0.0 — released publicly 2026-07-03** (GitHub pre-release "beta v1.0.0" + BRAT, MIT licensed).
-Milestones 1–33 implemented and tested (344 automated tests green), and deployed end-to-end (Linux systemd
-service with GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN). Post-release work
-(2026-07-07): the plugin was renamed **Loremaster** (id `loremaster` — a meaningful name, verified unused across all 5,456 directory plugins),
-and **M30 (anti-hallucination), M31 (chunked edits), M32 (deterministic math), M33 (agent full-command access + autonomous web research)** landed. **Where to resume:** see
+*Status: **Loremaster v1.2.0 — released 2026-07-08** (GitHub pre-release + BRAT, MIT). Milestones 1–35
+implemented and tested (**368 automated tests green**), deployed end-to-end (Linux systemd service with
+GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN; box on `main`). Release history:
+**v1.0.0** (2026-07-03, first public) → **v1.1.0** (rename to Loremaster + M30 anti-hallucination, M31 chunked
+edits, M32 deterministic math, M33 agent full-command access + autonomous web research) → **v1.2.0**
+(M34 proactive layer — daily briefing + auto-organize propose-only + Proactive panel + resource governor;
+M35 autonomous goal engine — plan→approve→background execution). GUI-verified on GRDVault (regression green,
+see `Docs/Tests/GUI-Test-Run-2026-07-08.md`). **Where to resume:** see
 [Post-v1.0 — Release Status & Next Work](#post-v10--release-status--next-work)
 at the end of this document — it records the one open release chore, the discovery next-step, and the
 scoped-but-deferred clean-architecture refactor.*
