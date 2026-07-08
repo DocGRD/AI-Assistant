@@ -102,6 +102,36 @@ def build_briefing(vault, config: dict | None = None, rag=None, router=None,
     lines += ([f"- {p}" for p in pending] if pending else ["- Nothing pending"])
     lines.append("")
 
+    # M38 (C5) — vault-state: running goals + health (orphans / stale / unsourced).
+    try:
+        from assistant_core.goals import store as gstore
+        active = [g for g in gstore.load_goals() if g.get("status") in ("running", "proposed")]
+    except Exception:
+        active = []
+    if active:
+        lines.append(f"## Goals in flight ({len(active)})")
+        for g in active:
+            try:
+                done, tot = gstore.progress(g)
+            except Exception:
+                done, tot = 0, 0
+            lines.append(f"- {g.get('description','?')} — {g.get('status')} · {done}/{tot} steps")
+        lines.append("")
+
+    try:
+        from assistant_core import analytics
+        idx = analytics.link_index(vault)
+        orphan_n = len(analytics.orphans(vault, idx))
+        stale_n = len(analytics.stale_notes(vault, now=now))
+    except Exception:
+        orphan_n = stale_n = 0
+    if orphan_n or stale_n:
+        lines.append("## Vault health")
+        lines.append(f"- Orphan notes (no links in/out): **{orphan_n}**")
+        lines.append(f"- Stale notes (180+ days): **{stale_n}**")
+        lines.append("- Run `vault:analytics` for the full report.")
+        lines.append("")
+
     # M37 — surface possible contradictions across the vault (deterministic, bounded).
     try:
         from assistant_core import contradiction

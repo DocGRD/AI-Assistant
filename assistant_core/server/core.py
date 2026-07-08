@@ -837,6 +837,33 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # M38 — vault analytics report (read-only "explain my vault").
+            if _first == "vault:analytics":
+                from assistant_core import analytics
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                embedder = getattr(self._rag, "embedder", None)
+                rel = analytics.write_report(self._config.get("vault_path"), embedder)
+                if self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("analytics", rel))
+                return HandoffResponse(status="ok", reply=f"Vault analytics report written → {rel}",
+                                       provider_used="system", actual_provider="system", timestamp=ts)
+
+            # M38 — Map-of-Content generation (propose-only).
+            if _first == "vault:moc":
+                from assistant_core import moc
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                topic = req.message.split(None, 1)[1].strip() if len(req.message.split(None, 1)) > 1 else ""
+                if not topic:
+                    return HandoffResponse(status="ok", reply="Usage: vault:moc <topic>",
+                                           provider_used="system", actual_provider="system", timestamp=ts)
+                rel = moc.build_moc(self._config.get("vault_path"), topic, self._rag, self._router)
+                reply = (f"Map-of-Content proposed → {rel} (review and move/keep as you like)."
+                         if rel else f"Nothing related to '{topic}' found to build a MOC.")
+                if self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("moc", rel or topic))
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # M37 — contradiction detection (deterministic; propose-only, never auto-edits).
             if _first == "vault:contradictions":
                 from assistant_core import contradiction
