@@ -63,5 +63,11 @@
   "watcher_poll_interval": 5,
 
   "link_validation": "strip",
-  "hallucination_guard": "escalate_web"
+  "hallucination_guard": "escalate_web",
+
+  "auto_briefing_enabled": true,
+  "briefing_hour": 6,
+  "auto_organize_enabled": false,
+  "organize_hour": 5,
+  "background_hourly_budget": 60
 }

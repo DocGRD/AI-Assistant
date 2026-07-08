@@ -66,6 +66,13 @@ def consolidate_due(now: datetime, hour: int, last_date: str | None) -> bool:
     return last_date != now.strftime("%Y-%m-%d")
 
 
+def daily_due(now: datetime, hour: int, last_date: str | None) -> bool:
+    """M34 — fire once per day in the configured hour (briefing, auto-organize)."""
+    if now.hour != hour:
+        return False
+    return last_date != now.strftime("%Y-%m-%d")
+
+
 class MaintenanceScheduler:
     """Daemon thread: weekly provider discovery + nightly memory consolidation."""
 
@@ -77,10 +84,14 @@ class MaintenanceScheduler:
         self._stop       = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_consolidate: str | None = None
+        self._last_briefing:    str | None = None   # M34
+        self._last_organize:    str | None = None   # M34
 
     def _enabled(self) -> bool:
         return bool(self._config.get("auto_discovery_enabled", True)
-                    or self._config.get("auto_consolidate_enabled", True))
+                    or self._config.get("auto_consolidate_enabled", True)
+                    or self._config.get("auto_briefing_enabled", True)
+                    or self._config.get("auto_organize_enabled", False))
 
     def start(self) -> None:
         if not self._enabled():
@@ -109,9 +120,37 @@ class MaintenanceScheduler:
                 if self._config.get("auto_consolidate_enabled", True) and \
                         consolidate_due(now, c_hour, self._last_consolidate):
                     self._fire_consolidation(now)
+                # M34 — proactive agents (read-only briefing; propose-only auto-organize)
+                if self._config.get("auto_briefing_enabled", True) and \
+                        daily_due(now, int(self._config.get("briefing_hour", 6)), self._last_briefing):
+                    self._fire_briefing(now)
+                if self._config.get("auto_organize_enabled", False) and \
+                        daily_due(now, int(self._config.get("organize_hour", 5)), self._last_organize):
+                    self._fire_organize(now)
             except Exception as exc:
                 logger.warning(f"[Scheduler] tick failed: {exc}")
             self._stop.wait(_TICK_SECONDS)
+
+    def _fire_briefing(self, now: datetime) -> None:
+        self._last_briefing = now.strftime("%Y-%m-%d")   # guard first — once per day
+        try:
+            from assistant_core.proactive.briefing import write_briefing
+            rel = write_briefing(self._vault_path, self._config, self._rag, self._router, now=now)
+            logger.info(f"[Scheduler] Daily briefing written: {rel}")
+        except Exception as exc:
+            logger.warning(f"[Scheduler] briefing failed: {exc}")
+
+    def _fire_organize(self, now: datetime) -> None:
+        self._last_organize = now.strftime("%Y-%m-%d")
+        if self._router is None:
+            return
+        try:
+            from assistant_core.proactive.organize import run_organize
+            rep = run_organize(self._vault_path, self._config, self._rag, self._router)
+            logger.info(f"[Scheduler] Auto-organize: proposed for {rep.get('notes', 0)} note(s) "
+                        f"→ {rep.get('proposal')}")
+        except Exception as exc:
+            logger.warning(f"[Scheduler] auto-organize failed: {exc}")
 
     def _fire_discovery(self) -> None:
         from assistant_core.providers.discovery_job import run_discovery_proposal

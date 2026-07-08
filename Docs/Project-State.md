@@ -1485,6 +1485,29 @@ agent from emitting the rich command set, and those commands lived only as serve
 
 ---
 
+### M34 — Autonomous Background Engine + Proactive Agents ✅ (backend implemented)
+
+Reframed from a one-off goal executor after a broad 2026 AI-notes market scan: the biggest gap is a
+**proactive "processing layer"** (AI that works your vault on a schedule, not just on prompt). Built on the
+existing `scheduler.MaintenanceScheduler`.
+- **Resource governor** (`assistant_core/background/governor.py`): before any background model call,
+  `may_run()` checks **foreground priority** (the server marks `/chat` activity; background yields for a
+  cooldown) + a **rolling hourly budget** (`background_hourly_budget`). Pure `should_defer()` unit-tested.
+- **Daily Briefing** (`proactive/briefing.py`, read-only): each morning writes `AI/Briefings/YYYY-MM-DD.md`
+  — recently-changed notes, flashcards due, pending approvals, a short grounded focus line. Never edits a
+  note. Config `auto_briefing_enabled` (default on), `briefing_hour`.
+- **Auto-organize** (`proactive/organize.py`, **propose-only**): nightly (watermarked), for changed notes
+  suggests **tags** (biased to reuse existing vault tags) + **related links** (`RagService.relevant_notes`,
+  every link validated by `links.link_exists` — no fabricated links), staged to
+  `AI/Proposed/organize-YYYY-MM-DD.md`. **Never modifies a note.** Governor-paced. Config
+  `auto_organize_enabled` (default off), `organize_hour`.
+- **On-demand:** `vault:briefing` / `vault:organize` (server intercepts) run them now.
+- **Tests:** `test_governor`, `test_briefing`, `test_organize` (+14 → 358). Deferred: the plugin "Proactive"
+  panel (one-click approve of organize proposals) and **M35 — Goal Engine** (plan→approve→autonomous
+  background execution for big goals like Matthew Henry, on this same governor).
+
+---
+
 ## Post-v1.0 — Release Status & Next Work
 
 *This section is the resume point. Everything above documents what was built; this documents where the

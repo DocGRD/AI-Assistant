@@ -499,6 +499,10 @@ class AssistantServer:
             if not req.message.strip():
                 raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
+            # M34 — the user is active: background proactive work yields for a cooldown.
+            from assistant_core.background import governor
+            governor.mark_foreground_activity()
+
             # Shutdown intercept
             if req.message.strip().lower() in ("exit", "quit", "shutdown"):
                 logger.info(f"[Server] Shutdown command via /chat: {req.message!r}")
@@ -776,6 +780,29 @@ class AssistantServer:
                          else f"Discovery could not run: {msg}.")
                 if ok and self._memory and self._ep_vault:
                     self._memory.append_episode(self._ep_vault("discover_providers", msg))
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
+            # M34 — proactive agents, on demand (they also run on a schedule).
+            if _first == "vault:briefing":
+                from assistant_core.proactive.briefing import write_briefing
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                rel = write_briefing(self._config.get("vault_path"), self._config, self._rag, self._router)
+                if self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("briefing", rel))
+                return HandoffResponse(status="ok", reply=f"Daily briefing written → {rel}",
+                                       provider_used="system", actual_provider="system", timestamp=ts)
+
+            if _first == "vault:organize":
+                from assistant_core.proactive.organize import run_organize
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                rep = run_organize(self._config.get("vault_path"), self._config, self._rag, self._router)
+                reply = (f"Auto-organize: staged tag/link proposals for {rep['notes']} note(s) → "
+                         f"{rep['proposal']} (review and approve — nothing applied yet)."
+                         if rep.get("proposal") else
+                         f"Auto-organize: scanned {rep['scanned']} note(s); nothing new to propose.")
+                if self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("organize", str(rep.get('proposal'))))
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
