@@ -59,6 +59,15 @@ class AnalyticsTests(unittest.TestCase):
         pairs = {frozenset((k, m)) for k, m, _ in merges}
         self.assertIn(frozenset(("prayer", "prayers")), pairs)
 
+    def test_unsourced_notes(self):
+        v = Path(self.tmp)
+        (v / "Lonely.md").write_text("The secret order had exactly 4212 monks in 1450.", encoding="utf-8")
+        (v / "Backed.md").write_text("Everest is 8848 metres tall.", encoding="utf-8")
+        (v / "Support.md").write_text("Climbers note Everest reaches 8848 metres.", encoding="utf-8")
+        uns = analytics.unsourced_notes(self.tmp)
+        self.assertIn("Lonely.md", uns)        # no other note supports 4212/1450
+        self.assertNotIn("Backed.md", uns)     # Support.md corroborates 8848
+
     def test_report_note_written(self):
         rel = analytics.write_report(self.tmp, embedder=_Embedder(), now=datetime(2026, 7, 8))
         self.assertTrue(rel.startswith("AI/Reports/vault-analytics-"))

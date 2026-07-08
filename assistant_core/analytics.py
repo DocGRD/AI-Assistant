@@ -106,22 +106,40 @@ def tag_distribution(vault) -> Counter:
     return c
 
 
-def unsourced_notes(vault, limit: int = 15) -> list[str]:
-    """Notes asserting factual quantities that nothing else in the vault supports."""
+def unsourced_notes(vault, limit: int = 15, max_scan: int = 400) -> list[str]:
+    """Notes asserting factual quantities that nothing else in the vault supports.
+
+    Loads every note's text **once** and checks claims against that in-memory corpus, so it
+    stays fast on large vaults (the naive version re-read the whole vault per note → minutes).
+    """
+    from math import ceil
     from assistant_core.write_guard import _claims
-    from assistant_core.provenance import find_sources
+    from assistant_core.provenance import _terms
     vault = Path(vault)
-    out = []
+
+    corpus: list[tuple[str, str]] = []            # (rel, lowercased text), single disk pass
     for rel, p in _notes(vault):
         try:
-            text = p.read_text(encoding="utf-8")
+            corpus.append((rel, p.read_text(encoding="utf-8").lower()))
         except Exception:
             continue
-        claims = _claims(text)
+
+    out: list[str] = []
+    for rel, low in corpus[:max_scan]:
+        claims = _claims(low)
         if not claims:
             continue
-        # a note is "unsourced" if none of its quantity-claims are supported elsewhere
-        if all(not find_sources(vault, c, limit=1).get("sourced") for c in claims[:3]):
+        supported = False
+        for c in claims[:3]:
+            terms = _terms(c)
+            if not terms:
+                continue
+            need = max(2, ceil(len(terms) / 2))
+            if any(orel != rel and sum(1 for t in terms if t in olow) >= need
+                   for orel, olow in corpus):
+                supported = True
+                break
+        if not supported:
             out.append(rel)
             if len(out) >= limit:
                 break
