@@ -2,15 +2,25 @@
 
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
-*Status: **Loremaster v1.3.0 — released 2026-07-08** (GitHub pre-release + BRAT, MIT). Milestones 1–36
-implemented and tested (**394 automated tests green**), deployed end-to-end (Linux systemd service with
-GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN; box on `main` at `v1.3.0`).
-**M36 — Unified Surfaces:** one Approvals inbox (`assistant_core/approvals.py`, `GET/POST /approvals`)
-over the three persisted propose/commit stores (auto-organize, memory-consolidation facts, goal approvals)
-with per-item apply/dismiss + Open-note; a single connective-tissue linking service
-(`assistant_core/linking.py`, vector+graph merge, feedback-aware); generalized feedback across kinds; one
-plugin Approvals panel replacing the separate memory-review + proactive panels. Next milestone **M37**
-(Trust Everywhere — guard every write path + contradiction detection); roadmap M37–M40 in
+*Status: **Loremaster v1.5.0 — 2026-07-08** (GitHub pre-release + BRAT, MIT). Milestones 1–40
+implemented and tested (**437 automated tests green**), deployed end-to-end (Linux systemd service with
+GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN).
+The M37–M40 arc (built on dev, GUI-verified on GRDVault, shipped together as v1.5.0):
+- **M37 Trust Everywhere** — `write_guard.py` flags unsourced factual claims on every create/update
+  (config `write_guard: off|flag|source`); `contradiction.py` + `vault:contradictions` + briefing section;
+  consolidation proposals note unsourced quantity-facts.
+- **M38 Vault Intelligence** — `analytics.py` + `vault:analytics` (orphans, stale, unsourced, tag
+  distribution, most-linked, near-duplicate tag merges); vault-state briefing (goals in flight + health);
+  `moc.py` + `vault:moc <topic>` propose-only Map-of-Content.
+- **M39 Autonomy++ & Action Layer** — goal templates (research/digest/study) via `vault:goal --template`;
+  recurring goals + per-goal daily budget cap; `tasks.py` + `vault:actions` (extract to-dos → AI/Tasks/,
+  surfaced in briefing); plugin **Goals panel** (`GET /goals` + pause/resume/cancel).
+- **M40 Authoring & Capture** — `clip.py` + `vault:clip <url>` (readable web page → sourced, single-note-
+  indexed AI/Clippings/ note; blocked in Private mode); plugin "Clip a web page" command + "Continue writing
+  (inline)" editor command (private routing). Carried forward: CM6 ghost-text overlay, YouTube capture,
+  Templater typed-note fill; auto-filing folder-moves (M38); full subtask dependency graph (M39).
+Two bugs caught by live verification and fixed: missing `import re` in server (goal `--template` parse) and
+`vault:clip` triggering a full reindex (now single-note). Roadmap M36–M40 complete;
 `~/.claude/plans/goal-milestone-10-slice-linear-orbit.md`.
 Release history:
 **v1.0.0** (2026-07-03, first public) → **v1.1.0** (rename to Loremaster + M30 anti-hallucination, M31 chunked
