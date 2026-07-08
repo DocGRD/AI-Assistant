@@ -396,6 +396,33 @@ class GoalsEndpointTests(unittest.TestCase):
 
 
 @unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
+class ClipEndpointTests(unittest.TestCase):
+    """M40 — vault:clip guard paths that need no network."""
+
+    def _client(self, tmp):
+        import threading
+        from fastapi.testclient import TestClient
+        server = AssistantServer(
+            router=_Router(), memory=None, registry=_FakeReg(), history=[],
+            history_lock=threading.Lock(),
+            config={"host": "127.0.0.1", "vault_path": tmp}, system_prompt="S")
+        return TestClient(server._app)
+
+    def test_usage_without_url(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            r = self._client(d).post("/chat", json={"message": "vault:clip"}).json()
+            self.assertIn("Usage", r["reply"])
+
+    def test_blocked_in_private_mode(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            r = self._client(d).post(
+                "/chat", json={"message": "vault:clip https://example.com", "private": True}).json()
+            self.assertIn("Private", r["reply"])
+
+
+@unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
 class ContradictionsEndpointTests(unittest.TestCase):
     """M37 — vault:contradictions runs the deterministic detector via /chat (provider=system)."""
 

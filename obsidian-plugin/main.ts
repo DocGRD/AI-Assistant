@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice } from "obsidian";
+import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor } from "obsidian";
 import { ChatView, CHAT_VIEW_TYPE } from "./ChatView";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +51,27 @@ export default class AIAssistantPlugin extends Plugin {
             name: "Run a saved prompt",
             callback: async () => { await this.activateChatView(); this.getChatView()?.commandPrompts(); },
         });
+        // M40 — web clipper: prompt for a URL and save it as a sourced, indexed note.
+        this.addCommand({
+            id: "ai-clip-url",
+            name: "Clip a web page to the vault",
+            callback: () => {
+                new UrlPromptModal(this.app, async (url) => {
+                    await this.activateChatView();
+                    this.getChatView()?.commandClip(url);
+                }).open();
+            },
+        });
+        // M40 — inline authoring: continue writing at the cursor in the active note.
+        this.addCommand({
+            id: "ai-continue-writing",
+            name: "Continue writing (inline)",
+            editorCallback: async (editor: Editor) => {
+                let view = this.getChatView();
+                if (!view) { await this.activateChatView(); view = this.getChatView(); }
+                await view?.commandContinue(editor);
+            },
+        });
 
         // Settings tab
         this.addSettingTab(new AIAssistantSettingTab(this.app, this));
@@ -102,6 +123,42 @@ export default class AIAssistantPlugin extends Plugin {
     async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
     }
+}
+
+// ---------------------------------------------------------------------------
+// M40 — tiny URL prompt for the web clipper
+// ---------------------------------------------------------------------------
+class UrlPromptModal extends Modal {
+    private onSubmit: (url: string) => void;
+
+    constructor(app: App, onSubmit: (url: string) => void) {
+        super(app);
+        this.onSubmit = onSubmit;
+    }
+
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Clip a web page" });
+        const input = contentEl.createEl("input", { type: "text", placeholder: "https://…" });
+        input.style.width = "100%";
+        // pre-fill from the clipboard if it looks like a URL
+        navigator.clipboard?.readText?.().then((t) => {
+            if (/^https?:\/\//i.test((t || "").trim())) input.value = t.trim();
+        }).catch(() => {});
+        const submit = () => {
+            const url = input.value.trim();
+            this.close();
+            if (url) this.onSubmit(url);
+        };
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+        const row = contentEl.createDiv();
+        row.style.marginTop = "8px";
+        const btn = row.createEl("button", { text: "Clip" });
+        btn.addEventListener("click", submit);
+        setTimeout(() => input.focus(), 0);
+    }
+
+    onClose(): void { this.contentEl.empty(); }
 }
 
 // ---------------------------------------------------------------------------

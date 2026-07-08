@@ -1340,6 +1340,41 @@ export class ChatView extends ItemView {
     public commandSummarize(): void { void this.runQuickChat("Summarize the active note concisely."); }
     public commandPrompts(): void { this.openPromptPicker(); }
 
+    /** M40 — web clipper: save a URL as a sourced, indexed note. */
+    public commandClip(url: string): void {
+        if (!/^https?:\/\//i.test(url.trim())) { new Notice("Enter a valid http(s) URL."); return; }
+        void this.runQuickChat("vault:clip " + url.trim());
+    }
+
+    /** M40 — inline authoring: continue writing at the cursor (private routing — the note
+     *  text is only sent to no-train/local providers, never the web). */
+    public async commandContinue(editor: Editor): Promise<void> {
+        const cursor = editor.getCursor();
+        const before = editor.getRange({ line: Math.max(0, cursor.line - 40), ch: 0 }, cursor);
+        if (!before.trim()) { new Notice("Nothing to continue from."); return; }
+        const { host, port } = this.plugin.settings;
+        new Notice("Loremaster is writing…");
+        try {
+            const resp = await fetch(`http://${host}:${port}/chat`, {
+                method: "POST",
+                headers: this.apiHeaders({ "Content-Type": "application/json" }),
+                body: JSON.stringify({
+                    message: "Continue the following text naturally in the same voice. Output ONLY the "
+                        + "continuation — no preamble, no repetition of the given text:\n\n" + before,
+                    private: true,
+                }),
+                signal: AbortSignal.timeout(30000),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const cont = ((await resp.json() as { reply?: string }).reply || "").trim();
+            if (!cont) { new Notice("No continuation returned."); return; }
+            const sep = /\s$/.test(before) ? "" : " ";
+            editor.replaceSelection(sep + cont);
+        } catch (e) {
+            new Notice(`Continue failed: ${e instanceof Error ? e.message : e}`);
+        }
+    }
+
     /** M12 — fetch + show notes related to the active note. */
     private async refreshRelated(file: TFile): Promise<void> {
         if (!this.relatedEl || !file || file.extension !== "md" || !this.serviceOnline) {

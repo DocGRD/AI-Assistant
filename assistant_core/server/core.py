@@ -837,6 +837,27 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # M40 — web clipper: save a page's readable text as a sourced, indexed note.
+            if _first == "vault:clip":
+                from assistant_core import clip
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                parts = req.message.split(None, 1)
+                url = parts[1].strip() if len(parts) > 1 else ""
+                if not url:
+                    return HandoffResponse(status="ok", reply="Usage: vault:clip <url>",
+                                           provider_used="system", actual_provider="system", timestamp=ts)
+                if bool(req.private):
+                    return HandoffResponse(status="ok", reply="Clipping is disabled in Private mode.",
+                                           provider_used="system", actual_provider="system", timestamp=ts)
+                r = clip.clip_url(self._config.get("vault_path"), url, self._rag)
+                reply = (f"Clipped **{r['title']}** → {r['path']} ({r['chars']} chars"
+                         f"{', indexed' if r['indexed'] else ''})."
+                         if r["ok"] else f"Could not clip {url} (no readable content).")
+                if r["ok"] and self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("clip", r["path"]))
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # M39 — action layer: extract a note's to-dos into a tracked checklist.
             if _first == "vault:actions":
                 from assistant_core import tasks
