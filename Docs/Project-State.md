@@ -2,14 +2,20 @@
 
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
-*Status: **Loremaster v1.2.0 — released 2026-07-08** (GitHub pre-release + BRAT, MIT). Milestones 1–35
-implemented and tested (**368 automated tests green**), deployed end-to-end (Linux systemd service with
-GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN; box on `main`). Release history:
+*Status: **Loremaster v1.2.1 — released 2026-07-08** (GitHub pre-release + BRAT, MIT). Milestones 1–35.1
+implemented and tested (**375 automated tests green**), deployed end-to-end (Linux systemd service with
+GPU-accelerated embeddings, driven by the Obsidian plugin over the LAN; box on `main` at `v1.2.1`).
+Release history:
 **v1.0.0** (2026-07-03, first public) → **v1.1.0** (rename to Loremaster + M30 anti-hallucination, M31 chunked
 edits, M32 deterministic math, M33 agent full-command access + autonomous web research) → **v1.2.0**
 (M34 proactive layer — daily briefing + auto-organize propose-only + Proactive panel + resource governor;
-M35 autonomous goal engine — plan→approve→background execution). GUI-verified on GRDVault (regression green,
-see `Docs/Tests/GUI-Test-Run-2026-07-08.md`). **Where to resume:** see
+M35 autonomous goal engine — plan→approve→background execution) → **v1.2.1** (M35.1 — granular Proactive
+panel: per-item apply/dismiss of individual tags & links, Open-note button, and a feedback loop —
+`assistant_core/feedback.py` records approvals/dismissals and future auto-organize suppresses rejected /
+boosts accepted). GUI-verified on GRDVault (regression green + M35.1 per-item flow,
+see `Docs/Tests/GUI-Test-Run-2026-07-08.md`). Next milestone **M36** (unified Approvals inbox + `linking.py`
+connective-tissue service + generalised feedback — the clean-architecture refactor slice); full roadmap
+M36–M40 in `~/.claude/plans/goal-milestone-10-slice-linear-orbit.md`. **Where to resume:** see
 [Post-v1.0 — Release Status & Next Work](#post-v10--release-status--next-work)
 at the end of this document — it records the one open release chore, the discovery next-step, and the
 scoped-but-deferred clean-architecture refactor.*
