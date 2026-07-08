@@ -59,8 +59,13 @@ def clip_url(vault, url: str, rag=None, fetch_fn=None, now: datetime | None = No
     indexed = False
     if rag is not None:
         try:
-            rag.index_note(rel, body) if hasattr(rag, "index_note") else rag.reindex()
-            indexed = True
+            # index just this one note (never a full vault reindex — that would block).
+            if hasattr(rag, "maybe_index_note"):
+                indexed = bool(rag.maybe_index_note(rel, body))
+            elif hasattr(rag, "index_note"):
+                rag.index_note(rel, body)
+                indexed = True
+            # else: leave it to the file watcher's incremental indexing.
         except Exception as exc:
             logger.info(f"[clip] index skipped: {exc}")
 

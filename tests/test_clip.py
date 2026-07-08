@@ -17,9 +17,9 @@ combustion chamber. The design draws air upward and mixes it with wood gas.</p>
 class _Rag:
     def __init__(self):
         self.indexed = []
-    def index_note(self, rel, content=None):
+    def maybe_index_note(self, rel, content):     # single-note incremental path (never full reindex)
         self.indexed.append(rel)
-        return 1
+        return True
 
 
 class ClipTests(unittest.TestCase):
