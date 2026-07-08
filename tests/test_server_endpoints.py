@@ -234,5 +234,124 @@ class ServerEndpointsTests(unittest.TestCase):
         self.assertIn("efficiently", d["reply"])                     # summary returned
 
 
+@unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
+class ProactiveEndpointTests(unittest.TestCase):
+    """M35.1 — /proactive apply/reject at whole-note AND per-item (tag/link) granularity,
+    exercised through the exact HTTP contract the plugin panel calls."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from assistant_core.proactive import organize
+        from assistant_core import feedback
+        self.organize, self.feedback = organize, feedback
+        self.tmp = tempfile.mkdtemp()
+        v = Path(self.tmp)
+        (v / "Note.md").write_text("Body.\n", encoding="utf-8")
+        (v / "Neighbour.md").write_text("x", encoding="utf-8")
+        self._op, self._of = organize._PENDING_FILE, feedback._FILE
+        organize._PENDING_FILE = v / "organize_pending.json"
+        feedback._FILE = v / "feedback.json"
+        organize._save_pending([{"note": "Note.md",
+                                 "tags": ["faith", "prayer"], "related": ["Neighbour"]}])
+
+    def tearDown(self):
+        self.organize._PENDING_FILE = self._op
+        self.feedback._FILE = self._of
+
+    def _client(self):
+        import threading
+        from fastapi.testclient import TestClient
+        server = AssistantServer(
+            router=_Router(), memory=None, registry=_FakeReg(), history=[],
+            history_lock=threading.Lock(),
+            config={"host": "127.0.0.1", "vault_path": self.tmp}, system_prompt="S")
+        return TestClient(server._app)
+
+    def test_get_proactive_lists_pending(self):
+        d = self._client().get("/proactive").json()
+        self.assertEqual(d["proposals"][0]["note"], "Note.md")
+        self.assertIn("faith", d["proposals"][0]["tags"])
+
+    def test_apply_one_tag(self):
+        from pathlib import Path
+        c = self._client()
+        r = c.post("/proactive/apply", json={"note": "Note.md", "tag": "faith"}).json()
+        self.assertTrue(r["applied"])
+        self.assertEqual(r["kind"], "tag")
+        txt = (Path(self.tmp) / "Note.md").read_text(encoding="utf-8")
+        self.assertIn("faith", txt)
+        self.assertNotIn("prayer", txt)                       # only the one tag
+        self.assertEqual(c.get("/proactive").json()["proposals"][0]["tags"], ["prayer"])
+
+    def test_apply_one_link_adds_related(self):
+        from pathlib import Path
+        r = self._client().post("/proactive/apply", json={"note": "Note.md", "link": "Neighbour"}).json()
+        self.assertTrue(r["applied"])
+        self.assertIn("[[Neighbour]]", (Path(self.tmp) / "Note.md").read_text(encoding="utf-8"))
+
+    def test_reject_one_records_feedback(self):
+        r = self._client().post("/proactive/reject", json={"note": "Note.md", "tag": "prayer"}).json()
+        self.assertTrue(r["rejected"])
+        self.assertEqual(self.feedback.counts("tag", "prayer")["reject"], 1)
+        self.assertEqual(self._client().get("/proactive").json()["proposals"][0]["tags"], ["faith"])
+
+    def test_whole_note_apply_still_works(self):
+        from pathlib import Path
+        r = self._client().post("/proactive/apply", json={"note": "Note.md"}).json()
+        self.assertTrue(r["applied"])
+        txt = (Path(self.tmp) / "Note.md").read_text(encoding="utf-8")
+        self.assertIn("faith", txt)
+        self.assertIn("prayer", txt)                          # whole-note = all tags
+        self.assertEqual(self._client().get("/proactive").json()["proposals"], [])
+
+
+@unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
+class ApprovalsEndpointTests(unittest.TestCase):
+    """M36 — GET /approvals + POST /approvals/{apply,reject} over the HTTP contract."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from assistant_core.proactive import organize
+        from assistant_core import feedback
+        self.organize, self.feedback = organize, feedback
+        self.tmp = tempfile.mkdtemp()
+        v = Path(self.tmp)
+        (v / "Note.md").write_text("Body.\n", encoding="utf-8")
+        (v / "Neighbour.md").write_text("x", encoding="utf-8")
+        self._op, self._of = organize._PENDING_FILE, feedback._FILE
+        organize._PENDING_FILE = v / "organize_pending.json"
+        feedback._FILE = v / "feedback.json"
+        organize._save_pending([{"note": "Note.md", "tags": ["faith"], "related": ["Neighbour"]}])
+
+    def tearDown(self):
+        self.organize._PENDING_FILE = self._op
+        self.feedback._FILE = self._of
+
+    def _client(self):
+        import threading
+        from fastapi.testclient import TestClient
+        server = AssistantServer(
+            router=_Router(), memory=None, registry=_FakeReg(), history=[],
+            history_lock=threading.Lock(),
+            config={"host": "127.0.0.1", "vault_path": self.tmp}, system_prompt="S")
+        return TestClient(server._app)
+
+    def test_list_and_apply_one(self):
+        from pathlib import Path
+        c = self._client()
+        d = c.get("/approvals").json()
+        org = next(a for a in d["approvals"] if a["kind"] == "organize")
+        self.assertEqual(org["id"], "organize:Note.md")
+        tag_item = next(i for i in org["items"] if i["itemkind"] == "tag")
+        r = c.post("/approvals/apply", json={"id": "organize:Note.md", "item": tag_item}).json()
+        self.assertTrue(r["applied"])
+        self.assertIn("faith", (Path(self.tmp) / "Note.md").read_text(encoding="utf-8"))
+
+    def test_reject_requires_id(self):
+        self.assertEqual(self._client().post("/approvals/reject", json={}).status_code, 400)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -120,24 +120,11 @@ def _suggest_tags(router, content: str, existing: list[str], private: bool = Fal
     return out[:5]
 
 
-def _related_links(rag, note_path: str, vault) -> list[str]:
-    """Semantic neighbours, each validated against the vault (no fabricated links)."""
-    if rag is None or not getattr(rag, "has_index", lambda: False)():
-        return []
-    try:
-        rel = rag.relevant_notes(note_path, k=5)
-    except Exception:
-        return []
-    out: list[str] = []
-    for r in rel:
-        path = r.get("path") if isinstance(r, dict) else r
-        if not path:
-            continue
-        stem = Path(path).stem
-        if (stem not in out and link_exists(stem, vault)
-                and not feedback.suppressed("link", stem, scope=note_path)):
-            out.append(stem)                      # drop links the user rejected on this note
-    return out[:5]
+def _related_links(rag, note_path: str, vault, graph=None) -> list[str]:
+    """Semantic + graph neighbours via the shared linking service — every link validated
+    against the vault (no fabricated links) and feedback-filtered for this note."""
+    from assistant_core import linking
+    return linking.related(vault, note_path, k=5, rag=rag, graph=graph)
 
 
 def _note_is_private(text: str) -> bool:

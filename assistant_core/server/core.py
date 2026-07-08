@@ -1322,6 +1322,33 @@ class AssistantServer:
                 return {"ran": "organize", **rep}
             raise HTTPException(status_code=400, detail="agent must be 'briefing' or 'organize'")
 
+        # ── M36 unified Approvals inbox (organize + memory + goals) ──────────
+        @app.get("/approvals")
+        async def approvals_list():
+            from assistant_core.approvals import list_approvals
+            return {"approvals": list_approvals(self._config.get("vault_path"))}
+
+        @app.post("/approvals/apply")
+        async def approvals_apply(payload: dict):
+            from assistant_core.approvals import apply_approval
+            payload = payload or {}
+            aid = payload.get("id")
+            if not aid:
+                raise HTTPException(status_code=400, detail="id required")
+            res = apply_approval(self._config.get("vault_path"), aid, payload.get("item"))
+            if res.get("applied") and self._memory and self._ep_vault:
+                self._memory.append_episode(self._ep_vault("approval_apply", aid))
+            return {"id": aid, **res}
+
+        @app.post("/approvals/reject")
+        async def approvals_reject(payload: dict):
+            from assistant_core.approvals import reject_approval
+            payload = payload or {}
+            aid = payload.get("id")
+            if not aid:
+                raise HTTPException(status_code=400, detail="id required")
+            return {"id": aid, **reject_approval(self._config.get("vault_path"), aid, payload.get("item"))}
+
         # ── GET /status ─────────────────────────────────────────────────────
         @app.get("/status", response_model=StatusResponse)
         async def status():

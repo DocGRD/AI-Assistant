@@ -290,6 +290,18 @@ interface StatusResponse {
 interface HistoryMessage { role: string; content: string; }
 interface HistoryResponse { messages: HistoryMessage[]; count: number; }
 
+// M36 — unified Approvals inbox (organize + memory + goals)
+interface ApprovalItem { itemkind: string; value: string; label: string; }
+interface Approval {
+    id: string;
+    kind: string;          // "organize" | "memory" | "goal"
+    note: string;          // openable vault path
+    summary: string;
+    detail: string;
+    items: ApprovalItem[];
+    whole_only: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // ChatView
 // ---------------------------------------------------------------------------
@@ -348,8 +360,7 @@ export class ChatView extends ItemView {
     private relatedEl!: HTMLElement;   // M12 — related-notes dropdown row
     private relatedPaths: string[] = []; // paths currently offered by the Related dropdown
     private qaScopeEl!: HTMLElement;   // Vault QA scope row (shown when Vault QA is on)
-    private memoryEl!: HTMLElement;    // M17 — memory-review panel
-    private proactiveEl!: HTMLElement; // M34 — proactive briefing + organize proposals
+    private proactiveEl!: HTMLElement; // M36 — unified Approvals inbox + briefing
 
     constructor(leaf: WorkspaceLeaf, plugin: AIAssistantPlugin) {
         super(leaf);
@@ -364,8 +375,7 @@ export class ChatView extends ItemView {
         this.buildUI();
         await this.loadStatus();
         await this.loadHistory();
-        void this.refreshMemoryProposals();   // M17 — surface pending memory proposals
-        void this.refreshProactive();          // M34 — briefing + organize proposals
+        void this.refreshProactive();          // M36 — unified Approvals inbox + today's briefing
         // M9 — surface staged edit proposals; M12 — refresh related notes, on file open.
         this.registerEvent(this.app.workspace.on("file-open", (f) => {
             if (f) { void this.checkNoteForProposal(f); void this.refreshRelated(f); }
@@ -403,11 +413,8 @@ export class ChatView extends ItemView {
         this.relatedEl = container.createDiv("ai-assistant-related");
         this.updateRelated([]);
 
-        // M17 — Memory review: pending nightly-consolidation fact proposals (hidden until any).
-        this.memoryEl = container.createDiv("ai-assistant-memory-review");
-        this.memoryEl.style.display = "none";
-
-        this.proactiveEl = container.createDiv("ai-assistant-proactive");   // M34
+        // M36 — unified Approvals inbox (organize + memory + goals) + briefing (hidden until any).
+        this.proactiveEl = container.createDiv("ai-assistant-proactive");
         this.proactiveEl.style.display = "none";
 
         this.statusEl = container.createDiv("ai-assistant-status");
@@ -1374,105 +1381,38 @@ export class ChatView extends ItemView {
     // ------------------------------------------------------------------
     // M17 — Memory review (nightly consolidation proposals)
     // ------------------------------------------------------------------
-    private async refreshMemoryProposals(): Promise<void> {
-        if (!this.memoryEl) return;
-        const { host, port } = this.plugin.settings;
-        try {
-            const resp = await fetch(`http://${host}:${port}/memory/proposals`, {
-                signal: AbortSignal.timeout(3000), headers: this.apiHeaders(),
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json() as { proposals: { file: string; facts: string[] }[] };
-            this.renderMemoryProposals(data.proposals ?? []);
-        } catch {
-            this.memoryEl.style.display = "none";   // service offline → nothing to review
-        }
-    }
-
-    private renderMemoryProposals(proposals: { file: string; facts: string[] }[]): void {
-        this.memoryEl.empty();
-        if (proposals.length === 0) { this.memoryEl.style.display = "none"; return; }
-        this.memoryEl.style.display = "block";
-
-        const total = proposals.reduce((n, p) => n + p.facts.length, 0);
-        this.memoryEl.createEl("div", {
-            text: `🧠 Memory review — ${total} proposed fact(s)`,
-            cls:  "ai-assistant-memory-title",
-        });
-
-        for (const prop of proposals) {
-            const checks: HTMLInputElement[] = [];
-            const list = this.memoryEl.createDiv("ai-assistant-memory-list");
-            for (const fact of prop.facts) {
-                const row = list.createEl("label", { cls: "ai-assistant-memory-row" });
-                const cb = row.createEl("input", { type: "checkbox" }) as HTMLInputElement;
-                cb.checked = true;                       // default: accept; user unticks to reject
-                checks.push(cb);
-                row.createEl("span", { text: " " + fact });
-            }
-            const btnRow = this.memoryEl.createDiv("ai-assistant-memory-btns");
-            const apply = btnRow.createEl("button", { text: "Save selected", cls: "ai-assistant-quick-btn" });
-            apply.addEventListener("click", () => {
-                const accepted = prop.facts.filter((_, i) => checks[i].checked);
-                void this.applyMemoryProposal(prop.file, accepted);
-            });
-            const dismiss = btnRow.createEl("button", { text: "Dismiss", cls: "ai-assistant-quick-btn" });
-            dismiss.addEventListener("click", () => void this.applyMemoryProposal(prop.file, []));
-        }
-    }
-
-    private async applyMemoryProposal(filename: string, accepted: string[]): Promise<void> {
-        const { host, port } = this.plugin.settings;
-        try {
-            const resp = await fetch(`http://${host}:${port}/memory/proposals/apply`, {
-                method: "POST",
-                headers: this.apiHeaders({ "Content-Type": "application/json" }),
-                body: JSON.stringify({ filename, accepted }),
-                signal: AbortSignal.timeout(5000),
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const r = await resp.json() as { applied: number };
-            new Notice(accepted.length
-                ? `Saved ${r.applied} fact(s) to Learned-Facts.`
-                : "Dismissed proposal.");
-        } catch (e) {
-            new Notice(`Memory review failed: ${e instanceof Error ? e.message : e}`);
-        }
-        void this.refreshMemoryProposals();   // re-fetch (the proposal is now resolved)
-    }
-
     // ------------------------------------------------------------------
-    // M34 — Proactive panel: today's briefing + auto-organize proposals
+    // M36 — unified Approvals inbox: organize + memory + goals, + today's briefing
     // ------------------------------------------------------------------
     private async refreshProactive(): Promise<void> {
         if (!this.proactiveEl) return;
         const { host, port } = this.plugin.settings;
         try {
-            const resp = await fetch(`http://${host}:${port}/proactive`, {
-                signal: AbortSignal.timeout(3000), headers: this.apiHeaders(),
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json() as {
-                briefing: { path: string; exists: boolean };
-                proposals: { note: string; tags: string[]; related: string[] }[];
-            };
-            this.renderProactive(data.briefing, data.proposals ?? []);
+            // briefing lives on /proactive; the unified approvals list on /approvals
+            const [pr, ap] = await Promise.all([
+                fetch(`http://${host}:${port}/proactive`, { signal: AbortSignal.timeout(3000), headers: this.apiHeaders() }),
+                fetch(`http://${host}:${port}/approvals`, { signal: AbortSignal.timeout(3000), headers: this.apiHeaders() }),
+            ]);
+            if (!pr.ok || !ap.ok) throw new Error(`HTTP ${pr.status}/${ap.status}`);
+            const briefing = (await pr.json() as { briefing: { path: string; exists: boolean } }).briefing;
+            const approvals = (await ap.json() as { approvals: Approval[] }).approvals ?? [];
+            this.renderProactive(briefing, approvals);
         } catch {
             this.proactiveEl.style.display = "none";
         }
     }
 
-    private renderProactive(
-        briefing: { path: string; exists: boolean },
-        proposals: { note: string; tags: string[]; related: string[] }[],
-    ): void {
+    private renderProactive(briefing: { path: string; exists: boolean }, approvals: Approval[]): void {
         this.proactiveEl.empty();
-        if (!briefing.exists && proposals.length === 0) {
+        if (!briefing.exists && approvals.length === 0) {
             this.proactiveEl.style.display = "none";
             return;
         }
         this.proactiveEl.style.display = "block";
-        this.proactiveEl.createEl("div", { text: "🗞️ Proactive", cls: "ai-assistant-memory-title" });
+        const title = approvals.length
+            ? `🗂️ Approvals — ${approvals.length} pending`
+            : "🗞️ Proactive";
+        this.proactiveEl.createEl("div", { text: title, cls: "ai-assistant-memory-title" });
 
         if (briefing.exists) {
             const row = this.proactiveEl.createDiv("ai-assistant-proactive-briefing");
@@ -1480,63 +1420,61 @@ export class ChatView extends ItemView {
             open.addEventListener("click", () => void this.app.workspace.openLinkText(briefing.path, "", false));
         }
 
-        for (const p of proposals) {
+        const kindIcon: Record<string, string> = { organize: "🏷️", memory: "🧠", goal: "🎯" };
+        for (const a of approvals) {
             const box = this.proactiveEl.createDiv("ai-assistant-proactive-item");
-            // header: note name + Open-note button (M35.1)
             const head = box.createDiv("ai-assistant-proactive-head");
-            head.createEl("span", { text: p.note, cls: "ai-assistant-proactive-note" });
+            head.createEl("span", {
+                text: `${kindIcon[a.kind] ?? "•"} ${a.summary}`,
+                cls: "ai-assistant-proactive-note",
+            });
             const openBtn = head.createEl("button", { text: "Open note", cls: "ai-assistant-quick-btn" });
-            openBtn.addEventListener("click", () => void this.app.workspace.openLinkText(p.note, "", false));
+            openBtn.addEventListener("click", () => void this.app.workspace.openLinkText(a.note, "", false));
 
-            // one ✓/✕ chip per tag and per related link — granular apply/dismiss (M35.1)
-            for (const t of p.tags ?? [])
-                this.proactiveChip(box, p.note, "#" + t, { tag: t });
-            for (const r of p.related ?? [])
-                this.proactiveChip(box, p.note, "[[" + r + "]]", { link: r });
+            if (a.whole_only) {
+                // goals: show the steps read-only, approve/reject the whole thing
+                for (const it of a.items) box.createEl("div", { text: "• " + it.label, cls: "ai-assistant-proactive-chiplabel" });
+            } else {
+                for (const it of a.items) this.approvalChip(box, a.id, it);
+            }
 
-            // whole-note fallbacks
             const btns = box.createDiv("ai-assistant-memory-btns");
-            const apply = btns.createEl("button", { text: "Apply all", cls: "ai-assistant-quick-btn" });
-            apply.addEventListener("click", () => void this.resolveProactive("apply", p.note));
-            const dismiss = btns.createEl("button", { text: "Dismiss all", cls: "ai-assistant-quick-btn" });
-            dismiss.addEventListener("click", () => void this.resolveProactive("reject", p.note));
+            const applyLbl = a.kind === "goal" ? "Approve" : "Apply all";
+            const rejectLbl = a.kind === "goal" ? "Reject" : "Dismiss all";
+            btns.createEl("button", { text: applyLbl, cls: "ai-assistant-quick-btn" })
+                .addEventListener("click", () => void this.resolveApproval("apply", a.id));
+            btns.createEl("button", { text: rejectLbl, cls: "ai-assistant-quick-btn" })
+                .addEventListener("click", () => void this.resolveApproval("reject", a.id));
         }
     }
 
-    private proactiveChip(
-        box: HTMLElement, note: string, label: string,
-        sel: { tag?: string; link?: string },
-    ): void {
+    private approvalChip(box: HTMLElement, id: string, item: ApprovalItem): void {
         const chip = box.createDiv("ai-assistant-proactive-chip");
-        chip.createEl("span", { text: label, cls: "ai-assistant-proactive-chiplabel" });
+        chip.createEl("span", { text: item.label, cls: "ai-assistant-proactive-chiplabel" });
         const ok = chip.createEl("button", { text: "✓", cls: "ai-assistant-quick-btn" });
         ok.setAttribute("aria-label", "Apply");
-        ok.addEventListener("click", () => void this.resolveProactive("apply", note, sel));
+        ok.addEventListener("click", () => void this.resolveApproval("apply", id, item));
         const no = chip.createEl("button", { text: "✕", cls: "ai-assistant-quick-btn" });
         no.setAttribute("aria-label", "Dismiss");
-        no.addEventListener("click", () => void this.resolveProactive("reject", note, sel));
+        no.addEventListener("click", () => void this.resolveApproval("reject", id, item));
     }
 
-    private async resolveProactive(
-        action: "apply" | "reject", note: string,
-        sel?: { tag?: string; link?: string },
-    ): Promise<void> {
+    private async resolveApproval(action: "apply" | "reject", id: string, item?: ApprovalItem): Promise<void> {
         const { host, port } = this.plugin.settings;
         try {
-            const body: Record<string, string> = { note };
-            if (sel?.tag) body.tag = sel.tag;
-            if (sel?.link) body.link = sel.link;
-            const resp = await fetch(`http://${host}:${port}/proactive/${action}`, {
+            const body: { id: string; item?: ApprovalItem } = { id };
+            if (item) body.item = item;
+            const resp = await fetch(`http://${host}:${port}/approvals/${action}`, {
                 method: "POST",
                 headers: this.apiHeaders({ "Content-Type": "application/json" }),
                 body: JSON.stringify(body),
-                signal: AbortSignal.timeout(6000),
+                signal: AbortSignal.timeout(8000),
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const what = sel?.tag ? `#${sel.tag}` : sel?.link ? `[[${sel.link}]]` : "tags/links";
-            new Notice(action === "apply" ? `Applied ${what} to ${note}` : `Dismissed ${what}`);
+            const what = item ? item.label : "all";
+            new Notice(action === "apply" ? `Applied ${what}` : `Dismissed ${what}`);
         } catch (e) {
-            new Notice(`Proactive ${action} failed: ${e instanceof Error ? e.message : e}`);
+            new Notice(`Approval ${action} failed: ${e instanceof Error ? e.message : e}`);
         }
         void this.refreshProactive();
     }

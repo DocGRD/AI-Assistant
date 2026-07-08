@@ -260,6 +260,73 @@ def list_proposals(vault) -> list[dict]:
     return out
 
 
+def _remaining_facts(target: Path) -> list[str]:
+    facts = []
+    try:
+        for line in target.read_text(encoding="utf-8").splitlines():
+            m = _CHECKBOX_RE.match(line)
+            if m and m.group(1).strip():
+                facts.append(m.group(1).strip())
+    except Exception:
+        pass
+    return facts
+
+
+def _drop_fact_line(target: Path, fact: str) -> None:
+    """Remove the single checkbox line for `fact` from a proposal, deleting the file once
+    no facts remain (so per-item resolution mirrors the organize pending store)."""
+    try:
+        lines = target.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return
+    kept, removed = [], False
+    for line in lines:
+        m = _CHECKBOX_RE.match(line)
+        if not removed and m and m.group(1).strip() == fact.strip():
+            removed = True
+            continue
+        kept.append(line)
+    if any(_CHECKBOX_RE.match(l) and _CHECKBOX_RE.match(l).group(1).strip() for l in kept):
+        target.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    else:
+        try:
+            target.unlink()        # last fact resolved → remove the proposal note
+        except Exception:
+            pass
+
+
+def apply_fact(vault, filename: str, fact: str) -> dict:
+    """Accept ONE proposed fact: append it to Learned-Facts and drop just that line
+    (resolving the proposal when it was the last one). Records positive feedback."""
+    from assistant_core import feedback
+    vault = Path(vault)
+    target = vault / PROPOSED_DIR / Path(filename).name
+    if not target.exists():
+        return {"applied": 0, "resolved": True}
+    run_date = datetime.now().strftime("%Y-%m-%d")
+    facts_path = vault / FACTS_FILE
+    try:
+        facts_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(facts_path, "a", encoding="utf-8") as fh:
+            fh.write(f"- [{run_date} consolidated] {fact}\n")
+    except Exception as exc:
+        logger.error(f"[Consolidation] apply_fact failed: {exc}")
+        return {"applied": 0, "resolved": False}
+    feedback.record("fact", fact, True)
+    _drop_fact_line(target, fact)
+    return {"applied": 1, "resolved": not target.exists()}
+
+
+def reject_fact(vault, filename: str, fact: str) -> dict:
+    """Dismiss ONE proposed fact: record negative feedback and drop just that line."""
+    from assistant_core import feedback
+    target = Path(vault) / PROPOSED_DIR / Path(filename).name
+    feedback.record("fact", fact, False)
+    if target.exists():
+        _drop_fact_line(target, fact)
+    return {"rejected": True, "resolved": not target.exists()}
+
+
 def apply_proposal(vault, filename: str, accepted: list[str]) -> dict:
     """Append accepted facts to Learned-Facts and resolve the proposal (delete it).
     Path-jailed to the proposals dir. Returns {applied: int, resolved: bool}."""
