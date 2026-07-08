@@ -394,6 +394,13 @@ class GoalsEndpointTests(unittest.TestCase):
     def test_bad_action_400(self):
         self.assertEqual(self._client().post("/goals/control", json={"slug": "x", "action": "boom"}).status_code, 400)
 
+    def test_goal_template_flag_plans_deterministically(self):   # M40 regression: re import
+        r = self._client().post(
+            "/chat", json={"message": "vault:goal --template research rocket stoves"}).json()
+        self.assertEqual(r["provider_used"], "system")
+        self.assertIn("template: research", r["reply"])
+        self.assertIn("webresearch", r["reply"].lower())
+
 
 @unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
 class ClipEndpointTests(unittest.TestCase):
