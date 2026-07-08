@@ -84,6 +84,20 @@ class WriteToolIntegrationTests(unittest.TestCase):
         self.assertNotIn("[[Ghost]]", body)
         self.assertIn("Removed unresolved links: Ghost", body)
 
+    def test_create_note_write_guard_flags_fabricated_stat(self):   # M37 wiring
+        tool = CreateNoteTool(self.tmp)   # write_guard defaults to "flag"
+        res = tool.run("Made Up.md\nThe hidden city of Qwerty housed 7391 monks in the year 1200.")
+        self.assertTrue(res.success)
+        self.assertEqual(res.metadata["guard"], "flagged")
+        body = (Path(self.tmp) / "Made Up.md").read_text(encoding="utf-8")
+        self.assertIn("Unsourced claims", body)
+        self.assertIn("7391", body)
+
+    def test_create_note_write_guard_off(self):
+        tool = CreateNoteTool(self.tmp, {"write_guard": "off"})
+        res = tool.run("Clean.md\nThe city housed 7391 monks in 1200.")
+        self.assertNotIn("Unsourced claims", (Path(self.tmp) / "Clean.md").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

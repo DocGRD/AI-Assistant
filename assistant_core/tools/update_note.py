@@ -28,7 +28,8 @@ class UpdateNoteTool(BaseTool):
 
     def __init__(self, vault_path: str, config: dict | None = None):
         self._vault = Path(vault_path)
-        self._link_policy = (config or {}).get("link_validation", "strip")
+        self._config = config or {}
+        self._link_policy = self._config.get("link_validation", "strip")
 
     @property
     def name(self) -> str:
@@ -70,6 +71,11 @@ class UpdateNoteTool(BaseTool):
         # M30 — strip fabricated [[links]] to notes that don't exist before appending.
         content, removed_links = neutralize_dangling(content, self._vault, self._link_policy)
 
+        # M37 — trust on write: flag/source factual claims the vault can't support.
+        from assistant_core.write_guard import guard_content
+        private = bool(re.search(r"^private:\s*true", content, re.MULTILINE | re.IGNORECASE))
+        content, guard_status = guard_content(self._vault, content, self._config, private=private)
+
         timestamp    = datetime.now().strftime("%Y-%m-%d %H:%M")
         append_block = f"\n\n---\n*Appended by Loremaster — {timestamp}*\n\n{content}\n"
         if removed_links:
@@ -81,11 +87,13 @@ class UpdateNoteTool(BaseTool):
                 fh.write(append_block)
             logger.info(f"[update_note] Appended {len(append_block)} chars to: {rel_path}")
             note = f" ({len(removed_links)} unresolved link(s) removed)" if removed_links else ""
+            if guard_status == "flagged":
+                note += " ⚠ unsourced claims flagged"
             return ToolResult(
                 success  = True,
                 output   = f"✓ Appended to: {rel_path}{note}",
                 metadata = {"path": rel_path, "appended_chars": len(append_block),
-                            "removed_links": removed_links},
+                            "removed_links": removed_links, "guard": guard_status},
             )
         except Exception as exc:
             logger.error(f"[update_note] Failed: {exc}")

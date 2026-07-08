@@ -76,7 +76,8 @@ class CreateNoteTool(BaseTool):
 
     def __init__(self, vault_path: str, config: dict | None = None):
         self._vault = Path(vault_path)
-        self._link_policy = (config or {}).get("link_validation", "strip")
+        self._config = config or {}
+        self._link_policy = self._config.get("link_validation", "strip")
 
     @property
     def name(self) -> str:
@@ -128,6 +129,11 @@ class CreateNoteTool(BaseTool):
         # M30 — strip fabricated [[links]] to notes that don't exist before writing.
         content, removed_links = neutralize_dangling(content, self._vault, self._link_policy)
 
+        # M37 — trust on write: flag/source factual claims the vault can't support.
+        from assistant_core.write_guard import guard_content
+        private = bool(re.search(r"^private:\s*true", content, re.MULTILINE | re.IGNORECASE))
+        content, guard_status = guard_content(self._vault, content, self._config, private=private)
+
         final_content = content
         if removed_links:
             final_content += "\n\n---\n*Removed unresolved links: " + ", ".join(removed_links) + "*"
@@ -138,11 +144,13 @@ class CreateNoteTool(BaseTool):
             target.write_text(final_content, encoding="utf-8")
             logger.info(f"[create_note] Created: {rel_path} ({len(final_content)} chars)")
             note = f" ({len(removed_links)} unresolved link(s) removed)" if removed_links else ""
+            if guard_status == "flagged":
+                note += " ⚠ unsourced claims flagged"
             return ToolResult(
                 success  = True,
                 output   = f"✓ Note created: {rel_path}{note}",
                 metadata = {"path": rel_path, "size_chars": len(final_content),
-                            "removed_links": removed_links},
+                            "removed_links": removed_links, "guard": guard_status},
             )
         except Exception as exc:
             logger.error(f"[create_note] Failed: {exc}")

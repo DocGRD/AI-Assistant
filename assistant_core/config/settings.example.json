@@ -64,6 +64,7 @@
 
   "link_validation": "strip",
   "hallucination_guard": "escalate_web",
+  "write_guard": "flag",
 
   "auto_briefing_enabled": true,
   "briefing_hour": 6,

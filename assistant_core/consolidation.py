@@ -156,8 +156,23 @@ def dedupe_against_existing(candidates: list[str], existing: list[str],
 
 # ── proposal note ──────────────────────────────────────────────────────────
 
+def _unsourced_quantity_facts(vault, facts: list[str]) -> list[str]:
+    """M37 — facts that assert a checkable quantity the rest of the vault doesn't support.
+    Conservative: only quantity-bearing facts are checked (preferences etc. are never flagged)."""
+    from assistant_core.write_guard import _claims
+    from assistant_core.provenance import find_sources
+    out = []
+    for f in facts:
+        try:
+            if _claims(f) and not find_sources(vault, f, limit=1).get("sourced"):
+                out.append(f)
+        except Exception:
+            continue
+    return out
+
+
 def build_proposal(run_date: str, per_day: dict[str, list[str]],
-                   new_facts: list[str], dups: list[str]) -> str:
+                   new_facts: list[str], dups: list[str], vault=None) -> str:
     lines = [
         f"# Memory consolidation proposal — {run_date}",
         "",
@@ -170,6 +185,11 @@ def build_proposal(run_date: str, per_day: dict[str, list[str]],
     ]
     if new_facts:
         lines += [f"- [ ] {f}" for f in new_facts]
+        flagged = _unsourced_quantity_facts(vault, new_facts) if vault else []
+        if flagged:
+            lines += ["", "> [!warning] These assert quantities not found elsewhere in your "
+                      "vault — verify before keeping:"]
+            lines += [f"> - {f}" for f in flagged]
     else:
         lines.append("_(none — nothing new worth keeping)_")
     if dups:
@@ -403,7 +423,7 @@ class ConsolidationEngine:
         report["new_facts"], report["duplicates"] = new_facts, dups
 
         run_date = datetime.now().strftime("%Y-%m-%d")
-        proposal = build_proposal(run_date, per_day, new_facts, dups)
+        proposal = build_proposal(run_date, per_day, new_facts, dups, vault=self._vault)
         out = self._vault / PROPOSED_DIR / f"consolidation-{run_date}.md"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(proposal, encoding="utf-8")

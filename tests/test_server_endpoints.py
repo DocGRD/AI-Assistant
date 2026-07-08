@@ -353,5 +353,27 @@ class ApprovalsEndpointTests(unittest.TestCase):
         self.assertEqual(self._client().post("/approvals/reject", json={}).status_code, 400)
 
 
+@unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
+class ContradictionsEndpointTests(unittest.TestCase):
+    """M37 — vault:contradictions runs the deterministic detector via /chat (provider=system)."""
+
+    def test_vault_contradictions_reports(self):
+        import tempfile, threading
+        from pathlib import Path
+        from fastapi.testclient import TestClient
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "a.md").write_text(
+                "The annual conference attendance reached 5000 registered members.", encoding="utf-8")
+            (Path(d) / "b.md").write_text(
+                "The annual conference attendance reached 8000 registered members.", encoding="utf-8")
+            server = AssistantServer(
+                router=_Router(), memory=None, registry=_FakeReg(), history=[],
+                history_lock=threading.Lock(),
+                config={"host": "127.0.0.1", "vault_path": d}, system_prompt="S")
+            r = TestClient(server._app).post("/chat", json={"message": "vault:contradictions"}).json()
+            self.assertEqual(r["provider_used"], "system")
+            self.assertIn("contradiction", r["reply"].lower())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -837,6 +837,16 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # M37 — contradiction detection (deterministic; propose-only, never auto-edits).
+            if _first == "vault:contradictions":
+                from assistant_core import contradiction
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                pairs = contradiction.detect(self._config.get("vault_path"))
+                if self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("contradictions", f"{len(pairs)} found"))
+                return HandoffResponse(status="ok", reply=contradiction.render_report(pairs),
+                                       provider_used="system", actual_provider="system", timestamp=ts)
+
             # M35 — goal engine controls.
             if _first == "vault:goals":
                 from assistant_core.goals import store as gstore
