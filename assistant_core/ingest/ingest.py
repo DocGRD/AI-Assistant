@@ -60,6 +60,13 @@ def ingest_file(vault, src_path, config: dict | None = None,
                 src_path = cand
         report["source"] = str(src_path)
 
+        # v1.9 — a .zip of HTML files, or a folder of them, is an interlinked *collection*:
+        # import them as a set with inter-file links rewritten to vault wikilinks.
+        _sp = Path(src_path)
+        if _sp.suffix.lower() == ".zip" or _sp.is_dir():
+            from assistant_core.ingest.htmlset import ingest_html_collection
+            return ingest_html_collection(vault, src_path, cfg, rag=rag)
+
     doc = (extract_fn or extract_document)(src_path)
     report["format"] = doc.get("format")
     if not doc.get("ok"):

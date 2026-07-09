@@ -1,10 +1,21 @@
-<!-- help-version: 18 -->
+<!-- help-version: 19 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in Loremaster
 
-*A capability overview so you can learn everything Loremaster can do. Current through **v1.8**.*
+*A capability overview so you can learn everything Loremaster can do. Current through **v1.9**.*
+
+## Import HTML sets + self-diagnosis + smarter prompt (v1.9)
+- **Ingest a `.zip` of HTML** (or a folder of them) — e.g. an offline commentary export. Every file
+  becomes a vault note under `AI/Library/<collection>/`, and the **inter-file links are rewritten to
+  point at the new notes** (wikilinks), so the whole set stays navigable inside Obsidian.
+- **`vault:logs [N | errors | today]`** lets Loremaster **read its own logs** (`logs/assistant.log`,
+  outside the vault) to diagnose when something goes wrong — and the assistant can pull them itself.
+- **The assistant now knows its full command set.** The system prompt is packaged, version-stamped and
+  self-updating, so the model is aware of every command (goals, analytics, clip, briefing, …) and no
+  longer forgets the newer ones.
+- **Fixed:** the 📥 Approvals / 🎯 Goals side panel could open blank; it now always shows your items.
 
 ## Editable goal plans + right-click menu + reindex (v1.8)
 - **Refine a goal's plan before you approve it.** When Loremaster plans a goal it's *proposed*, not running.

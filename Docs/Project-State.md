@@ -1,6 +1,17 @@
-*Status: **Loremaster v1.8.0 — 2026-07-09** (GitHub pre-release + BRAT). Milestones 1–40 + all
-carried-forward + a v1.6/v1.7/v1.8 UI & knowledge layer (**460 automated tests green**), deployed end-to-end
-(Linux systemd service, GPU embeddings, Obsidian plugin over the LAN; box on `main`). **v1.8 added:**
+*Status: **Loremaster v1.9.0 — 2026-07-09** (GitHub pre-release + BRAT). Milestones 1–40 + all
+carried-forward + a v1.6–v1.9 UI & knowledge layer (**476 automated tests green**), deployed end-to-end
+(Linux systemd service, GPU embeddings, Obsidian plugin over the LAN; box on `main`). **v1.9 added:**
+**HTML-collection ingest** — `vault:ingest` of a `.zip` (or folder) of interlinked `.htm/.html` imports
+each file as a note under `AI/Library/<collection>/` with **inter-file links rewritten to vault wikilinks**
+(`assistant_core/ingest/htmlset.py`, dependency-free); **`vault:logs [N|errors|today]`** lets the assistant
+read its own out-of-vault logs (`logs/assistant.log`) for self-diagnosis (`assistant_core/logs_reader.py`,
+agent-accessible); a **self-seeding, version-stamped, complete System-Prompt**
+(`assistant_core/seed/system/System-Prompt.md` + `PROMPT_VERSION` + `memory.seed_system_prompt()`,
+backup-before-clobber) so the model knows **every** command incl. the M34–M40 layer, guarded by an
+anti-drift test (every command in `Commands.md` must appear in the prompt); and a **plugin fix** — the
+📥 Approvals / 🎯 Goals side panel no longer opens blank (it used to evict the chat leaf via
+`getRightLeaf(false)` so `getChatView()` returned null; now `openApprovals` ensures a chat leaf + uses a
+fresh split, and `ApprovalsView` self-heals). **v1.8 added:**
 **editable/iterable goal plans** — a planned goal stays *proposed* until you approve it; **Re-plan**
 (`vault:goal replan <slug> :: <feedback>`) revises the steps and/or you edit the `- [ ]` steps in the plan
 note and **approve honors your edits** (`goals.store.set_subtasks` / `plan_steps_from_note`), cycling until

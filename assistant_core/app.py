@@ -501,6 +501,13 @@ def main() -> None:
                 print(f"[Vault QA] Reindex failed: {exc}\n")
             continue
 
+        # v1.9 — vault:logs [N|errors|today]: read the service's own logs (outside the vault).
+        if user_input.lower().startswith("vault:logs"):
+            from assistant_core import logs_reader
+            arg = user_input[len("vault:logs"):].strip()
+            print(logs_reader.format_reply(logs_reader.read_logs(arg)) + "\n")
+            continue
+
         if user_input.lower().startswith("vault:ask"):
             question = user_input[len("vault:ask"):].strip()
             if not question:
@@ -732,6 +739,9 @@ def main() -> None:
                 rep = ingest_file(vault_path, src, config.all(), rag=rag_service, router=router)
                 if rep.get("error"):
                     print(f"[Ingest] {rep['error']}\n")
+                elif rep.get("format") == "html-set":
+                    print(f"[Ingest] HTML collection {rep['collection']} — {rep['files']} note(s), "
+                          f"{rep['chars']} chars → {rep['note_dir']}/ (links rewritten)\n")
                 else:
                     print(f"[Ingest] {rep['format']} — {rep['pages']} page(s), {rep['chars']} chars → "
                           f"{rep['note_path']}\n")

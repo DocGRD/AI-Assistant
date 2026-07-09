@@ -18,10 +18,25 @@ from pathlib import Path
 
 # v1.7 — packaged AI/Help knowledge base. Bump when the seed/help/*.md content changes so
 # seed_help() refreshes the vault copies (which carry a matching `<!-- help-version: N -->`).
-HELP_VERSION = 18
+HELP_VERSION = 19
 _HELP_STAMP = re.compile(r"help-version:\s*(\d+)")
 
+# v1.9 — the System-Prompt is now packaged + version-stamped (assistant_core/seed/system/
+# System-Prompt.md, carrying `<!-- prompt-version: N -->`). seed_system_prompt() refreshes the
+# vault copy when it's missing or older, so the command list never drifts. Bump on prompt edits.
+PROMPT_VERSION = 1
+_PROMPT_STAMP = re.compile(r"prompt-version:\s*(\d+)")
+
 logger = logging.getLogger("assistant")
+
+
+def _packaged_system_prompt() -> str | None:
+    """Read the canonical packaged System-Prompt (seed/system/System-Prompt.md), or None."""
+    try:
+        p = Path(__file__).resolve().parents[1] / "seed" / "system" / "System-Prompt.md"
+        return p.read_text(encoding="utf-8") if p.is_file() else None
+    except Exception:
+        return None
 
 # ---------------------------------------------------------------------------
 # Default system prompt — written to vault on first run if missing.
@@ -242,20 +257,53 @@ class MemoryManager:
     # System prompt — reads from vault, seeds if missing
     # ------------------------------------------------------------------
 
+    def seed_system_prompt(self, force: bool = False) -> bool:
+        """v1.9 — refresh AI/System/System-Prompt.md from the packaged, version-stamped canonical
+        prompt when it's missing or its `prompt-version` is older than PROMPT_VERSION (or `force`).
+        Keeps the command list current without drifting. A pre-existing prompt is backed up to
+        `System-Prompt.bak-<stamp>.md` before it's overwritten, so a customised prompt is never lost.
+        Returns True if it wrote. Never raises."""
+        packaged = _packaged_system_prompt()
+        if not packaged:
+            return False
+        dest = self._vault / self.SYSTEM_PROMPT_FILE
+        try:
+            cur = -1
+            if dest.exists():
+                m = _PROMPT_STAMP.search(dest.read_text(encoding="utf-8"))
+                cur = int(m.group(1)) if m else 0
+            if not (force or cur < PROMPT_VERSION):
+                return False
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists():
+                try:
+                    bak = dest.with_name(f"System-Prompt.bak-v{cur if cur >= 0 else 0}.md")
+                    bak.write_text(dest.read_text(encoding="utf-8"), encoding="utf-8")
+                except Exception:
+                    pass
+            dest.write_text(packaged, encoding="utf-8")
+            logger.info(f"[Memory] Seeded/updated System-Prompt.md → prompt-version {PROMPT_VERSION}")
+            return True
+        except Exception as exc:
+            logger.warning(f"[Memory] Could not seed System-Prompt.md: {exc}")
+            return False
+
     def load_system_prompt(self) -> str:
         """
-        Read the system prompt from AI/System/System-Prompt.md.
-
-        If the file does not exist, write DEFAULT_SYSTEM_PROMPT to it
-        and return the default. This seeds the file on first run so the
-        user can find and edit it in Obsidian.
+        Read the system prompt from AI/System/System-Prompt.md, refreshing it first from the
+        packaged canonical prompt when missing/out-of-date (see seed_system_prompt), so the
+        command list the model sees never drifts. Falls back to DEFAULT_SYSTEM_PROMPT.
 
         Returns the raw prompt string (no memory context appended —
         the caller does that via build_system_prompt()).
         """
         prompt_path = self._vault / self.SYSTEM_PROMPT_FILE
 
+        # Keep the vault copy current (writes only when missing or older than PROMPT_VERSION).
+        self.seed_system_prompt()
+
         if not prompt_path.exists():
+            # No packaged prompt available either — fall back to the in-code default.
             try:
                 prompt_path.write_text(DEFAULT_SYSTEM_PROMPT, encoding="utf-8")
                 logger.info("[Memory] Seeded System-Prompt.md from default")

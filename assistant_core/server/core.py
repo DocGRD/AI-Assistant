@@ -734,9 +734,15 @@ class AssistantServer:
                                            provider_used="system", actual_provider="system", timestamp=ts)
                 rep = ingest_file(self._config.get("vault_path"), src, self._config,
                                   rag=self._rag, router=self._router)
-                reply = (f"Ingest failed: {rep['error']}." if rep.get("error") else
-                         f"Ingested {rep['format']} ({rep['pages']} page(s), {rep['chars']} chars) → "
-                         f"{rep['note_path']} — now searchable in Vault QA.")
+                if rep.get("error"):
+                    reply = f"Ingest failed: {rep['error']}."
+                elif rep.get("format") == "html-set":
+                    reply = (f"Imported HTML collection **{rep['collection']}** — {rep['files']} "
+                             f"note(s) ({rep['chars']} chars) → {rep['note_dir']}/ with inter-file "
+                             f"links rewritten to vault wikilinks — now searchable in Vault QA.")
+                else:
+                    reply = (f"Ingested {rep['format']} ({rep['pages']} page(s), {rep['chars']} chars) → "
+                             f"{rep['note_path']} — now searchable in Vault QA.")
                 if not rep.get("error") and self._memory and self._ep_vault:
                     self._memory.append_episode(self._ep_vault("ingest", f"{src} → {rep['note_path']}"))
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
@@ -926,6 +932,16 @@ class AssistantServer:
                                  f"({rep.get('skipped', 0)} unchanged).")
                     except Exception as exc:
                         reply = f"Reindex failed: {exc}"
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
+            # v1.9 — vault:logs [N|errors|today]: read the service's own logs (outside the vault)
+            # for self-diagnosis. Read-only; stays on this machine.
+            if _first == "vault:logs":
+                from assistant_core import logs_reader
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                arg = req.message.strip()[len("vault:logs"):].strip()
+                reply = logs_reader.format_reply(logs_reader.read_logs(arg))
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 

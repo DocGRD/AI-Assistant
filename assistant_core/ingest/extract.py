@@ -17,7 +17,7 @@ from pathlib import Path
 
 logger = logging.getLogger("assistant")
 
-SUPPORTED = (".pdf", ".epub", ".docx", ".txt", ".md", ".markdown")
+SUPPORTED = (".pdf", ".epub", ".docx", ".txt", ".md", ".markdown", ".htm", ".html", ".xhtml")
 
 
 def _result(title, fmt, pages, error=None):
@@ -91,6 +91,17 @@ def _extract_docx(path: Path) -> dict:
         return _result(path.stem, "docx", [], f"DOCX read failed: {exc}")
 
 
+def _extract_html(path: Path) -> dict:
+    """One HTML file → readable Markdown (dependency-free). External links are kept as Markdown
+    links; a whole interlinked set (a .zip/folder) is handled by ingest.htmlset instead."""
+    from assistant_core.ingest.htmlset import html_to_markdown, extract_title
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    md = html_to_markdown(raw)
+    title = extract_title(raw, path.stem)
+    return _result(title, "html", [{"page": 1, "heading": None, "text": md}] if md else [],
+                   None if md else "no readable text in HTML")
+
+
 def extract_document(path) -> dict:
     """Dispatch by extension. Unsupported/missing → an ok=False result (never raises)."""
     path = Path(path)
@@ -105,4 +116,6 @@ def extract_document(path) -> dict:
         return _extract_epub(path)
     if ext == ".docx":
         return _extract_docx(path)
+    if ext in (".htm", ".html", ".xhtml"):
+        return _extract_html(path)
     return _result(path.stem, ext.lstrip("."), [], f"unsupported format: {ext or '(none)'}")

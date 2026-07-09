@@ -1,4 +1,4 @@
-<!-- help-version: 18 -->
+<!-- help-version: 19 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -34,7 +34,7 @@ line for `create`/`update`; use `-> ` between two paths for copy/move.
 | `vault:research <question>` | Generate a prompt for a web AI; paste the answer back (manual round-trip) |
 | `vault:webresearch <question>` | **Autonomous** web search + fetch + cited synthesis → `AI/Research/` |
 | `vault:summarise <note>` (or `summarize`) | Load a research note and summarise it |
-| `vault:ingest <file>` | Extract a PDF/EPUB/DOCX/txt into a searchable `AI/Library/` note |
+| `vault:ingest <file>` | Extract a PDF/EPUB/DOCX/txt/HTML into a searchable `AI/Library/` note. A **`.zip` of HTML** files (or a folder of them) imports as an interlinked **collection** — every file becomes a note and inter-file links are rewritten to vault wikilinks |
 | `vault:analyze <image>` | Transcribe + describe one image (the 📎 paperclip uses this) |
 | `vault:ocr <note>` | Read text from a note's images/handwriting → `AI/Derived/` sidecar |
 | `vault:graph <note>` | Extract entities/relations from a note into the knowledge graph |
@@ -90,6 +90,7 @@ a **🔊** button. Fully offline/on-device/private.*
 | `vault:discover-providers` | Build a proposed registry from each provider's live `/models` |
 | `vault:update-providers [apply]` | Refresh the provider registry (propose, then apply) |
 | `vault:reindex [full]` | Rebuild the Vault QA index (incremental; `full` = clean rebuild) |
+| `vault:logs [N\|errors\|today]` | **Read Loremaster's own logs** (`logs/assistant.log`, outside the vault) for self-diagnosis — last N lines, recent `errors`, or `today` |
 | `vault:test` | Run the automated test suite |
 | `vault:run-script <name>` | Run an **approved** script from `AI/Scripts/` |
 

@@ -2043,10 +2043,20 @@ export class ApprovalsView extends ItemView {
         refresh.addEventListener("click", () => this.render());
 
         const body = c.createDiv("ai-assistant-appr-body");
+        const draw = (view: ChatView) => {
+            if (this.tab === "approvals") void view.renderApprovalsInto(body, () => this.render());
+            else void view.renderGoalsInto(body, () => this.render());
+        };
         const view = this.plugin.getChatView();
-        if (!view) { body.setText("Open the Loremaster chat first."); return; }
-        if (this.tab === "approvals") void view.renderApprovalsInto(body, () => this.render());
-        else void view.renderGoalsInto(body, () => this.render());
+        if (view) { draw(view); return; }
+        // Self-heal: the panel renders through the ChatView; if none is live, create one
+        // (without stealing focus) and then draw. Never leaves the inbox blank.
+        body.setText("Loading…");
+        void this.plugin.ensureChatView().then((v) => {
+            body.empty();
+            if (v) draw(v);
+            else body.setText("Open the Loremaster chat first.");
+        });
     }
 }
 

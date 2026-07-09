@@ -140,15 +140,31 @@ export default class AIAssistantPlugin extends Plugin {
     // v1.7 — open/reveal the Approvals & Goals side panel (non-blocking, dockable) on a tab.
     async openApprovals(tab: "approvals" | "goals"): Promise<void> {
         const { workspace } = this.app;
+        // The Approvals panel renders via the ChatView; make sure one exists first so it
+        // never falls back to the "open chat first" placeholder. (bug: getRightLeaf(false)
+        // used to reuse — and evict — the chat's own sidebar leaf, leaving getChatView() null.)
+        await this.ensureChatView();
         let leaf = workspace.getLeavesOfType(APPROVALS_VIEW_TYPE)[0];
         if (!leaf) {
-            const right = workspace.getRightLeaf(false);
+            // `true` → a NEW split leaf, so we don't steal the chat's leaf.
+            const right = workspace.getRightLeaf(true) ?? workspace.getRightLeaf(false);
             if (!right) return;
             leaf = right;
             await leaf.setViewState({ type: APPROVALS_VIEW_TYPE, active: true });
         }
         workspace.revealLeaf(leaf);
         (leaf.view as ApprovalsView).setTab(tab);
+    }
+
+    /** Ensure a ChatView leaf exists (creating one in the right sidebar if needed) WITHOUT
+     *  stealing focus. Returns the ChatView so callers can render through it. */
+    async ensureChatView(): Promise<ChatView | null> {
+        const { workspace } = this.app;
+        if (!workspace.getLeavesOfType(CHAT_VIEW_TYPE).length) {
+            const right = workspace.getRightLeaf(false);
+            if (right) await right.setViewState({ type: CHAT_VIEW_TYPE, active: false });
+        }
+        return this.getChatView();
     }
 
     // v1.8 — refine a proposed goal's plan with feedback (iterate before approving).

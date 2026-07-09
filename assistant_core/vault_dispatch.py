@@ -25,7 +25,7 @@ logger = logging.getLogger("assistant")
 EXTENDED_COMMANDS = {
     "vault:webresearch", "vault:ingest", "vault:ocr", "vault:analyze", "vault:graph",
     "vault:graph-merge", "vault:guide", "vault:query", "vault:sources", "vault:passage",
-    "vault:transcribe", "vault:cards", "vault:review",
+    "vault:transcribe", "vault:cards", "vault:review", "vault:logs",
 }
 
 
@@ -90,6 +90,11 @@ def run_extended(prefix: str, arg: str, ctx) -> "ExtResult | None":
             return ExtResult(f"No notes match `{arg}`." if not hits else
                              f"{len(hits)} note(s) match `{arg}`:\n" + "\n".join(f"- {h['path']}" for h in hits))
 
+        if prefix == "vault:logs":
+            # v1.9 — self-diagnosis: read the service's own logs (outside the vault).
+            from assistant_core import logs_reader
+            return ExtResult(logs_reader.format_reply(logs_reader.read_logs(arg)), terminal=True)
+
         if prefix == "vault:passage":
             from assistant_core.scripture.passage import build_passage_guide
             if not arg:
@@ -121,7 +126,11 @@ def run_extended(prefix: str, arg: str, ctx) -> "ExtResult | None":
             rep = ingest_file(vault, arg, ctx.config, rag=rag, router=router)
             if rep.get("error"):
                 return ExtResult(f"Ingest failed: {rep['error']}.", success=False, terminal=True)
-            _episode(ctx, "ingest", f"{arg} → {rep['note_path']}")
+            _episode(ctx, "ingest", f"{arg} → {rep.get('note_dir') or rep['note_path']}")
+            if rep.get("format") == "html-set":
+                return ExtResult(f"Imported HTML collection {rep['collection']} — {rep['files']} note(s) "
+                                 f"→ {rep['note_dir']}/ with inter-file links rewritten to wikilinks.",
+                                 terminal=True)
             return ExtResult(f"Ingested {rep['format']} ({rep['pages']} page(s), {rep['chars']} chars) "
                              f"→ {rep['note_path']} — now searchable.", terminal=True)
 
