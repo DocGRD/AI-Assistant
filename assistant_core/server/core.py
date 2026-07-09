@@ -859,6 +859,29 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # M40 — typed/templated note fill (best-effort; propose-only).
+            if _first == "vault:template":
+                from assistant_core import templater
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                vault = self._config.get("vault_path")
+                arg = req.message.split(None, 1)[1].strip() if len(req.message.split(None, 1)) > 1 else ""
+                if not arg:
+                    tpls = templater.list_templates(vault)
+                    listing = ("Available templates: " + ", ".join(tpls)) if tpls else \
+                              "No Templater/Templates plugin detected. Usage: vault:template <name> [context]"
+                    return HandoffResponse(status="ok", reply=f"Usage: vault:template <name> [context]\n{listing}",
+                                           provider_used="system", actual_provider="system", timestamp=ts)
+                name, _, ctx = arg.partition(" — ")           # "Meeting — context after em-dash" (optional)
+                rep = templater.fill_template(vault, name.strip(), ctx.strip(), self._router,
+                                              private=bool(req.private))
+                reply = (f"Filled template '{name.strip()}' → {rep['path']} "
+                         f"({rep['filled']}/{rep['fields']} fields; propose-only, review & move)."
+                         if rep["ok"] else f"Template fill failed: {rep.get('reason')}")
+                if rep.get("ok") and self._memory and self._ep_vault:
+                    self._memory.append_episode(self._ep_vault("template", rep["path"]))
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # M39 — action layer: extract a note's to-dos into a tracked checklist.
             if _first == "vault:actions":
                 from assistant_core import tasks
