@@ -5,6 +5,21 @@ tags: [help, user-guide]
 
 Part of [[How-To-Use]]. See [[Commands]] for the exact syntax.
 
+## What's new in v1.6 (quick map)
+- **📥 Approvals inbox** (sidebar badge-button → modal) — every background proposal in one place:
+  auto-organize tags/links/**folder**/**project**, memory facts, goal approvals. Apply/dismiss **per item**;
+  Loremaster **learns** from your choices.
+- **🎯 Goals** (badge-button → modal) — running goals with progress + Pause/Resume/Cancel. Plan with
+  `vault:goal`, use `--template research|digest|study`, `--recurring`, `--budget`.
+- **Inline editing** — editor commands **Continue writing / Rewrite selection / Compose** open a preview
+  popup (Accept / Regenerate / Cancel); private routing.
+- **Trust on write** — created/edited notes flag unsourced factual claims; `vault:contradictions` finds
+  conflicts.
+- **Vault intelligence** — `vault:analytics` (orphans/stale/unsourced/hubs/tag-merges), `vault:moc`,
+  `vault:actions`.
+- **Capture** — `vault:clip <url>` saves web pages **and YouTube transcripts**; `vault:template` fills your
+  Templater templates.
+
 ## Chatting & context
 Type in the sidebar and **Send**. To steer what the assistant looks at:
 - **Active note** — the note you have open is given as context automatically.

@@ -1,6 +1,19 @@
 # Deployment & Test Guide
 
-*Zero-Cost AI Operating System for Obsidian — v1.0 (Milestones 1–29). Last updated: 2026-07-03.*
+*Zero-Cost AI Operating System for Obsidian (plugin "Loremaster") — v1.6 (Milestones 1–40). Last updated: 2026-07-09.*
+
+> **Updating a running box to a new release.** SSH in, then:
+> `cd ~/AI-Assistant && git fetch origin && git reset --hard <tag>` (e.g. `v1.6.0`), then restart **without
+> sudo** via the in-app endpoint: `curl -s -X POST -H "X-API-Key: <token>" http://<box>:8765/restart`
+> (there's no passwordless sudo on the box — use `/restart`, not `systemctl`). Plugin updates go through
+> **BRAT** (`DocGRD/AI-Assistant`); keep the plugin and the service on the same release. Never force-push a
+> published tag — cut a new patch tag for a post-release fix.
+>
+> **New config since v1.0** (all optional, code-default-safe): `write_guard` (`off|flag|source`, default
+> `flag` — M37 trust-on-write), `hallucination_guard` (`escalate_web`), `link_validation` (`strip`),
+> `auto_briefing_enabled` / `auto_organize_enabled` / `auto_consolidate_enabled` + their `*_hour`,
+> `background_hourly_budget`, `goals_enabled`. `vault:analytics` is index-based and runs in ~7s even on a
+> 2k-note vault.
 
 How to deploy the assistant and verify **every** milestone. For day-to-day usage see
 [User-Guide](User-Guide.md); for architecture see [Project-State](Project-State.md). A production

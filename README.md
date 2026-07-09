@@ -5,20 +5,23 @@ vault, keeps its memory as Markdown, and routes every request across **free-tier
 only. It runs headless in the background; you interact through the Obsidian sidebar plugin or by
 tagging a note for the vault watcher. The terminal exists only for debugging.
 
-> **Status: v1.0 — release ready.** Milestones **1–29 complete and tested (302 automated tests green)**,
-> and proven end-to-end: a headless Linux service (systemd, **GPU-accelerated** local embeddings) that the
-> Obsidian sidebar plugin drives over the LAN with a token. Highlights: **propose/commit editing** (M9);
-> registry-driven, **privacy/task-aware providers** with a health floor (M10); zero-cost semantic
-> **Vault QA** (M11) with **hybrid graph-aware retrieval** (M16); **context UX** — `@`-mentions, Related
-> notes, scoped QA (M12); **quick actions + prompt library** (M13); **project awareness** (M14);
-> **self-testing + propose/commit scripts** (M15); **runtime config + plugin control panel** (M16.5);
-> **vault file operations** (M16.6); **self-discovering provider registry** (M16.7); **memory consolidation
-> / "dreaming"** (M17); **semantic knowledge graph + plugin graph viewer** (M18); **image / handwriting OCR
-> + Excalidraw text** (M19); **agent-planner robustness + hardened research round-trip** (M20); **web-capable
-> research** (M21); **document ingestion** (M22); **knowledge-graph guides** (M23); **Scripture
-> intelligence** (M24); **provenance audit** (M25); **structured/exact search** (M26); **audio transcription**
-> (M27); **spaced-repetition study** (M28); and **restructuring propose-and-approve** (M29). Full specs in
-> [`Docs/Project-State.md`](Docs/Project-State.md); install in [`Docs/DEPLOYMENT.md`](Docs/DEPLOYMENT.md).
+> **Status: v1.6 (plugin "Loremaster") — Milestones 1–40 complete, 450+ automated tests green.** Proven
+> end-to-end: a headless Linux service (systemd, **GPU-accelerated** local embeddings) that the Obsidian
+> sidebar plugin drives over the LAN with a token, running on a real ~2,300-note vault. Foundations (M1–M29):
+> **propose/commit editing** (M9); registry-driven **privacy/task-aware providers** with a health floor (M10);
+> zero-cost semantic **Vault QA** (M11) with **hybrid graph-aware retrieval** (M16); context UX (M12);
+> quick actions + prompts (M13); project awareness (M14); self-testing (M15); provider registry (M16.7);
+> memory "dreaming" (M17); knowledge graph (M18); OCR (M19); web research (M21); document ingestion (M22);
+> Scripture intelligence (M24); provenance audit (M25); spaced-repetition study (M28); restructuring
+> approve/reject (M29). **The v1.x arc (M30–M40) connected the toolbox:** **anti-hallucination** — fake-link
+> killer, tier-aware routing, verify pipeline, **deterministic math** (M30–M32); **agent full-command access
+> + autonomous web research** (M33); a **proactive processing layer** — daily briefing + auto-organize +
+> resource governor (M34); an **autonomous goal engine** with templates/recurring/budgets (M35, M39); a
+> **unified Approvals inbox** + connective-tissue linking + feedback learning (M36); **trust on every write**
+> + contradiction detection (M37); **vault analytics / MOC / action-items** (M38–M39); **capture** — web +
+> **YouTube** clipper, **Templater** typed-note fill (M40); and **immersive inline editing** + Approvals/Goals
+> **badge-buttons → modal windows** (v1.6). Full specs in [`Docs/Project-State.md`](Docs/Project-State.md);
+> the user guide is [`Docs/User-Guide.md`](Docs/User-Guide.md); install in [`Docs/DEPLOYMENT.md`](Docs/DEPLOYMENT.md).
 
 ---
 
