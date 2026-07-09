@@ -1,5 +1,5 @@
 import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor } from "obsidian";
-import { ChatView, CHAT_VIEW_TYPE } from "./ChatView";
+import { ChatView, CHAT_VIEW_TYPE, ComposeModal } from "./ChatView";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -56,20 +56,37 @@ export default class AIAssistantPlugin extends Plugin {
             id: "ai-clip-url",
             name: "Clip a web page to the vault",
             callback: () => {
-                new UrlPromptModal(this.app, async (url) => {
+                new TextPromptModal(this.app, "Clip a web page", "https://… (or a YouTube link)", async (url) => {
                     await this.activateChatView();
                     this.getChatView()?.commandClip(url);
-                }).open();
+                }, true).open();
             },
         });
-        // M40 — inline authoring: continue writing at the cursor in the active note.
+        // v1.6 — immersive inline editing via a controlled popup (ComposeModal).
         this.addCommand({
             id: "ai-continue-writing",
             name: "Continue writing (inline)",
-            editorCallback: async (editor: Editor) => {
-                let view = this.getChatView();
-                if (!view) { await this.activateChatView(); view = this.getChatView(); }
-                await view?.commandContinue(editor);
+            editorCallback: (editor: Editor) => new ComposeModal(this.app, this, editor, "continue").open(),
+        });
+        this.addCommand({
+            id: "ai-rewrite-selection",
+            name: "Rewrite selection (inline)",
+            editorCallback: (editor: Editor) => new ComposeModal(this.app, this, editor, "rewrite").open(),
+        });
+        this.addCommand({
+            id: "ai-compose",
+            name: "Compose with Loremaster…",
+            editorCallback: (editor: Editor) => new ComposeModal(this.app, this, editor, "compose").open(),
+        });
+        // M40 — fill a Templater/Templates template from context (propose-only).
+        this.addCommand({
+            id: "ai-fill-template",
+            name: "Fill a template with Loremaster",
+            callback: () => {
+                new TextPromptModal(this.app, "Fill a template", "Template name (optionally: name — context)", async (arg) => {
+                    await this.activateChatView();
+                    this.getChatView()?.commandVault(`vault:template ${arg}`);
+                }).open();
             },
         });
 
@@ -126,35 +143,36 @@ export default class AIAssistantPlugin extends Plugin {
 }
 
 // ---------------------------------------------------------------------------
-// M40 — tiny URL prompt for the web clipper
+// v1.6 — generic one-line text prompt (used by the clipper + template fill)
 // ---------------------------------------------------------------------------
-class UrlPromptModal extends Modal {
-    private onSubmit: (url: string) => void;
-
-    constructor(app: App, onSubmit: (url: string) => void) {
-        super(app);
-        this.onSubmit = onSubmit;
-    }
+class TextPromptModal extends Modal {
+    constructor(
+        app: App,
+        private title: string,
+        private placeholder: string,
+        private onSubmit: (value: string) => void,
+        private prefillUrlFromClipboard = false,
+    ) { super(app); }
 
     onOpen(): void {
         const { contentEl } = this;
-        contentEl.createEl("h3", { text: "Clip a web page" });
-        const input = contentEl.createEl("input", { type: "text", placeholder: "https://…" });
+        contentEl.createEl("h3", { text: this.title });
+        const input = contentEl.createEl("input", { type: "text", placeholder: this.placeholder });
         input.style.width = "100%";
-        // pre-fill from the clipboard if it looks like a URL
-        navigator.clipboard?.readText?.().then((t) => {
-            if (/^https?:\/\//i.test((t || "").trim())) input.value = t.trim();
-        }).catch(() => {});
+        if (this.prefillUrlFromClipboard) {
+            navigator.clipboard?.readText?.().then((t) => {
+                if (/^https?:\/\//i.test((t || "").trim())) input.value = t.trim();
+            }).catch(() => {});
+        }
         const submit = () => {
-            const url = input.value.trim();
+            const v = input.value.trim();
             this.close();
-            if (url) this.onSubmit(url);
+            if (v) this.onSubmit(v);
         };
         input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
         const row = contentEl.createDiv();
         row.style.marginTop = "8px";
-        const btn = row.createEl("button", { text: "Clip" });
-        btn.addEventListener("click", submit);
+        row.createEl("button", { text: "OK", cls: "mod-cta" }).addEventListener("click", submit);
         setTimeout(() => input.focus(), 0);
     }
 

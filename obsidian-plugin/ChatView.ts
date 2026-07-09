@@ -366,8 +366,11 @@ export class ChatView extends ItemView {
     private relatedEl!: HTMLElement;   // M12 — related-notes dropdown row
     private relatedPaths: string[] = []; // paths currently offered by the Related dropdown
     private qaScopeEl!: HTMLElement;   // Vault QA scope row (shown when Vault QA is on)
-    private proactiveEl!: HTMLElement; // M36 — unified Approvals inbox + briefing
-    private goalsEl!: HTMLElement;     // M39 — running-goals panel
+    private toolbarEl!: HTMLElement;      // v1.6 — Approvals/Goals badge-buttons + Briefing
+    private approvalsBtn!: HTMLButtonElement;
+    private goalsBtn!: HTMLButtonElement;
+    private briefingBtn!: HTMLButtonElement;
+    private countTimer: number | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: AIAssistantPlugin) {
         super(leaf);
@@ -382,8 +385,9 @@ export class ChatView extends ItemView {
         this.buildUI();
         await this.loadStatus();
         await this.loadHistory();
-        void this.refreshProactive();          // M36 — unified Approvals inbox + today's briefing
-        void this.refreshGoals();              // M39 — running goals panel
+        void this.refreshCounts();             // v1.6 — Approvals/Goals badge counts
+        this.countTimer = window.setInterval(() => void this.refreshCounts(), 30000);
+        this.registerInterval(this.countTimer);
         // M9 — surface staged edit proposals; M12 — refresh related notes, on file open.
         this.registerEvent(this.app.workspace.on("file-open", (f) => {
             if (f) { void this.checkNoteForProposal(f); void this.refreshRelated(f); }
@@ -421,13 +425,19 @@ export class ChatView extends ItemView {
         this.relatedEl = container.createDiv("ai-assistant-related");
         this.updateRelated([]);
 
-        // M36 — unified Approvals inbox (organize + memory + goals) + briefing (hidden until any).
-        this.proactiveEl = container.createDiv("ai-assistant-proactive");
-        this.proactiveEl.style.display = "none";
-
-        // M39 — running goals with progress + pause/resume/cancel (hidden until any).
-        this.goalsEl = container.createDiv("ai-assistant-proactive");
-        this.goalsEl.style.display = "none";
+        // v1.6 — compact toolbar: Approvals + Goals badge-buttons (open modals) + Briefing.
+        // Replaces the old always-on stacked panels; hidden until the service is reachable.
+        this.toolbarEl = container.createDiv("ai-assistant-toolbar");
+        this.toolbarEl.style.display = "none";
+        this.approvalsBtn = this.toolbarEl.createEl("button", { cls: "ai-assistant-toolbtn" });
+        this.approvalsBtn.addEventListener("click", () => new ApprovalsModal(this.app, this).open());
+        this.goalsBtn = this.toolbarEl.createEl("button", { cls: "ai-assistant-toolbtn" });
+        this.goalsBtn.addEventListener("click", () => new GoalsModal(this.app, this).open());
+        this.briefingBtn = this.toolbarEl.createEl("button", { text: "🗞️ Briefing", cls: "ai-assistant-toolbtn" });
+        this.briefingBtn.addEventListener("click", () => {
+            const date = new Date().toISOString().slice(0, 10);
+            void this.app.workspace.openLinkText(`AI/Briefings/${date}.md`, "", false);
+        });
 
         this.statusEl = container.createDiv("ai-assistant-status");
         this.statusEl.setText("Connecting...");
@@ -1340,40 +1350,14 @@ export class ChatView extends ItemView {
     public commandSummarize(): void { void this.runQuickChat("Summarize the active note concisely."); }
     public commandPrompts(): void { this.openPromptPicker(); }
 
-    /** M40 — web clipper: save a URL as a sourced, indexed note. */
+    /** M40 — web clipper: save a URL (page or YouTube) as a sourced, indexed note. */
     public commandClip(url: string): void {
         if (!/^https?:\/\//i.test(url.trim())) { new Notice("Enter a valid http(s) URL."); return; }
         void this.runQuickChat("vault:clip " + url.trim());
     }
 
-    /** M40 — inline authoring: continue writing at the cursor (private routing — the note
-     *  text is only sent to no-train/local providers, never the web). */
-    public async commandContinue(editor: Editor): Promise<void> {
-        const cursor = editor.getCursor();
-        const before = editor.getRange({ line: Math.max(0, cursor.line - 40), ch: 0 }, cursor);
-        if (!before.trim()) { new Notice("Nothing to continue from."); return; }
-        const { host, port } = this.plugin.settings;
-        new Notice("Loremaster is writing…");
-        try {
-            const resp = await fetch(`http://${host}:${port}/chat`, {
-                method: "POST",
-                headers: this.apiHeaders({ "Content-Type": "application/json" }),
-                body: JSON.stringify({
-                    message: "Continue the following text naturally in the same voice. Output ONLY the "
-                        + "continuation — no preamble, no repetition of the given text:\n\n" + before,
-                    private: true,
-                }),
-                signal: AbortSignal.timeout(30000),
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const cont = ((await resp.json() as { reply?: string }).reply || "").trim();
-            if (!cont) { new Notice("No continuation returned."); return; }
-            const sep = /\s$/.test(before) ? "" : " ";
-            editor.replaceSelection(sep + cont);
-        } catch (e) {
-            new Notice(`Continue failed: ${e instanceof Error ? e.message : e}`);
-        }
-    }
+    /** Run an arbitrary vault: command from a command-palette entry (e.g. template fill). */
+    public commandVault(cmd: string): void { void this.runQuickChat(cmd); }
 
     /** M12 — fetch + show notes related to the active note. */
     private async refreshRelated(file: TFile): Promise<void> {
@@ -1431,79 +1415,74 @@ export class ChatView extends ItemView {
     // ------------------------------------------------------------------
     // M36 — unified Approvals inbox: organize + memory + goals, + today's briefing
     // ------------------------------------------------------------------
-    private async refreshProactive(): Promise<void> {
-        if (!this.proactiveEl) return;
+    /** v1.6 — poll the Approvals + Goals counts and update the toolbar badge buttons. */
+    public async refreshCounts(): Promise<void> {
+        if (!this.toolbarEl) return;
         const { host, port } = this.plugin.settings;
         try {
-            // briefing lives on /proactive; the unified approvals list on /approvals
-            const [pr, ap] = await Promise.all([
-                fetch(`http://${host}:${port}/proactive`, { signal: AbortSignal.timeout(3000), headers: this.apiHeaders() }),
+            const [ap, gl] = await Promise.all([
                 fetch(`http://${host}:${port}/approvals`, { signal: AbortSignal.timeout(3000), headers: this.apiHeaders() }),
+                fetch(`http://${host}:${port}/goals`, { signal: AbortSignal.timeout(3000), headers: this.apiHeaders() }),
             ]);
-            if (!pr.ok || !ap.ok) throw new Error(`HTTP ${pr.status}/${ap.status}`);
-            const briefing = (await pr.json() as { briefing: { path: string; exists: boolean } }).briefing;
+            if (!ap.ok || !gl.ok) throw new Error("offline");
             const approvals = (await ap.json() as { approvals: Approval[] }).approvals ?? [];
-            this.renderProactive(briefing, approvals);
+            const goals = (await gl.json() as { goals: Goal[] }).goals ?? [];
+            const active = goals.filter(g => g.status === "running" || g.status === "paused").length;
+            this.toolbarEl.style.display = "flex";
+            this.approvalsBtn.setText(approvals.length ? `📥 Approvals (${approvals.length})` : "📥 Approvals");
+            this.goalsBtn.setText(active ? `🎯 Goals (${active})` : "🎯 Goals");
         } catch {
-            this.proactiveEl.style.display = "none";
+            this.toolbarEl.style.display = "none";
         }
     }
 
-    private renderProactive(briefing: { path: string; exists: boolean }, approvals: Approval[]): void {
-        this.proactiveEl.empty();
-        if (!briefing.exists && approvals.length === 0) {
-            this.proactiveEl.style.display = "none";
+    /** Render the Approvals list into a modal container. `onChange` re-renders after an action. */
+    public async renderApprovalsInto(container: HTMLElement, onChange: () => void): Promise<void> {
+        container.empty();
+        const { host, port } = this.plugin.settings;
+        let approvals: Approval[] = [];
+        try {
+            const resp = await fetch(`http://${host}:${port}/approvals`, { signal: AbortSignal.timeout(4000), headers: this.apiHeaders() });
+            approvals = (await resp.json() as { approvals: Approval[] }).approvals ?? [];
+        } catch {
+            container.createEl("div", { text: "Service offline." });
             return;
         }
-        this.proactiveEl.style.display = "block";
-        const title = approvals.length
-            ? `🗂️ Approvals — ${approvals.length} pending`
-            : "🗞️ Proactive";
-        this.proactiveEl.createEl("div", { text: title, cls: "ai-assistant-memory-title" });
+        if (approvals.length === 0) { container.createEl("div", { text: "Nothing to review 🎉" }); return; }
 
-        if (briefing.exists) {
-            const row = this.proactiveEl.createDiv("ai-assistant-proactive-briefing");
-            const open = row.createEl("button", { text: "Open today's briefing", cls: "ai-assistant-quick-btn" });
-            open.addEventListener("click", () => void this.app.workspace.openLinkText(briefing.path, "", false));
-        }
-
-        const kindIcon: Record<string, string> = { organize: "🏷️", memory: "🧠", goal: "🎯" };
+        const kindIcon: Record<string, string> = { organize: "🏷️", memory: "🧠", goal: "🎯", file: "📁" };
         for (const a of approvals) {
-            const box = this.proactiveEl.createDiv("ai-assistant-proactive-item");
+            const box = container.createDiv("ai-assistant-proactive-item");
             const head = box.createDiv("ai-assistant-proactive-head");
-            head.createEl("span", {
-                text: `${kindIcon[a.kind] ?? "•"} ${a.summary}`,
-                cls: "ai-assistant-proactive-note",
-            });
+            head.createEl("span", { text: `${kindIcon[a.kind] ?? "•"} ${a.summary}`, cls: "ai-assistant-proactive-note" });
             const openBtn = head.createEl("button", { text: "Open note", cls: "ai-assistant-quick-btn" });
             openBtn.addEventListener("click", () => void this.app.workspace.openLinkText(a.note, "", false));
 
             if (a.whole_only) {
-                // goals: show the steps read-only, approve/reject the whole thing
                 for (const it of a.items) box.createEl("div", { text: "• " + it.label, cls: "ai-assistant-proactive-chiplabel" });
             } else {
-                for (const it of a.items) this.approvalChip(box, a.id, it);
+                for (const it of a.items) this.approvalChip(box, a.id, it, onChange);
             }
 
             const btns = box.createDiv("ai-assistant-memory-btns");
             const applyLbl = a.kind === "goal" ? "Approve" : "Apply all";
             const rejectLbl = a.kind === "goal" ? "Reject" : "Dismiss all";
             btns.createEl("button", { text: applyLbl, cls: "ai-assistant-quick-btn" })
-                .addEventListener("click", () => void this.resolveApproval("apply", a.id));
+                .addEventListener("click", async () => { await this.resolveApproval("apply", a.id); onChange(); void this.refreshCounts(); });
             btns.createEl("button", { text: rejectLbl, cls: "ai-assistant-quick-btn" })
-                .addEventListener("click", () => void this.resolveApproval("reject", a.id));
+                .addEventListener("click", async () => { await this.resolveApproval("reject", a.id); onChange(); void this.refreshCounts(); });
         }
     }
 
-    private approvalChip(box: HTMLElement, id: string, item: ApprovalItem): void {
+    private approvalChip(box: HTMLElement, id: string, item: ApprovalItem, onChange: () => void): void {
         const chip = box.createDiv("ai-assistant-proactive-chip");
         chip.createEl("span", { text: item.label, cls: "ai-assistant-proactive-chiplabel" });
         const ok = chip.createEl("button", { text: "✓", cls: "ai-assistant-quick-btn" });
         ok.setAttribute("aria-label", "Apply");
-        ok.addEventListener("click", () => void this.resolveApproval("apply", id, item));
+        ok.addEventListener("click", async () => { await this.resolveApproval("apply", id, item); onChange(); void this.refreshCounts(); });
         const no = chip.createEl("button", { text: "✕", cls: "ai-assistant-quick-btn" });
         no.setAttribute("aria-label", "Dismiss");
-        no.addEventListener("click", () => void this.resolveApproval("reject", id, item));
+        no.addEventListener("click", async () => { await this.resolveApproval("reject", id, item); onChange(); void this.refreshCounts(); });
     }
 
     private async resolveApproval(action: "apply" | "reject", id: string, item?: ApprovalItem): Promise<void> {
@@ -1523,53 +1502,42 @@ export class ChatView extends ItemView {
         } catch (e) {
             new Notice(`Approval ${action} failed: ${e instanceof Error ? e.message : e}`);
         }
-        void this.refreshProactive();
     }
 
     // ------------------------------------------------------------------
     // M39 — Goals panel: running goals with progress + pause/resume/cancel
     // ------------------------------------------------------------------
-    private async refreshGoals(): Promise<void> {
-        if (!this.goalsEl) return;
+    /** Render running/paused goals into a modal container. `onChange` re-renders after control. */
+    public async renderGoalsInto(container: HTMLElement, onChange: () => void): Promise<void> {
+        container.empty();
         const { host, port } = this.plugin.settings;
+        let goals: Goal[] = [];
         try {
-            const resp = await fetch(`http://${host}:${port}/goals`, {
-                signal: AbortSignal.timeout(3000), headers: this.apiHeaders(),
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const goals = (await resp.json() as { goals: Goal[] }).goals ?? [];
-            this.renderGoals(goals.filter(g => g.status === "running" || g.status === "paused"));
+            const resp = await fetch(`http://${host}:${port}/goals`, { signal: AbortSignal.timeout(4000), headers: this.apiHeaders() });
+            goals = ((await resp.json() as { goals: Goal[] }).goals ?? []).filter(g => g.status === "running" || g.status === "paused");
         } catch {
-            this.goalsEl.style.display = "none";
+            container.createEl("div", { text: "Service offline." });
+            return;
         }
-    }
-
-    private renderGoals(goals: Goal[]): void {
-        this.goalsEl.empty();
-        if (goals.length === 0) { this.goalsEl.style.display = "none"; return; }
-        this.goalsEl.style.display = "block";
-        this.goalsEl.createEl("div", { text: `🎯 Goals — ${goals.length} active`, cls: "ai-assistant-memory-title" });
+        if (goals.length === 0) { container.createEl("div", { text: "No active goals. Start one with `vault:goal <description>`." }); return; }
 
         for (const g of goals) {
-            const box = this.goalsEl.createDiv("ai-assistant-proactive-item");
+            const box = container.createDiv("ai-assistant-proactive-item");
             const head = box.createDiv("ai-assistant-proactive-head");
             const tags = [g.recurring && `↻ ${g.recurring}`, g.template && `⚙ ${g.template}`].filter(Boolean).join(" · ");
             head.createEl("span", {
-                text: `${g.description}  (${g.done}/${g.total})${tags ? " · " + tags : ""}`,
+                text: `${g.description}  (${g.done}/${g.total})${g.status === "paused" ? " · paused" : ""}${tags ? " · " + tags : ""}`,
                 cls: "ai-assistant-proactive-note",
             });
             const openBtn = head.createEl("button", { text: "Open", cls: "ai-assistant-quick-btn" });
             openBtn.addEventListener("click", () => void this.app.workspace.openLinkText(`AI/System/Goals/${g.slug}.md`, "", false));
 
             const btns = box.createDiv("ai-assistant-memory-btns");
-            if (g.status === "running")
-                btns.createEl("button", { text: "Pause", cls: "ai-assistant-quick-btn" })
-                    .addEventListener("click", () => void this.goalControl(g.slug, "pause"));
-            else
-                btns.createEl("button", { text: "Resume", cls: "ai-assistant-quick-btn" })
-                    .addEventListener("click", () => void this.goalControl(g.slug, "resume"));
+            const pr: "pause" | "resume" = g.status === "running" ? "pause" : "resume";
+            btns.createEl("button", { text: g.status === "running" ? "Pause" : "Resume", cls: "ai-assistant-quick-btn" })
+                .addEventListener("click", async () => { await this.goalControl(g.slug, pr); onChange(); void this.refreshCounts(); });
             btns.createEl("button", { text: "Cancel", cls: "ai-assistant-quick-btn" })
-                .addEventListener("click", () => void this.goalControl(g.slug, "cancel"));
+                .addEventListener("click", async () => { await this.goalControl(g.slug, "cancel"); onChange(); void this.refreshCounts(); });
         }
     }
 
@@ -1587,7 +1555,6 @@ export class ChatView extends ItemView {
         } catch (e) {
             new Notice(`Goal ${action} failed: ${e instanceof Error ? e.message : e}`);
         }
-        void this.refreshGoals();
     }
 
     private addMention(path: string): void {
@@ -2029,4 +1996,132 @@ export class ChatView extends ItemView {
     private scrollToBottom(): void {
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
     }
+}
+
+// ---------------------------------------------------------------------------
+// v1.6 — Approvals / Goals modal windows (opened from the sidebar badge buttons)
+// ---------------------------------------------------------------------------
+export class ApprovalsModal extends Modal {
+    constructor(app: App, private view: ChatView) { super(app); }
+    onOpen(): void { this.titleEl.setText("📥 Approvals"); this.render(); }
+    private render(): void { void this.view.renderApprovalsInto(this.contentEl, () => this.render()); }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+export class GoalsModal extends Modal {
+    constructor(app: App, private view: ChatView) { super(app); }
+    onOpen(): void { this.titleEl.setText("🎯 Goals"); this.render(); }
+    private render(): void { void this.view.renderGoalsInto(this.contentEl, () => this.render()); }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+// ---------------------------------------------------------------------------
+// v1.6 — Inline Compose: a controlled popup for immersive continue / rewrite / compose
+// ---------------------------------------------------------------------------
+export type ComposeMode = "continue" | "rewrite" | "compose";
+
+export class ComposeModal extends Modal {
+    private source = "";
+    private result = "";
+    private instructionEl!: HTMLTextAreaElement;
+    private previewEl!: HTMLElement;
+    private acceptBtn!: HTMLButtonElement;
+    private genBtn!: HTMLButtonElement;
+
+    constructor(app: App, private plugin: AIAssistantPlugin, private editor: Editor, private mode: ComposeMode) {
+        super(app);
+    }
+
+    onOpen(): void {
+        const sel = this.editor.getSelection();
+        if (this.mode === "rewrite") {
+            if (!sel) { new Notice("Select some text to rewrite first."); this.close(); return; }
+            this.source = sel;
+        } else if (this.mode === "continue") {
+            const c = this.editor.getCursor();
+            this.source = this.editor.getRange({ line: Math.max(0, c.line - 40), ch: 0 }, c);
+        } else {
+            this.source = sel;   // compose: optional selection as context
+        }
+
+        const title = this.mode === "rewrite" ? "✍️ Rewrite selection"
+            : this.mode === "continue" ? "✍️ Continue writing" : "✍️ Compose with Loremaster";
+        this.titleEl.setText(title);
+
+        if (this.source.trim()) {
+            this.contentEl.createEl("div", { text: this.mode === "continue" ? "Continuing from:" : "Source:", cls: "ai-assistant-compose-lbl" });
+            const src = this.contentEl.createEl("div", { cls: "ai-assistant-compose-src" });
+            src.setText(this.source.length > 400 ? "…" + this.source.slice(-400) : this.source);
+        }
+
+        this.contentEl.createEl("div", { text: "Instruction:", cls: "ai-assistant-compose-lbl" });
+        this.instructionEl = this.contentEl.createEl("textarea", { cls: "ai-assistant-compose-input" }) as HTMLTextAreaElement;
+        this.instructionEl.rows = 2;
+        this.instructionEl.value = this.mode === "rewrite" ? "Rewrite this more clearly and concisely."
+            : this.mode === "continue" ? "Continue naturally in the same voice." : "";
+        this.instructionEl.placeholder = "e.g. make it concise / add a summary / fix grammar";
+
+        this.previewEl = this.contentEl.createEl("div", { cls: "ai-assistant-compose-preview" });
+        this.previewEl.style.display = "none";
+
+        const row = this.contentEl.createDiv("ai-assistant-compose-btns");
+        this.genBtn = row.createEl("button", { text: "Generate", cls: "mod-cta" });
+        this.genBtn.addEventListener("click", () => void this.generate());
+        this.acceptBtn = row.createEl("button", { text: "Accept" });
+        this.acceptBtn.disabled = true;
+        this.acceptBtn.addEventListener("click", () => this.accept());
+        row.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+        setTimeout(() => this.instructionEl.focus(), 0);
+    }
+
+    private buildPrompt(): string {
+        const instr = this.instructionEl.value.trim() || "Continue naturally.";
+        if (this.mode === "continue") {
+            return `Continue the following text. Output ONLY the continuation (no preamble, no repetition):\n\n${this.source}\n\n[Instruction: ${instr}]`;
+        }
+        if (this.mode === "rewrite") {
+            return `Rewrite the following text per the instruction. Output ONLY the rewritten text:\n\nTEXT:\n${this.source}\n\nINSTRUCTION: ${instr}`;
+        }
+        return `${instr}${this.source ? `\n\nContext:\n${this.source}` : ""}\n\nOutput only the requested text.`;
+    }
+
+    private async generate(): Promise<void> {
+        const { host, port } = this.plugin.settings;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        const t = this.plugin.settings.apiToken?.trim();
+        if (t) headers["X-API-Key"] = t;
+        this.genBtn.disabled = true;
+        this.genBtn.setText("Generating…");
+        try {
+            const resp = await fetch(`http://${host}:${port}/chat`, {
+                method: "POST", headers,
+                body: JSON.stringify({ message: this.buildPrompt(), private: true }),   // note text never hits the web
+                signal: AbortSignal.timeout(30000),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            this.result = ((await resp.json() as { reply?: string }).reply || "").trim();
+            this.previewEl.style.display = "block";
+            this.previewEl.setText(this.result || "(no output)");
+            this.acceptBtn.disabled = !this.result;
+            this.genBtn.setText("Regenerate");
+        } catch (e) {
+            new Notice(`Compose failed: ${e instanceof Error ? e.message : e}`);
+            this.genBtn.setText("Generate");
+        } finally {
+            this.genBtn.disabled = false;
+        }
+    }
+
+    private accept(): void {
+        if (!this.result) return;
+        if (this.mode === "continue") {
+            const sep = /\s$/.test(this.source) ? "" : " ";
+            this.editor.replaceSelection(sep + this.result);   // insert at cursor
+        } else {
+            this.editor.replaceSelection(this.result);         // replace selection (rewrite/compose)
+        }
+        this.close();
+    }
+
+    onClose(): void { this.contentEl.empty(); }
 }

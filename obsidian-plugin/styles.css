@@ -813,6 +813,32 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ai-assistant-proactive-chip .ai-assistant-quick-btn { padding: 0 6px; line-height: 18px; }
+
+/* v1.6 — sidebar toolbar (Approvals/Goals/Briefing badge-buttons) */
+.ai-assistant-toolbar {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin: 6px 8px; flex-shrink: 0;
+}
+.ai-assistant-toolbtn {
+  font-size: 12px; padding: 2px 8px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+.ai-assistant-toolbtn:hover { background: var(--background-modifier-hover); }
+
+/* v1.6 — Inline Compose modal */
+.ai-assistant-compose-lbl { font-size: 12px; font-weight: 600; margin: 8px 0 2px; }
+.ai-assistant-compose-src {
+  font-size: 12px; max-height: 120px; overflow-y: auto; white-space: pre-wrap;
+  padding: 6px; border-radius: 6px; background: var(--background-secondary);
+}
+.ai-assistant-compose-input { width: 100%; font-family: inherit; }
+.ai-assistant-compose-preview {
+  font-size: 13px; white-space: pre-wrap; margin-top: 8px; padding: 8px;
+  border-radius: 6px; border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt); max-height: 260px; overflow-y: auto;
+}
+.ai-assistant-compose-btns { display: flex; gap: 8px; margin-top: 10px; }
 .ai-assistant-memory-title {
   font-size: 12px;
   font-weight: 600;
