@@ -68,6 +68,23 @@ class AutonomyTests(unittest.TestCase):
         g["subtasks"][0]["status"] = "failed"
         self.assertIsNone(store.next_pending(g))              # b can never run
 
+    def test_set_subtasks_replans(self):                     # v1.8 — replan
+        g = store.create_goal("g", ["old1", "old2"])
+        store.set_subtasks(g["slug"], ["new a", "new b", "new c"])
+        g2 = store.get_goal(g["slug"])
+        self.assertEqual([s["task"] for s in g2["subtasks"]], ["new a", "new b", "new c"])
+        self.assertTrue(all(s["status"] == "pending" for s in g2["subtasks"]))
+
+    def test_plan_edits_in_note_are_honored(self):           # v1.8 — edit the plan note
+        from pathlib import Path
+        g = store.create_goal("g", ["step a", "step b"])
+        store.render_note(self.tmp, g)
+        p = Path(self.tmp) / "AI" / "System" / "Goals" / f"{g['slug']}.md"
+        t = p.read_text(encoding="utf-8").replace("- [ ] step a", "- [ ] edited a\n- [ ] extra step")
+        p.write_text(t, encoding="utf-8")
+        steps = store.plan_steps_from_note(self.tmp, g["slug"])
+        self.assertEqual(steps, ["edited a", "extra step", "step b"])   # user's edited plan
+
     def test_worker_recurring_loops_not_done(self):
         governor._reset_for_tests()
         g = store.create_goal("daily digest", ["only step"], recurring="daily")

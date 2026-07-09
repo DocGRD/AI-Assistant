@@ -1,10 +1,19 @@
-<!-- help-version: 17 -->
+<!-- help-version: 18 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in Loremaster
 
-*A capability overview so you can learn everything Loremaster can do. Current through **v1.7**.*
+*A capability overview so you can learn everything Loremaster can do. Current through **v1.8**.*
+
+## Editable goal plans + right-click menu + reindex (v1.8)
+- **Refine a goal's plan before you approve it.** When Loremaster plans a goal it's *proposed*, not running.
+  Iterate until it's solid: click **Re-plan** in the Approvals panel (or `vault:goal replan <slug> :: <feedback>`)
+  to have it revise the steps, and/or **Open note** and edit the `- [ ]` steps yourself — **approve honors your
+  edits**. Cycle as many times as you like, then approve to run it.
+- **Right-click menu:** the editor context menu now has **Loremaster: Read aloud / Rewrite selection /
+  Continue writing / Compose…**.
+- **`vault:reindex [full]`** rebuilds the Vault QA index on demand.
 
 ## Read-aloud (v1.7)
 - **Read a note aloud** (editor command) — reads the selection if you've highlighted text, else the whole

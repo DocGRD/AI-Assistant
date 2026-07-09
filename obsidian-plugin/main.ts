@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor } from "obsidian";
+import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor, Menu } from "obsidian";
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 
@@ -107,6 +107,20 @@ export default class AIAssistantPlugin extends Plugin {
             },
         });
 
+        // v1.8 — Loremaster actions in the editor right-click menu.
+        this.registerEvent(this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor) => {
+            menu.addItem((i) => i.setTitle("Loremaster: Read aloud").setIcon("volume-2")
+                .onClick(() => this.reader.readNote(editor)));
+            if (editor.getSelection()) {
+                menu.addItem((i) => i.setTitle("Loremaster: Rewrite selection").setIcon("wand-2")
+                    .onClick(() => new ComposeModal(this.app, this, editor, "rewrite").open()));
+            }
+            menu.addItem((i) => i.setTitle("Loremaster: Continue writing").setIcon("pencil")
+                .onClick(() => new ComposeModal(this.app, this, editor, "continue").open()));
+            menu.addItem((i) => i.setTitle("Loremaster: Compose…").setIcon("bot")
+                .onClick(() => new ComposeModal(this.app, this, editor, "compose").open()));
+        }));
+
         // Settings tab
         this.addSettingTab(new AIAssistantSettingTab(this.app, this));
 
@@ -135,6 +149,14 @@ export default class AIAssistantPlugin extends Plugin {
         }
         workspace.revealLeaf(leaf);
         (leaf.view as ApprovalsView).setTab(tab);
+    }
+
+    // v1.8 — refine a proposed goal's plan with feedback (iterate before approving).
+    replanGoal(slug: string): void {
+        new TextPromptModal(this.app, `Refine plan: ${slug}`, "What should change? (feedback)", async (fb) => {
+            await this.activateChatView();
+            this.getChatView()?.commandVault(`vault:goal replan ${slug} :: ${fb}`);
+        }).open();
     }
 
     // ------------------------------------------------------------------

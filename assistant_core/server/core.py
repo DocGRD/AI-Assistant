@@ -911,6 +911,22 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # Admin — rebuild the Vault QA index on demand (`vault:reindex [full]`).
+            if _first == "vault:reindex":
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                if not self._rag:
+                    reply = "No vault index is available on this instance."
+                else:
+                    full = "full" in req.message.lower()
+                    try:
+                        rep = self._rag.reindex(full=full)
+                        reply = (f"Reindexed{' (full rebuild)' if full else ''}: "
+                                 f"{rep.get('notes', '?')} note(s), {rep.get('chunks', '?')} chunk(s).")
+                    except Exception as exc:
+                        reply = f"Reindex failed: {exc}"
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # M39 — action layer: extract a note's to-dos into a tracked checklist.
             if _first == "vault:actions":
                 from assistant_core import tasks
@@ -988,16 +1004,50 @@ class AssistantServer:
                 arg = req.message.strip()[len("vault:goal"):].strip()
                 verb = arg.split(None, 1)[0].lower() if arg else ""
                 rest = arg.split(None, 1)[1].strip() if len(arg.split(None, 1)) > 1 else ""
-                if verb in ("approve", "resume"):
+                vault = self._config.get("vault_path")
+                if verb == "approve":
+                    # honor any manual edits to the plan note before it starts running
+                    g0 = gstore.get_goal(rest)
+                    if g0 and g0.get("status") == "proposed":
+                        edited = gstore.plan_steps_from_note(vault, rest)
+                        if edited:
+                            gstore.set_subtasks(rest, edited)
                     g = gstore.set_status(rest, "running")
-                    reply = (f"Goal `{rest}` is now **running** — it will progress in the background."
-                             if g else f"No goal `{rest}`.")
+                    if g:
+                        gstore.render_note(vault, gstore.get_goal(rest))
+                    reply = (f"Goal `{rest}` approved — running its {gstore.progress(gstore.get_goal(rest))[1]}-step "
+                             f"plan in the background." if g else f"No goal `{rest}`.")
+                elif verb == "resume":
+                    g = gstore.set_status(rest, "running")
+                    reply = (f"Goal `{rest}` resumed." if g else f"No goal `{rest}`.")
                 elif verb in ("pause", "cancel"):
                     g = gstore.set_status(rest, "paused" if verb == "pause" else "cancelled")
                     reply = f"Goal `{rest}` {verb}d." if g else f"No goal `{rest}`."
+                elif verb == "replan":
+                    # `vault:goal replan <slug> :: <feedback>` — refine the plan; iterate freely
+                    # until it's solid, then approve. (You can also just edit the plan note.)
+                    slug, _, fb = rest.partition("::")
+                    slug = slug.strip()
+                    g0 = gstore.get_goal(slug)
+                    if not g0:
+                        reply = f"No goal `{slug}`."
+                    else:
+                        prompt = g0["description"] + (f"\n\nRevise the plan based on this feedback: {fb.strip()}"
+                                                      if fb.strip() else "\n\nProduce an improved, clearer plan.")
+                        plan = plan_goal(prompt, self._router)
+                        if not plan["subtasks"]:
+                            reply = "Could not re-plan — try different feedback."
+                        else:
+                            gstore.set_subtasks(slug, plan["subtasks"])
+                            gstore.render_note(vault, gstore.get_goal(slug))
+                            steps = "\n".join(f"{i+1}. {s}" for i, s in enumerate(plan["subtasks"]))
+                            reply = (f"**Re-planned** `{slug}`:\n\n{steps}\n\nEdit the plan note further, "
+                                     f"`vault:goal replan {slug} :: <feedback>` again, or approve with "
+                                     f"`vault:goal approve {slug}`.")
                 elif not arg:
                     reply = ("Usage: vault:goal <description>  ·  vault:goal --template "
-                             "research|digest|study <arg>  ·  vault:goal approve|pause|resume|cancel <slug>\n"
+                             "research|digest|study <arg>  ·  vault:goal approve|replan|pause|resume|cancel <slug>\n"
+                             "Refine before approving: `vault:goal replan <slug> :: <feedback>` (or edit the plan note).\n"
                              "Flags: --recurring daily|weekly|monthly · --budget <calls/day>")
                 else:
                     # M39 — parse optional flags out of the description

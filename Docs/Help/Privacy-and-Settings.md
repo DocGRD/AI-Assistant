@@ -1,4 +1,4 @@
-<!-- help-version: 17 -->
+<!-- help-version: 18 -->
 ---
 tags: [help, user-guide, privacy, settings]
 ---

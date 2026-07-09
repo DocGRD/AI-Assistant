@@ -1473,6 +1473,11 @@ export class ChatView extends ItemView {
             const rejectLbl = a.kind === "goal" ? "Reject" : "Dismiss all";
             btns.createEl("button", { text: applyLbl, cls: "ai-assistant-quick-btn" })
                 .addEventListener("click", async () => { await this.resolveApproval("apply", a.id); onChange(); void this.refreshCounts(); });
+            if (a.kind === "goal") {
+                // iterate before approving: edit the plan note (Open note) or refine with AI (Re-plan)
+                btns.createEl("button", { text: "Re-plan", cls: "ai-assistant-quick-btn" })
+                    .addEventListener("click", () => this.plugin.replanGoal(a.id.replace(/^goal:/, "")));
+            }
             btns.createEl("button", { text: rejectLbl, cls: "ai-assistant-quick-btn" })
                 .addEventListener("click", async () => { await this.resolveApproval("reject", a.id); onChange(); void this.refreshCounts(); });
         }

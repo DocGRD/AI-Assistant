@@ -18,7 +18,7 @@ from pathlib import Path
 
 # v1.7 — packaged AI/Help knowledge base. Bump when the seed/help/*.md content changes so
 # seed_help() refreshes the vault copies (which carry a matching `<!-- help-version: N -->`).
-HELP_VERSION = 17
+HELP_VERSION = 18
 _HELP_STAMP = re.compile(r"help-version:\s*(\d+)")
 
 logger = logging.getLogger("assistant")

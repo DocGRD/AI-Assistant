@@ -1,4 +1,4 @@
-<!-- help-version: 17 -->
+<!-- help-version: 18 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -57,11 +57,12 @@ line for `create`/`update`; use `-> ` between two paths for copy/move.
 | `vault:actions <note>` | Extract a note's to-dos into a tracked `AI/Tasks/` checklist (propose-only) |
 | `vault:goal <description>` | Plan a background **goal**; approve it to run step-by-step. Flags: `--template research\|digest\|study`, `--recurring daily\|weekly\|monthly`, `--budget <calls/day>` |
 | `vault:goal approve\|pause\|resume\|cancel <slug>` | Control a goal |
+| `vault:goal replan <slug> :: <feedback>` | **Refine a proposed plan** — iterate until it's solid, then approve. (You can also just edit the `- [ ]` steps in the plan note; approve honors your edits.) |
 | `vault:goals` | List all goals + progress |
 
 *Auto-organize, memory-consolidation and goal approvals all collect in the **📥 Approvals** inbox
-(sidebar badge-button → modal); apply/dismiss per item, or approve/reject a goal. Running goals live under
-the **🎯 Goals** button.*
+(badge-button → **dockable side panel**); apply/dismiss per item, or approve / **re-plan** / reject a goal.
+Running goals live under the **🎯 Goals** button.*
 
 ## Authoring & capture
 | Command | What it does |
@@ -88,7 +89,7 @@ a **🔊** button. Fully offline/on-device/private.*
 | `vault:models` | List models your keys actually unlock |
 | `vault:discover-providers` | Build a proposed registry from each provider's live `/models` |
 | `vault:update-providers [apply]` | Refresh the provider registry (propose, then apply) |
-| `vault:reindex [full]` | Rebuild the Vault QA index (box only) |
+| `vault:reindex [full]` | Rebuild the Vault QA index (incremental; `full` = clean rebuild) |
 | `vault:test` | Run the automated test suite |
 | `vault:run-script <name>` | Run an **approved** script from `AI/Scripts/` |
 

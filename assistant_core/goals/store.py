@@ -133,6 +133,31 @@ def rearm_recurring(goal: dict, now: datetime | None = None) -> bool:
     return True
 
 
+def set_subtasks(slug: str, subtasks: list[str]) -> dict | None:
+    """Replace a goal's plan with fresh pending subtasks (used by replan + edit-and-resync)."""
+    g = get_goal(slug)
+    if not g:
+        return None
+    g["subtasks"] = [{"id": i, "task": t, "status": "pending", "result": "", "deps": []}
+                     for i, t in enumerate(subtasks)]
+    upsert_goal(g)
+    return g
+
+
+def plan_steps_from_note(vault, slug: str) -> list[str]:
+    """The plan steps as they currently read in AI/System/Goals/<slug>.md — so a user can
+    **edit the plan** (add/remove/reword the `- [ ]` lines) and have the edits honored."""
+    p = Path(vault) / GOALS_DIR / f"{slug}.md"
+    if not p.exists():
+        return []
+    out = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^- \[.\]\s+(.+\S)\s*$", line)
+        if m:
+            out.append(m.group(1).strip())
+    return out
+
+
 def set_status(slug: str, status: str) -> dict | None:
     g = get_goal(slug)
     if g:

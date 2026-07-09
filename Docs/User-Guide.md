@@ -1,4 +1,4 @@
-<!-- help-version: 17 -->
+<!-- help-version: 18 -->
 # Loremaster — User Guide
 
 *Current through **v1.6** (Milestones 1–40). Last updated: 2026-07-09.*

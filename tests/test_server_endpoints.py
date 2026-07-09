@@ -394,6 +394,24 @@ class GoalsEndpointTests(unittest.TestCase):
     def test_bad_action_400(self):
         self.assertEqual(self._client().post("/goals/control", json={"slug": "x", "action": "boom"}).status_code, 400)
 
+    def test_approve_honors_edited_plan_note(self):          # v1.8 — edit plan → approve resyncs
+        from pathlib import Path
+        g = self.store.create_goal("Edit me", ["a", "b"])
+        self.store.render_note(self.tmp, g)
+        note = Path(self.tmp) / "AI" / "System" / "Goals" / f"{g['slug']}.md"
+        note.write_text(note.read_text(encoding="utf-8").replace("- [ ] a", "- [ ] a\n- [ ] inserted"),
+                        encoding="utf-8")
+        r = self._client().post("/chat", json={"message": f"vault:goal approve {g['slug']}"}).json()
+        self.assertEqual(r["provider_used"], "system")
+        g2 = self.store.get_goal(g["slug"])
+        self.assertEqual(g2["status"], "running")
+        self.assertIn("inserted", [s["task"] for s in g2["subtasks"]])   # edit honored
+
+    def test_reindex_no_index(self):                         # v1.8 — vault:reindex (rag None)
+        r = self._client().post("/chat", json={"message": "vault:reindex"}).json()
+        self.assertEqual(r["provider_used"], "system")
+        self.assertIn("index", r["reply"].lower())
+
     def test_goal_template_flag_plans_deterministically(self):   # M40 regression: re import
         r = self._client().post(
             "/chat", json={"message": "vault:goal --template research rocket stoves"}).json()
