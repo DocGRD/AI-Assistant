@@ -2,12 +2,17 @@
 
 *Last updated: 2026-07-03*
 *Project: Zero-Cost AI Operating System for Obsidian*
-*Status: **Loremaster v1.5.2 — 2026-07-08** (v1.5.0 GitHub pre-release + BRAT for the plugin; v1.5.1/v1.5.2
-are backend-only service patch tags — analytics perf on large vaults). Milestones 1–40 implemented and
-tested (**438 automated tests green**), deployed end-to-end (Linux systemd service with GPU-accelerated
-embeddings, driven by the Obsidian plugin over the LAN; **box on `main` at `v1.5.2`**). `vault:analytics`
-runs in ~7s on the 2298-note box vault (was hanging — fixed with index-based link resolution + inverted-
-index unsourced detection).
+*Status: **Loremaster v1.6.0 — 2026-07-09** (GitHub pre-release + BRAT). Milestones 1–40 **plus all
+carried-forward items** implemented and tested (**450 automated tests green**), deployed end-to-end (Linux
+systemd service, GPU embeddings, Obsidian plugin over the LAN; box on `main`). **v1.6 finished the roadmap's
+carried-forward work + a UI overhaul:** goal **subtask dependencies**; auto-filing **folder-move** + **project**
+proposals (in the Approvals inbox); best-effort **YouTube transcript capture** + **Templater typed-note fill**
+(`vault:template <name> :: <ctx>`); **immersive inline editing** via a controlled **Compose popup** (Continue /
+Rewrite selection / Compose — preview → Accept, private routing); and **Approvals + Goals moved to header
+badge-buttons that open modal windows** (count badges; the sidebar is decluttered). Full M1–M40 GUI
+regression on the 2,300-note GRDVault passed (Docs/Tests/GUI-Test-Run-2026-07-09.md). `vault:analytics`
+runs in ~7s on that vault (index-based). Docs refreshed: README, User-Guide (real guide, was a stub),
+DEPLOYMENT, Help/Commands + Features.
 The M37–M40 arc (built on dev, GUI-verified on GRDVault, shipped together as v1.5.0):
 - **M37 Trust Everywhere** — `write_guard.py` flags unsourced factual claims on every create/update
   (config `write_guard: off|flag|source`); `contradiction.py` + `vault:contradictions` + briefing section;
