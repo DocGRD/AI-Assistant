@@ -814,6 +814,15 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # v1.7 — `vault:ask <q>` runs grounded, cited Vault QA (same as the QA toggle),
+            # not the agent, so it answers from the vault (incl. the AI/Help KB) with sources.
+            if _first == "vault:ask":
+                q = req.message[len("vault:ask"):].strip()
+                if q and self._rag and self._rag.has_index():
+                    req.message = q
+                    return self._handle_vault_qa(req)
+                # no question or no index → fall through to the agent's search-based answer
+
             # v1.7 — refresh the indexed AI/Help knowledge base on demand + reindex.
             if _first == "vault:sync-help":
                 from assistant_core.memory.memory_manager import MemoryManager, HELP_VERSION
