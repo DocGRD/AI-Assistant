@@ -921,7 +921,9 @@ class AssistantServer:
                     try:
                         rep = self._rag.reindex(full=full)
                         reply = (f"Reindexed{' (full rebuild)' if full else ''}: "
-                                 f"{rep.get('notes', '?')} note(s), {rep.get('chunks', '?')} chunk(s).")
+                                 f"+{rep.get('added', 0)} new, ~{rep.get('updated', 0)} updated, "
+                                 f"-{rep.get('removed', 0)} removed, {rep.get('chunks', 0)} chunk(s) "
+                                 f"({rep.get('skipped', 0)} unchanged).")
                     except Exception as exc:
                         reply = f"Reindex failed: {exc}"
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",

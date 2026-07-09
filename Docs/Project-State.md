@@ -1,12 +1,18 @@
-*Status: **Loremaster v1.7.0 — 2026-07-09** (GitHub pre-release + BRAT). Milestones 1–40 + all
-carried-forward + a v1.6/v1.7 UI & knowledge layer (**456 automated tests green**), deployed end-to-end
-(Linux systemd service, GPU embeddings, Obsidian plugin over the LAN; box on `main`). **v1.7 added:**
+*Status: **Loremaster v1.8.0 — 2026-07-09** (GitHub pre-release + BRAT). Milestones 1–40 + all
+carried-forward + a v1.6/v1.7/v1.8 UI & knowledge layer (**460 automated tests green**), deployed end-to-end
+(Linux systemd service, GPU embeddings, Obsidian plugin over the LAN; box on `main`). **v1.8 added:**
+**editable/iterable goal plans** — a planned goal stays *proposed* until you approve it; **Re-plan**
+(`vault:goal replan <slug> :: <feedback>`) revises the steps and/or you edit the `- [ ]` steps in the plan
+note and **approve honors your edits** (`goals.store.set_subtasks` / `plan_steps_from_note`), cycling until
+the plan is solid; a **Loremaster editor right-click menu** (Read aloud / Rewrite selection / Continue
+writing / Compose…); and **`vault:reindex [full]`** to rebuild the Vault QA index on demand. **v1.7 added:**
 a **self-updating, indexed AI/Help knowledge base** (`assistant_core/seed/help/*.md`, version-stamped
 `HELP_VERSION`; `memory.seed_help()` on startup + `vault:sync-help`; queryable via Vault QA and a typed
 `vault:ask` which now routes to grounded, cited QA); **read-aloud** (`reader.ts` — offline Web Speech,
 speed presets 0.75–2×, OS voice picker, sentence follow-along highlight in notes + 🔊 on chat replies);
 and **Approvals/Goals as a non-blocking dockable side panel** (was a modal that covered the note). Full
-M1–M40 GUI + v1.7 UI verified live on the 2,300-note GRDVault.
+M1–M40 GUI + v1.7/v1.8 UI verified live on the 2,300-note GRDVault (right-click menu → Read aloud with
+follow-along highlight; goal replan + edit-and-approve resync; `vault:reindex`).
 Release history:
 **v1.0.0** (2026-07-03, first public) → **v1.1.0** (rename to Loremaster + M30 anti-hallucination, M31 chunked
 edits, M32 deterministic math, M33 agent full-command access + autonomous web research) → **v1.2.0**
