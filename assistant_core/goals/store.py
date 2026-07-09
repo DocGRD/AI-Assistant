@@ -72,8 +72,12 @@ def create_goal(description: str, subtasks: list[str], estimate: str = "",
         "estimate": estimate, "created": datetime.now().isoformat(timespec="seconds"),
         "recurring": recurring, "budget": int(budget or 0), "template": template,
         "spent_today": 0, "spent_date": "", "not_before": "",
-        "subtasks": [{"id": i, "task": t, "status": "pending", "result": ""}
-                     for i, t in enumerate(subtasks)],
+        "subtasks": [
+            ({"id": i, "task": t["task"], "status": "pending", "result": "", "deps": list(t.get("deps", []))}
+             if isinstance(t, dict) else
+             {"id": i, "task": t, "status": "pending", "result": "", "deps": []})
+            for i, t in enumerate(subtasks)
+        ],
     }
     upsert_goal(goal)
     return goal
@@ -138,7 +142,19 @@ def set_status(slug: str, status: str) -> dict | None:
 
 
 def next_pending(goal: dict) -> dict | None:
-    return next((s for s in goal["subtasks"] if s["status"] == "pending"), None)
+    """The next runnable pending subtask — **dependency-aware** (M39): a subtask runs only
+    once all its `deps` are done; one blocked by a failed dep is skipped (never runs)."""
+    done_ids = {s["id"] for s in goal["subtasks"] if s["status"] == "done"}
+    failed_ids = {s["id"] for s in goal["subtasks"] if s["status"] == "failed"}
+    for s in goal["subtasks"]:
+        if s["status"] != "pending":
+            continue
+        deps = s.get("deps", [])
+        if any(d in failed_ids for d in deps):
+            continue                              # dependency failed → this step can't run
+        if all(d in done_ids for d in deps):
+            return s
+    return None
 
 
 def progress(goal: dict) -> tuple[int, int]:

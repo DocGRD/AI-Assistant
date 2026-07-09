@@ -43,10 +43,14 @@ def list_approvals(vault) -> list[dict]:
     """Every pending approval across the persisted stores, newest-relevant first."""
     out: list[dict] = []
 
-    # organize — one approval per note; items = each suggested tag + link
+    # organize — one approval per note; items = suggested tags + links + folder + project
     for s in organize.load_pending():
         items = [{"itemkind": "tag", "value": t, "label": f"#{t}"} for t in s.get("tags", [])]
         items += [{"itemkind": "link", "value": r, "label": f"[[{r}]]"} for r in s.get("related", [])]
+        if s.get("folder"):
+            items.append({"itemkind": "folder", "value": s["folder"], "label": f"→ move to {s['folder']}/"})
+        if s.get("project"):
+            items.append({"itemkind": "project", "value": s["project"], "label": f"project: {s['project']}"})
         if items:
             out.append({
                 "id": f"organize:{s['note']}", "kind": "organize", "note": s["note"],

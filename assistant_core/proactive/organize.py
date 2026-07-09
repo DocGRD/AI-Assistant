@@ -131,13 +131,62 @@ def _note_is_private(text: str) -> bool:
     return bool(re.search(r"^private:\s*true", text, re.MULTILINE | re.IGNORECASE))
 
 
+def _related_paths(rag, note_path: str, k: int = 6) -> list[str]:
+    """Rel paths of the note's semantic neighbours — for folder/project inference (M38)."""
+    if rag is None or not getattr(rag, "has_index", lambda: False)():
+        return []
+    try:
+        return [r.get("path") for r in rag.relevant_notes(note_path, k=k) if r.get("path")]
+    except Exception:
+        return []
+
+
+def _suggest_folder(vault, note_rel: str, related_paths: list[str]) -> str:
+    """A better home folder for a mis-filed note: where a clear majority of its neighbours
+    live, if that differs from its current folder (and isn't a system dir). '' = leave it."""
+    cur = str(Path(note_rel).parent).replace("\\", "/")
+    cur = "" if cur == "." else cur
+    c: Counter = Counter()
+    for rp in related_paths:
+        d = str(Path(rp).parent).replace("\\", "/")
+        if d and d != "." and not _skip(rp):
+            c[d] += 1
+    if not c:
+        return ""
+    folder, n = c.most_common(1)[0]
+    return folder if n >= 2 and folder != cur else ""
+
+
+def _suggest_project(vault, content: str, related_paths: list[str]) -> str:
+    """A project for a note that lacks one, from the dominant `project:` among its neighbours."""
+    if re.search(r"^project:\s*\S", content, re.MULTILINE | re.IGNORECASE):
+        return ""                                     # already assigned
+    from assistant_core.watcher.frontmatter_parser import FrontmatterParser
+    c: Counter = Counter()
+    for rp in related_paths:
+        try:
+            fm, _ = FrontmatterParser.extract((Path(vault) / rp).read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        pr = str(fm.get("project", "")).strip().strip("'\"")
+        if pr:
+            c[pr] += 1
+    if not c:
+        return ""
+    proj, n = c.most_common(1)[0]
+    return proj if n >= 2 else ""
+
+
 def suggest_for_note(note_path: str, content: str, vault, rag, router,
                      existing: list[str]) -> dict:
     private = _note_is_private(content)
+    rel_paths = _related_paths(rag, note_path)
     return {
         "note":    note_path,
         "tags":    _suggest_tags(router, content, existing, private=private),
         "related": _related_links(rag, note_path, vault),
+        "folder":  _suggest_folder(vault, note_path, rel_paths),   # M38 auto-filing
+        "project": _suggest_project(vault, content, rel_paths),    # M38 project association
     }
 
 
@@ -177,7 +226,7 @@ def run_organize(vault, config: dict | None = None, rag=None, router=None,
         s = suggest_for_note(rel, content, vault, rag, router, existing)
         governor.record_background_call()
         scanned += 1
-        if s["tags"] or s["related"]:
+        if s["tags"] or s["related"] or s.get("folder") or s.get("project"):
             suggestions.append(s)
 
     proposal = _write_proposal(vault, suggestions, now) if suggestions else None
@@ -209,7 +258,8 @@ def _save_pending(items: list[dict]) -> None:
 def _merge_pending(suggestions: list[dict]) -> None:
     by_note = {s["note"]: s for s in load_pending()}
     for s in suggestions:
-        by_note[s["note"]] = {"note": s["note"], "tags": s["tags"], "related": s["related"]}
+        by_note[s["note"]] = {"note": s["note"], "tags": s["tags"], "related": s["related"],
+                              "folder": s.get("folder", ""), "project": s.get("project", "")}
     _save_pending(list(by_note.values()))
 
 
@@ -265,18 +315,24 @@ def apply_suggestion(vault, note: str, tags: list[str] | None = None,
 # ---------------------------------------------------------------------------
 
 def _update_pending_item(note: str, kind: str, value: str) -> bool:
-    """Remove one tag/link from a note's pending entry; drop the note once nothing's left."""
-    key = "tags" if kind == "tag" else "related"
+    """Remove one resolved item (tag/link/folder/project) from a note's pending entry; drop
+    the note once nothing is left to review."""
+    list_key = {"tag": "tags", "link": "related"}.get(kind)
+    scalar_key = {"folder": "folder", "project": "project"}.get(kind)
     out, changed = [], False
     for s in load_pending():
         if s.get("note") != note:
             out.append(s)
             continue
-        vals = [v for v in s.get(key, []) if v != value]
-        if len(vals) != len(s.get(key, [])):
+        if list_key:
+            vals = [v for v in s.get(list_key, []) if v != value]
+            if len(vals) != len(s.get(list_key, [])):
+                changed = True
+            s[list_key] = vals
+        elif scalar_key and s.get(scalar_key):
+            s[scalar_key] = ""
             changed = True
-        s[key] = vals
-        if s.get("tags") or s.get("related"):
+        if s.get("tags") or s.get("related") or s.get("folder") or s.get("project"):
             out.append(s)          # keep the note while it still has pending items
     _save_pending(out)
     return changed
@@ -309,27 +365,78 @@ def _apply_link(vault, note: str, link: str) -> bool:
     return True
 
 
+def _merge_fm_field(text: str, field: str, value: str) -> str:
+    """Set a scalar frontmatter field (create the block if there's none)."""
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
+    if m:
+        fm = m.group(1)
+        if re.search(rf"^{field}:", fm, re.MULTILINE):
+            new_fm = re.sub(rf"^{field}:.*$", f"{field}: {value}", fm, count=1, flags=re.MULTILINE)
+        else:
+            new_fm = fm + f"\n{field}: {value}"
+        return text[:m.start()] + f"---\n{new_fm}\n---\n" + text[m.end():]
+    return f"---\n{field}: {value}\n---\n\n" + text
+
+
+def _apply_folder(vault, note: str, folder: str) -> bool:
+    """Move the note into `folder` (safe — Obsidian wikilinks resolve by name, not path)."""
+    import shutil
+    src = Path(vault) / note
+    if not src.exists():
+        remove_pending(note)
+        return False
+    if _skip(f"{folder}/x"):                       # never file into system dirs
+        return False
+    try:
+        dst_dir = Path(vault) / folder
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        dst = dst_dir / src.name
+        if dst.exists() or dst.resolve() == src.resolve():
+            return False
+        shutil.move(str(src), str(dst))
+        return True
+    except Exception as exc:
+        logger.info(f"[Organize] folder move failed: {exc}")
+        return False
+
+
+def _apply_project(vault, note: str, project: str) -> bool:
+    p = Path(vault) / note
+    if not p.exists():
+        remove_pending(note)
+        return False
+    p.write_text(_merge_fm_field(p.read_text(encoding="utf-8"), "project", project), encoding="utf-8")
+    return True
+
+
 def apply_one(vault, note: str, kind: str, value: str) -> bool:
-    """Apply a single suggested tag or related link, record positive feedback, and remove
-    just that item from pending (dropping the note when nothing's left)."""
+    """Apply a single suggested item (tag/link/folder/project), record positive feedback, and
+    remove just that item from pending (dropping the note when nothing's left)."""
     if kind == "tag":
         ok = _apply_tag(vault, note, value)
     elif kind == "link":
         ok = _apply_link(vault, note, value)
+    elif kind == "folder":
+        ok = _apply_folder(vault, note, value)
+    elif kind == "project":
+        ok = _apply_project(vault, note, value)
     else:
         return False
     if ok:
-        feedback.record(kind, value, True, scope=(note if kind == "link" else ""))
-        _update_pending_item(note, kind, value)
+        feedback.record(kind, value, True, scope=(note if kind != "tag" else ""))
+        if kind == "folder":
+            remove_pending(note)          # the file moved → its whole pending entry is stale
+        else:
+            _update_pending_item(note, kind, value)
         logger.info(f"[Organize] applied {kind} '{value}' to {note}")
     return ok
 
 
 def reject_one(note: str, kind: str, value: str) -> bool:
-    """Dismiss a single suggested tag/link — record a reject (learning) and drop it from pending."""
-    if kind not in ("tag", "link"):
+    """Dismiss a single suggested item — record a reject (learning) and drop it from pending."""
+    if kind not in ("tag", "link", "folder", "project"):
         return False
-    feedback.record(kind, value, False, scope=(note if kind == "link" else ""))
+    feedback.record(kind, value, False, scope=(note if kind != "tag" else ""))
     return _update_pending_item(note, kind, value)
 
 

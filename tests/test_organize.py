@@ -188,6 +188,27 @@ class PerItemTests(unittest.TestCase):
         c = feedback.counts("tag", "faith")
         self.assertEqual(c["reject"], 1)
 
+    def test_apply_folder_moves_note(self):        # M38 auto-filing
+        organize._save_pending([{"note": "Note.md", "tags": [], "related": [],
+                                 "folder": "Projects", "project": ""}])
+        ok = organize.apply_one(self.tmp, "Note.md", "folder", "Projects")
+        self.assertTrue(ok)
+        self.assertTrue((Path(self.tmp) / "Projects" / "Note.md").exists())
+        self.assertFalse((Path(self.tmp) / "Note.md").exists())
+        self.assertEqual(organize.load_pending(), [])          # moved → entry dropped
+
+    def test_apply_folder_rejects_system_dir(self):
+        organize._save_pending([{"note": "Note.md", "tags": [], "related": [], "folder": "AI/System", "project": ""}])
+        self.assertFalse(organize.apply_one(self.tmp, "Note.md", "folder", "AI/System"))
+        self.assertTrue((Path(self.tmp) / "Note.md").exists())  # not moved
+
+    def test_apply_project_sets_frontmatter(self):  # M38 project association
+        organize._save_pending([{"note": "Note.md", "tags": [], "related": [], "folder": "", "project": "Homestead"}])
+        ok = organize.apply_one(self.tmp, "Note.md", "project", "Homestead")
+        self.assertTrue(ok)
+        self.assertIn("project: Homestead", (Path(self.tmp) / "Note.md").read_text(encoding="utf-8"))
+        self.assertEqual(organize.load_pending(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

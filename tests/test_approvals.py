@@ -87,6 +87,18 @@ class ApprovalsTests(unittest.TestCase):
         approvals.reject_approval(self.tmp, f"goal:{g['slug']}")
         self.assertEqual(goals_store.get_goal(g["slug"])["status"], "cancelled")
 
+    def test_folder_and_project_items_surface_and_apply(self):   # M38 carried-forward
+        from pathlib import Path
+        organize._save_pending([{"note": "Note.md", "tags": [], "related": [],
+                                 "folder": "Projects", "project": "Homestead"}])
+        org = next(a for a in approvals.list_approvals(self.tmp) if a["kind"] == "organize")
+        kinds = {i["itemkind"] for i in org["items"]}
+        self.assertEqual(kinds, {"folder", "project"})
+        r = approvals.apply_approval(self.tmp, "organize:Note.md",
+                                     {"itemkind": "project", "value": "Homestead", "label": "…"})
+        self.assertTrue(r["applied"])
+        self.assertIn("project: Homestead", (Path(self.tmp) / "Note.md").read_text(encoding="utf-8"))
+
     def test_whole_organize_apply(self):
         r = approvals.apply_approval(self.tmp, "organize:Note.md")
         self.assertTrue(r["applied"])

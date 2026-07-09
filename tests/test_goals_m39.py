@@ -57,6 +57,17 @@ class AutonomyTests(unittest.TestCase):
         g = store.create_goal("one-off", ["step"])
         self.assertFalse(store.rearm_recurring(g))
 
+    def test_next_pending_respects_deps(self):     # M39 carried-forward: subtask DAG
+        g = store.create_goal("g", [{"task": "a"}, {"task": "b", "deps": [0]}])
+        self.assertEqual(store.next_pending(g)["task"], "a")   # b waits on a
+        g["subtasks"][0]["status"] = "done"
+        self.assertEqual(store.next_pending(g)["task"], "b")   # a done → b runnable
+
+    def test_failed_dep_blocks_subtask(self):
+        g = store.create_goal("g", [{"task": "a"}, {"task": "b", "deps": [0]}])
+        g["subtasks"][0]["status"] = "failed"
+        self.assertIsNone(store.next_pending(g))              # b can never run
+
     def test_worker_recurring_loops_not_done(self):
         governor._reset_for_tests()
         g = store.create_goal("daily digest", ["only step"], recurring="daily")
