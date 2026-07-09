@@ -1,9 +1,9 @@
 # Deployment & Test Guide
 
-*Zero-Cost AI Operating System for Obsidian (plugin "Loremaster") — v1.6 (Milestones 1–40). Last updated: 2026-07-09.*
+*Zero-Cost AI Operating System for Obsidian (plugin "Loremaster") — v1.9 (Milestones 1–40). Last updated: 2026-07-09.*
 
 > **Updating a running box to a new release.** SSH in, then:
-> `cd ~/AI-Assistant && git fetch origin && git reset --hard <tag>` (e.g. `v1.6.0`), then restart **without
+> `cd ~/AI-Assistant && git fetch origin && git reset --hard <tag>` (e.g. `v1.9.0`), then restart **without
 > sudo** via the in-app endpoint: `curl -s -X POST -H "X-API-Key: <token>" http://<box>:8765/restart`
 > (there's no passwordless sudo on the box — use `/restart`, not `systemctl`). Plugin updates go through
 > **BRAT** (`DocGRD/AI-Assistant`); keep the plugin and the service on the same release. Never force-push a

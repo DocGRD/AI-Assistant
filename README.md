@@ -5,7 +5,7 @@ vault, keeps its memory as Markdown, and routes every request across **free-tier
 only. It runs headless in the background; you interact through the Obsidian sidebar plugin or by
 tagging a note for the vault watcher. The terminal exists only for debugging.
 
-> **Status: v1.6 (plugin "Loremaster") — Milestones 1–40 complete, 450+ automated tests green.** Proven
+> **Status: v1.9 (plugin "Loremaster") — Milestones 1–40 complete, 476 automated tests green.** Proven
 > end-to-end: a headless Linux service (systemd, **GPU-accelerated** local embeddings) that the Obsidian
 > sidebar plugin drives over the LAN with a token, running on a real ~2,300-note vault. Foundations (M1–M29):
 > **propose/commit editing** (M9); registry-driven **privacy/task-aware providers** with a health floor (M10);
@@ -20,7 +20,12 @@ tagging a note for the vault watcher. The terminal exists only for debugging.
 > **unified Approvals inbox** + connective-tissue linking + feedback learning (M36); **trust on every write**
 > + contradiction detection (M37); **vault analytics / MOC / action-items** (M38–M39); **capture** — web +
 > **YouTube** clipper, **Templater** typed-note fill (M40); and **immersive inline editing** + Approvals/Goals
-> **badge-buttons → modal windows** (v1.6). Full specs in [`Docs/Project-State.md`](Docs/Project-State.md);
+> **badge-buttons** (v1.6). **v1.7–v1.9 added:** a **self-updating, queryable AI/Help knowledge base** and
+> **offline read-aloud** (speed + voice + follow-along) with a **non-blocking dockable Approvals/Goals panel**
+> (v1.7); **editable/iterable goal plans** + a Loremaster **editor right-click menu** + `vault:reindex` (v1.8);
+> **HTML-collection ingest** (`.zip`/folder of interlinked `.htm` → notes with links rewritten to wikilinks),
+> **`vault:logs`** self-diagnosis, and a **self-seeding, complete system prompt** so the model knows every
+> command (v1.9). Full specs in [`Docs/Project-State.md`](Docs/Project-State.md);
 > the user guide is [`Docs/User-Guide.md`](Docs/User-Guide.md); install in [`Docs/DEPLOYMENT.md`](Docs/DEPLOYMENT.md).
 
 ---

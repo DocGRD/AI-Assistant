@@ -1,7 +1,14 @@
 <!-- help-version: 19 -->
 # Loremaster — User Guide
 
-*Current through **v1.6** (Milestones 1–40). Last updated: 2026-07-09.*
+*Current through **v1.9** (Milestones 1–40 + the v1.7–v1.9 UI/knowledge layer). Last updated: 2026-07-09.*
+
+> **New since v1.6:** a self-updating, queryable **AI/Help** knowledge base and offline **read-aloud**
+> (speed + voice + follow-along) with a non-blocking **dockable Approvals/Goals panel** (v1.7); **editable
+> goal plans** (Re-plan / edit-before-approve), a Loremaster **editor right-click menu**, and `vault:reindex`
+> (v1.8); **HTML-collection ingest** (`vault:ingest` a `.zip`/folder of interlinked `.htm` → notes with links
+> rewritten to wikilinks), **`vault:logs`** self-diagnosis, and a self-seeding **complete system prompt** so
+> the assistant knows every command (v1.9).
 
 Loremaster is a **zero-cost, local-first AI operating system for Obsidian**: a Python service on your machine
 (or a home server) plus an Obsidian plugin. It chats, answers questions grounded in *your* vault, edits notes
