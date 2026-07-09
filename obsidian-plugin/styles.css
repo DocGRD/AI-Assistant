@@ -839,6 +839,16 @@
   background: var(--background-primary-alt); max-height: 260px; overflow-y: auto;
 }
 .ai-assistant-compose-btns { display: flex; gap: 8px; margin-top: 10px; }
+
+/* v1.7 — Approvals & Goals side panel (non-blocking, dockable view) */
+.ai-assistant-approvals-view { padding: 8px; overflow-y: auto; }
+.ai-assistant-appr-tabs { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.ai-assistant-appr-tabs button {
+  font-size: 12px; padding: 3px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--background-modifier-border); background: var(--background-secondary);
+}
+.ai-assistant-appr-tabs button.is-active { background: var(--interactive-accent); color: var(--text-on-accent); }
+.ai-assistant-appr-refresh { margin-left: auto; }
 .ai-assistant-memory-title {
   font-size: 12px;
   font-weight: 600;

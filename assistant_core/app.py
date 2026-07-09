@@ -212,6 +212,7 @@ def main() -> None:
         memory.seed_webui_prompt() # Seed WebUI-Prompt.md if it doesn't exist
         memory.seed_prompts()      # M13 — seed AI/Prompts/ examples if empty
         memory.seed_scripts()      # M15 — seed AI/Scripts/ README (propose/commit)
+        memory.seed_help()         # v1.7 — self-updating, indexed AI/Help knowledge base
         memory.open_episode()
 
     # ── M11 Vault QA (RAG) — one shared index. Only the enabled machine indexes. ──

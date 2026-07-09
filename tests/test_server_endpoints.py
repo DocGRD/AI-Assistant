@@ -433,6 +433,20 @@ class ClipEndpointTests(unittest.TestCase):
 class ContradictionsEndpointTests(unittest.TestCase):
     """M37 — vault:contradictions runs the deterministic detector via /chat (provider=system)."""
 
+    def test_vault_sync_help(self):     # v1.7 — refresh + report
+        import tempfile, threading
+        from pathlib import Path
+        from fastapi.testclient import TestClient
+        with tempfile.TemporaryDirectory() as d:
+            server = AssistantServer(
+                router=_Router(), memory=None, registry=_FakeReg(), history=[],
+                history_lock=threading.Lock(),
+                config={"host": "127.0.0.1", "vault_path": d}, system_prompt="S")
+            r = TestClient(server._app).post("/chat", json={"message": "vault:sync-help"}).json()
+            self.assertEqual(r["provider_used"], "system")
+            self.assertIn("AI/Help refreshed", r["reply"])
+            self.assertTrue((Path(d) / "AI" / "Help" / "How-To-Use.md").exists())
+
     def test_vault_contradictions_reports(self):
         import tempfile, threading
         from pathlib import Path

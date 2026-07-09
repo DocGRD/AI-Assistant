@@ -1,5 +1,5 @@
 import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor } from "obsidian";
-import { ChatView, CHAT_VIEW_TYPE, ComposeModal } from "./ChatView";
+import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -27,8 +27,9 @@ export default class AIAssistantPlugin extends Plugin {
     async onload(): Promise<void> {
         await this.loadSettings();
 
-        // Register the sidebar chat view
+        // Register the sidebar chat view + the Approvals/Goals side panel (v1.7 — non-blocking)
         this.registerView(CHAT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ChatView(leaf, this));
+        this.registerView(APPROVALS_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ApprovalsView(leaf, this));
 
         // Ribbon button — opens the chat sidebar
         this.addRibbonIcon("bot", "Open Loremaster", () => {
@@ -103,6 +104,21 @@ export default class AIAssistantPlugin extends Plugin {
 
     async onunload(): Promise<void> {
         this.app.workspace.detachLeavesOfType(CHAT_VIEW_TYPE);
+        this.app.workspace.detachLeavesOfType(APPROVALS_VIEW_TYPE);
+    }
+
+    // v1.7 — open/reveal the Approvals & Goals side panel (non-blocking, dockable) on a tab.
+    async openApprovals(tab: "approvals" | "goals"): Promise<void> {
+        const { workspace } = this.app;
+        let leaf = workspace.getLeavesOfType(APPROVALS_VIEW_TYPE)[0];
+        if (!leaf) {
+            const right = workspace.getRightLeaf(false);
+            if (!right) return;
+            leaf = right;
+            await leaf.setViewState({ type: APPROVALS_VIEW_TYPE, active: true });
+        }
+        workspace.revealLeaf(leaf);
+        (leaf.view as ApprovalsView).setTab(tab);
     }
 
     // ------------------------------------------------------------------

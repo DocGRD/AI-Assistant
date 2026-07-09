@@ -814,6 +814,26 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # v1.7 — refresh the indexed AI/Help knowledge base on demand + reindex.
+            if _first == "vault:sync-help":
+                from assistant_core.memory.memory_manager import MemoryManager, HELP_VERSION
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                vault = self._config.get("vault_path")
+                written = MemoryManager(vault).seed_help(force=True) if vault else []
+                n_idx = 0
+                if self._rag and written:
+                    for rel in written:
+                        try:
+                            self._rag.maybe_index_note(rel, (Path(vault) / rel).read_text(encoding="utf-8"))
+                            n_idx += 1
+                        except Exception:
+                            pass
+                reply = (f"AI/Help refreshed to v{HELP_VERSION} — {len(written)} note(s) written"
+                         + (f", {n_idx} reindexed." if n_idx else ".")
+                         + " Ask 'how do I …?' to query it.")
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # M34 — proactive agents, on demand (they also run on a schedule).
             if _first == "vault:briefing":
                 from assistant_core.proactive.briefing import write_briefing

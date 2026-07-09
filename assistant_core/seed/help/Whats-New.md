@@ -1,0 +1,55 @@
+<!-- help-version: 17 -->
+---
+tags: [help, user-guide, whats-new]
+---
+# What's New in Loremaster
+
+*A capability overview so you can learn everything Loremaster can do. Current through **v1.7**.*
+
+## Read-aloud (v1.7)
+- **Read a note aloud** (editor command) — reads the selection if you've highlighted text, else the whole
+  note. A **floating control bar** gives Play/Pause/Stop, previous/next sentence, **speed presets**
+  (0.75× / 1× / 1.25× / 1.5× / 2×), and a **voice picker** (whatever voices your OS has).
+- The sentence being spoken is **highlighted and scrolled into view** as it reads.
+- Every chat reply from Loremaster has a **🔊 button** to hear it read aloud (highlighted in the bubble).
+- Fully **offline / on-device / private** — audio never leaves your machine.
+
+## Self-updating help (v1.7)
+- These `AI/Help/` notes now **refresh automatically** with each release, and are **indexed** — so asking
+  "how do I …?" always reflects the current version. `vault:sync-help` refreshes them on demand.
+
+## Approvals & Goals side panel (v1.7)
+- The **📥 Approvals** and **🎯 Goals** badge-buttons open a **dockable side panel** (not a pop-over), so
+  clicking **Open note** shows the note beside the panel instead of covering it.
+
+## Immersive inline editing (v1.6)
+- **Continue writing / Rewrite selection / Compose with Loremaster…** — a popup previews the AI's text; you
+  **Accept / Regenerate / Cancel**. Private routing (your note text never goes to the web).
+
+## Trust — nothing untrue enters the vault (M30–M37)
+- Fake `[[links]]` are stripped; **math** is computed deterministically; unsourced answers are escalated /
+  web-cited / flagged ⚠. Every **created/edited** note has its factual claims checked (`write_guard`).
+- `vault:contradictions` flags notes that disagree on a number/date or via negation.
+
+## Proactive layer (M34) + the Approvals inbox (M36)
+- Background, governor-paced: a **Daily Briefing**, and **auto-organize** proposing tags, related links, a
+  better **folder**, and a **project** — all collected in the **Approvals inbox** with per-item apply/dismiss
+  and **feedback learning**. Memory "dreaming" proposes durable facts too.
+
+## Autonomous goals (M35, M39)
+- `vault:goal` plans a multi-step goal you approve; it runs one step per tick in the background. **Templates**
+  (research / digest / study), **recurring** goals, per-goal **budget caps**, and subtask **dependencies**.
+
+## Vault intelligence (M38)
+- `vault:analytics` (orphans, stale, unsourced, hubs, near-duplicate tags), `vault:moc <topic>`,
+  `vault:actions <note>`.
+
+## Capture (M40)
+- `vault:clip <url>` saves web pages **and YouTube transcripts**; `vault:template` fills Templater templates.
+
+## Foundations (M1–M29)
+- Grounded chat + **Vault QA** with hybrid retrieval; propose/commit **editing** + **restructuring**;
+  knowledge **graph**; **web research**; document **ingestion**; **OCR**; **Scripture** intelligence;
+  **provenance** audit; **spaced-repetition** study; zero-cost privacy/task-aware provider routing.
+
+See [[Commands]] for exact syntax and [[Features]] for task walkthroughs.

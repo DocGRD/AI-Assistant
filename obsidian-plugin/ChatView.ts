@@ -430,9 +430,9 @@ export class ChatView extends ItemView {
         this.toolbarEl = container.createDiv("ai-assistant-toolbar");
         this.toolbarEl.style.display = "none";
         this.approvalsBtn = this.toolbarEl.createEl("button", { cls: "ai-assistant-toolbtn" });
-        this.approvalsBtn.addEventListener("click", () => new ApprovalsModal(this.app, this).open());
+        this.approvalsBtn.addEventListener("click", () => void this.plugin.openApprovals("approvals"));
         this.goalsBtn = this.toolbarEl.createEl("button", { cls: "ai-assistant-toolbtn" });
-        this.goalsBtn.addEventListener("click", () => new GoalsModal(this.app, this).open());
+        this.goalsBtn.addEventListener("click", () => void this.plugin.openApprovals("goals"));
         this.briefingBtn = this.toolbarEl.createEl("button", { text: "🗞️ Briefing", cls: "ai-assistant-toolbtn" });
         this.briefingBtn.addEventListener("click", () => {
             const date = new Date().toISOString().slice(0, 10);
@@ -1999,20 +1999,46 @@ export class ChatView extends ItemView {
 }
 
 // ---------------------------------------------------------------------------
-// v1.6 — Approvals / Goals modal windows (opened from the sidebar badge buttons)
+// v1.7 — Approvals / Goals as a NON-BLOCKING dockable side panel (workspace leaf),
+// so "Open note" shows the note in the main pane while this panel stays docked.
+// (Replaces the v1.6 centered modals that covered the editor.)
 // ---------------------------------------------------------------------------
-export class ApprovalsModal extends Modal {
-    constructor(app: App, private view: ChatView) { super(app); }
-    onOpen(): void { this.titleEl.setText("📥 Approvals"); this.render(); }
-    private render(): void { void this.view.renderApprovalsInto(this.contentEl, () => this.render()); }
-    onClose(): void { this.contentEl.empty(); }
-}
+export const APPROVALS_VIEW_TYPE = "loremaster-approvals";
 
-export class GoalsModal extends Modal {
-    constructor(app: App, private view: ChatView) { super(app); }
-    onOpen(): void { this.titleEl.setText("🎯 Goals"); this.render(); }
-    private render(): void { void this.view.renderGoalsInto(this.contentEl, () => this.render()); }
-    onClose(): void { this.contentEl.empty(); }
+export class ApprovalsView extends ItemView {
+    private plugin: AIAssistantPlugin;
+    private tab: "approvals" | "goals" = "approvals";
+
+    constructor(leaf: WorkspaceLeaf, plugin: AIAssistantPlugin) { super(leaf); this.plugin = plugin; }
+    getViewType(): string { return APPROVALS_VIEW_TYPE; }
+    getDisplayText(): string { return "Loremaster — Approvals & Goals"; }
+    getIcon(): string { return "inbox"; }
+
+    async onOpen(): Promise<void> { this.render(); }
+    async onClose(): Promise<void> { this.contentEl.empty(); }
+
+    setTab(tab: "approvals" | "goals"): void { this.tab = tab; this.render(); }
+
+    render(): void {
+        const c = this.contentEl;
+        c.empty();
+        c.addClass("ai-assistant-approvals-view");
+        const tabs = c.createDiv("ai-assistant-appr-tabs");
+        const mk = (id: "approvals" | "goals", label: string) => {
+            const b = tabs.createEl("button", { text: label, cls: this.tab === id ? "is-active" : "" });
+            b.addEventListener("click", () => this.setTab(id));
+        };
+        mk("approvals", "📥 Approvals");
+        mk("goals", "🎯 Goals");
+        const refresh = tabs.createEl("button", { text: "↻", cls: "ai-assistant-appr-refresh", attr: { "aria-label": "Refresh" } });
+        refresh.addEventListener("click", () => this.render());
+
+        const body = c.createDiv("ai-assistant-appr-body");
+        const view = this.plugin.getChatView();
+        if (!view) { body.setText("Open the Loremaster chat first."); return; }
+        if (this.tab === "approvals") void view.renderApprovalsInto(body, () => this.render());
+        else void view.renderGoalsInto(body, () => this.render());
+    }
 }
 
 // ---------------------------------------------------------------------------

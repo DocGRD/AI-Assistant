@@ -12,8 +12,14 @@ Changes:
 """
 
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
+
+# v1.7 — packaged AI/Help knowledge base. Bump when the seed/help/*.md content changes so
+# seed_help() refreshes the vault copies (which carry a matching `<!-- help-version: N -->`).
+HELP_VERSION = 17
+_HELP_STAMP = re.compile(r"help-version:\s*(\d+)")
 
 logger = logging.getLogger("assistant")
 
@@ -352,6 +358,33 @@ Practical and direct. This user is technically capable and values precision.
             logger.info("[Memory] Seeded AI/Prompts/ examples")
         except Exception as exc:
             logger.warning(f"[Memory] Could not seed prompts: {exc}")
+
+    def seed_help(self, force: bool = False) -> list[str]:
+        """Write/refresh the indexed AI/Help/ knowledge base from the packaged canonical set
+        (assistant_core/seed/help/). A file is (re)written when it's missing or its
+        `help-version` marker is older than HELP_VERSION (or `force`) — so Help auto-updates on
+        deploy but never clobbers a note unless the packaged version advanced. Returns rel paths."""
+        src = Path(__file__).resolve().parents[1] / "seed" / "help"
+        if not src.is_dir():
+            return []
+        dest_dir = self._vault / "AI" / "Help"
+        written: list[str] = []
+        try:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            for f in sorted(src.glob("*.md")):
+                dest = dest_dir / f.name
+                cur = -1
+                if dest.exists():
+                    m = _HELP_STAMP.search(dest.read_text(encoding="utf-8"))
+                    cur = int(m.group(1)) if m else 0
+                if force or cur < HELP_VERSION:
+                    dest.write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+                    written.append(f"AI/Help/{f.name}")
+            if written:
+                logger.info(f"[Memory] Seeded/updated {len(written)} AI/Help note(s) → v{HELP_VERSION}")
+        except Exception as exc:
+            logger.warning(f"[Memory] Could not seed help: {exc}")
+        return written
 
     def seed_scripts(self) -> None:
         """Create AI/Scripts/ (+ proposed/) with a README explaining the propose/commit flow."""
