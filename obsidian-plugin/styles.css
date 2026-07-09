@@ -849,6 +849,32 @@
 }
 .ai-assistant-appr-tabs button.is-active { background: var(--interactive-accent); color: var(--text-on-accent); }
 .ai-assistant-appr-refresh { margin-left: auto; }
+
+/* v1.7 — read-aloud floating control bar + follow-along highlight */
+.ai-assistant-reader-bar {
+  position: fixed; bottom: 16px; right: 16px; z-index: 1000;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 10px;
+  background: var(--background-secondary); color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.28);
+}
+.ai-assistant-reader-bar button {
+  cursor: pointer; padding: 2px 7px; border-radius: 6px;
+  border: 1px solid var(--background-modifier-border); background: var(--background-primary);
+}
+.ai-assistant-reader-bar button:hover { background: var(--background-modifier-hover); }
+.ai-assistant-reader-icon { font-size: 14px; }
+.ai-assistant-reader-speed, .ai-assistant-reader-voice { font-size: 12px; max-width: 130px; }
+.ai-assistant-reading { outline: 2px solid var(--interactive-accent); border-radius: 6px; }
+
+/* v1.7 — 🔊 read-aloud button on assistant chat messages */
+.ai-assistant-label-row { display: flex; align-items: center; gap: 6px; }
+.ai-assistant-speak-btn {
+  margin-left: auto; padding: 0 6px; line-height: 18px; cursor: pointer;
+  background: transparent; border: none; opacity: 0.6;
+}
+.ai-assistant-speak-btn:hover { opacity: 1; }
 .ai-assistant-memory-title {
   font-size: 12px;
   font-weight: 600;

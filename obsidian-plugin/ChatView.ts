@@ -1100,13 +1100,17 @@ export class ChatView extends ItemView {
         const msgEl = this.messagesEl.createDiv(
             `ai-assistant-message ai-assistant-${role}${isHistory ? " ai-assistant-history" : ""}`
         );
-        msgEl.createEl("span", {
+        const labelRow = msgEl.createDiv("ai-assistant-label-row");
+        labelRow.createEl("span", {
             text: role === "user" ? "You" : "Assistant",
             cls:  "ai-assistant-label",
         });
         const bodyEl = msgEl.createDiv("ai-assistant-body");
 
         if (role === "assistant") {
+            // v1.7 — read this reply aloud (with a whole-bubble "now reading" highlight).
+            const speak = labelRow.createEl("button", { text: "🔊", cls: "ai-assistant-speak-btn", attr: { "aria-label": "Read aloud" } });
+            speak.addEventListener("click", () => this.plugin.reader.readText(content, msgEl));
             // Render markdown the way Obsidian shows it (headings, bold, lists, code).
             try {
                 await MarkdownRenderer.render(this.app, content, bodyEl, "", this);

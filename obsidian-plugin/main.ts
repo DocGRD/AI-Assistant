@@ -1,5 +1,6 @@
 import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor } from "obsidian";
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
+import { Reader, ReaderSettings } from "./reader";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -9,6 +10,7 @@ export interface AIAssistantSettings {
     port: number;
     apiToken: string;      // X-API-Key for LAN access (must match the service's api_token)
     handshakeDir: string;  // vault folder for vault-mode chat notes
+    reader: ReaderSettings; // v1.7 — read-aloud speed + voice
 }
 
 const DEFAULT_SETTINGS: AIAssistantSettings = {
@@ -16,6 +18,7 @@ const DEFAULT_SETTINGS: AIAssistantSettings = {
     port: 8765,
     apiToken: "",
     handshakeDir: "AI/Chat",
+    reader: { speed: 1, voiceName: "" },
 };
 
 // ---------------------------------------------------------------------------
@@ -23,9 +26,11 @@ const DEFAULT_SETTINGS: AIAssistantSettings = {
 // ---------------------------------------------------------------------------
 export default class AIAssistantPlugin extends Plugin {
     settings!: AIAssistantSettings;
+    reader!: Reader;   // v1.7 — read-aloud engine
 
     async onload(): Promise<void> {
         await this.loadSettings();
+        this.reader = new Reader(this.settings.reader, () => void this.saveSettings());
 
         // Register the sidebar chat view + the Approvals/Goals side panel (v1.7 — non-blocking)
         this.registerView(CHAT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ChatView(leaf, this));
@@ -78,6 +83,17 @@ export default class AIAssistantPlugin extends Plugin {
             id: "ai-compose",
             name: "Compose with Loremaster…",
             editorCallback: (editor: Editor) => new ComposeModal(this.app, this, editor, "compose").open(),
+        });
+        // v1.7 — read-aloud (offline TTS): selection if any, else the whole note.
+        this.addCommand({
+            id: "ai-read-aloud",
+            name: "Read note aloud",
+            editorCallback: (editor: Editor) => this.reader.readNote(editor),
+        });
+        this.addCommand({
+            id: "ai-read-stop",
+            name: "Stop reading",
+            callback: () => this.reader.stop(),
         });
         // M40 — fill a Templater/Templates template from context (propose-only).
         this.addCommand({
