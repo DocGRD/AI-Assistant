@@ -66,7 +66,7 @@ the **🎯 Goals** button.*
 | Command | What it does |
 |---|---|
 | `vault:clip <url>` | Save a web page's readable text — or a **YouTube** transcript — as a sourced, indexed note in `AI/Clippings/` (disabled in Private mode) |
-| `vault:template <name> [ — context]` | Fill a **Templater/Templates** template's fields from context → propose-only note |
+| `vault:template <name> [:: context]` | Fill a **Templater/Templates** template's fields from context → propose-only note |
 
 *Inline editing (editor commands, hotkeyable): **Continue writing**, **Rewrite selection**, **Compose with
 Loremaster…** open a popup that previews the result before it's inserted (private routing — your note text

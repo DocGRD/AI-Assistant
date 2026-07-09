@@ -83,7 +83,7 @@ export default class AIAssistantPlugin extends Plugin {
             id: "ai-fill-template",
             name: "Fill a template with Loremaster",
             callback: () => {
-                new TextPromptModal(this.app, "Fill a template", "Template name (optionally: name — context)", async (arg) => {
+                new TextPromptModal(this.app, "Fill a template", "Template name (optionally: name :: context)", async (arg) => {
                     await this.activateChatView();
                     this.getChatView()?.commandVault(`vault:template ${arg}`);
                 }).open();

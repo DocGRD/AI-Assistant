@@ -871,7 +871,7 @@ class AssistantServer:
                               "No Templater/Templates plugin detected. Usage: vault:template <name> [context]"
                     return HandoffResponse(status="ok", reply=f"Usage: vault:template <name> [context]\n{listing}",
                                            provider_used="system", actual_provider="system", timestamp=ts)
-                name, _, ctx = arg.partition(" — ")           # "Meeting — context after em-dash" (optional)
+                name, _, ctx = arg.partition("::")            # "Meeting :: optional context"
                 rep = templater.fill_template(vault, name.strip(), ctx.strip(), self._router,
                                               private=bool(req.private))
                 reply = (f"Filled template '{name.strip()}' → {rep['path']} "
