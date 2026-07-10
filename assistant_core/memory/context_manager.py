@@ -39,10 +39,15 @@ class ContextManager:
 
     def __init__(self, model_registry: ModelRegistry, router=None, config: dict | None = None):
         self._registry = model_registry
-        # M17 Slice 5 — optional summary-based compression of the oldest chat turns
-        # instead of dropping them. Needs a router; opt-in via context_summarization.
+        # M17 Slice 5 — summary-based compression of the oldest chat turns instead of dropping
+        # them. Enabled when the user opts in (context_summarization) OR when a local small model
+        # is reachable — summarising is a reductive, low-risk task ideal for a ~3B local model, and
+        # doing it locally is free/offline so we can afford to always compress rather than drop.
         self._router = router
-        self._summarize_enabled = bool((config or {}).get("context_summarization", False))
+        self._config = config or {}
+        from assistant_core import local_llm
+        self._summarize_enabled = (bool(self._config.get("context_summarization", False))
+                                   or local_llm.available(self._config))
 
     def trim(
         self,
@@ -273,8 +278,19 @@ class ContextManager:
         return result
 
     def _summarize(self, span: list[Message], private: bool) -> str:
-        """One short LLM call condensing a span of messages. Privacy carries over."""
+        """One short LLM call condensing a span of messages. Privacy carries over.
+        Prefers the local small model (free/offline/private — ideal for this reductive task);
+        only falls back to a cloud model via the router if the user opted into that."""
         convo = "\n".join(f"{m.role}: {m.content}" for m in span)
+        from assistant_core import local_llm
+        if local_llm.available(self._config):
+            out = local_llm.summarize(convo, self._config)
+            if out:
+                return out
+        # No local model — use the cloud router only if the user explicitly enabled it,
+        # otherwise return "" so the caller just trims (drops) the old turns instead.
+        if not self._config.get("context_summarization", False) or self._router is None:
+            return ""
         sys = ("Summarise the earlier conversation below into a few sentences that capture "
                "the decisions made, facts established, and any open threads. Be concise and "
                "factual — this replaces the raw turns in the assistant's working memory.")
