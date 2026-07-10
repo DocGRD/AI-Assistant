@@ -42,7 +42,11 @@ function speechText(md: string): string {
 }
 
 export class Reader {
-    private synth = window.speechSynthesis;
+    // Web Speech may be absent (e.g. Obsidian's Android WebView). Keep this optional and guard
+    // every use so a missing API can never throw during plugin load. (Bug: eager getVoices() in
+    // the constructor crashed onload on Android, so the whole plugin failed to load.)
+    private synth: SpeechSynthesis | undefined =
+        (typeof window !== "undefined" && "speechSynthesis" in window) ? window.speechSynthesis : undefined;
     private ranges: { start: number; end: number }[] = [];
     private full = "";
     private idx = 0;
@@ -53,13 +57,20 @@ export class Reader {
     private voices: SpeechSynthesisVoice[] = [];
 
     constructor(private settings: ReaderSettings, private save: () => void) {
-        const load = () => { this.voices = this.synth.getVoices(); };
-        load();
+        if (!this.synth) return;   // no speech synthesis on this device — read-aloud is a no-op
+        const load = () => { this.voices = this.synth?.getVoices() ?? []; };
+        try { load(); } catch { /* getVoices can throw on some WebViews */ }
         this.synth.addEventListener?.("voiceschanged", load);
+    }
+
+    /** True when the device supports speech synthesis (false on some mobile WebViews). */
+    get available(): boolean {
+        return !!this.synth && typeof SpeechSynthesisUtterance !== "undefined";
     }
 
     // --- public entry points --------------------------------------------------
     readNote(editor: Editor): void {
+        if (!this.available) { new Notice("Read-aloud isn't available on this device."); return; }
         const sel = editor.getSelection();
         const text = sel && sel.trim() ? sel : editor.getValue();
         if (!text.trim()) { new Notice("Nothing to read."); return; }
@@ -70,13 +81,14 @@ export class Reader {
 
     readText(text: string, el?: HTMLElement): void {
         if (!text.trim()) return;
+        if (!this.available) { new Notice("Read-aloud isn't available on this device."); return; }
         this.editor = null; this.el = el ?? null;
         this.el?.addClass("ai-assistant-reading");
         this._start(text, 0);
     }
 
     stop(): void {
-        this.synth.cancel();
+        this.synth?.cancel();
         this.idx = this.ranges.length;
         this._clearHighlight();
         this.bar?.remove(); this.bar = null;
@@ -84,7 +96,7 @@ export class Reader {
 
     // --- engine ---------------------------------------------------------------
     private _start(text: string, editorBase: number): void {
-        this.synth.cancel();
+        this.synth?.cancel();
         this.full = text;
         this.ranges = sentenceRanges(text);
         this.idx = 0;
@@ -105,11 +117,11 @@ export class Reader {
         if (v) u.voice = v;
         u.onstart = () => this._highlight(r);
         u.onend = () => { if (this.idx < this.ranges.length) { this.idx++; this._speakCurrent(); } };
-        this.synth.speak(u);
+        this.synth?.speak(u);
     }
 
     private _restartFromCurrent(): void {
-        this.synth.cancel();
+        this.synth?.cancel();
         this._speakCurrent();
     }
 
@@ -142,8 +154,8 @@ export class Reader {
         bar.createEl("span", { text: "🔊", cls: "ai-assistant-reader-icon" });
         mkBtn("⏮", "Previous sentence", () => { this.idx = Math.max(0, this.idx - 1); this._restartFromCurrent(); });
         const playPause = mkBtn("⏸", "Pause / resume", () => {
-            if (this.synth.paused) { this.synth.resume(); playPause.setText("⏸"); }
-            else if (this.synth.speaking) { this.synth.pause(); playPause.setText("▶"); }
+            if (this.synth?.paused) { this.synth.resume(); playPause.setText("⏸"); }
+            else if (this.synth?.speaking) { this.synth.pause(); playPause.setText("▶"); }
             else { this._speakCurrent(); playPause.setText("⏸"); }
         });
         mkBtn("⏭", "Next sentence", () => { this.idx = Math.min(this.ranges.length - 1, this.idx + 1); this._restartFromCurrent(); });
