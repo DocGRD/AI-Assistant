@@ -43,13 +43,29 @@ def _find_exe(name: str) -> str | None:
     return None
 
 
+def _resolve_model(cfg: dict) -> str:
+    """The Piper voice model path: the `tts_piper_model` config if valid, else auto-discovered —
+    the first `*.onnx` under `<repo>/models/piper/`. Auto-discovery means dropping a voice model in
+    that folder is enough (no config plumbing, and it survives `git reset`)."""
+    m = cfg.get("tts_piper_model", "")
+    if m and Path(m).is_file():
+        return m
+    try:
+        from assistant_core.paths import REPO_ROOT
+        for f in sorted((REPO_ROOT / "models" / "piper").glob("*.onnx")):
+            return str(f)
+    except Exception:
+        pass
+    return ""
+
+
 def available_engine(config: dict | None = None) -> str | None:
     """Which engine would be used ('piper' / 'espeak'), or None if TTS can't run here."""
     cfg = config or {}
     engine = (cfg.get("tts_engine") or "auto").lower()
     if engine == "off":
         return None
-    model = cfg.get("tts_piper_model", "")
+    model = _resolve_model(cfg)
     if engine in ("auto", "piper") and _find_exe("piper") and model and Path(model).is_file():
         return "piper"
     if engine in ("auto", "espeak") and (_find_exe("espeak-ng") or _find_exe("espeak")):
@@ -103,7 +119,7 @@ def synthesize(text: str, config: dict | None = None) -> tuple[bytes, str] | Non
     text = text[:int(cfg.get("tts_max_chars", MAX_CHARS))]
 
     if engine in ("auto", "piper"):
-        wav = _piper(text, cfg.get("tts_piper_model", ""))
+        wav = _piper(text, _resolve_model(cfg))
         if wav:
             return wav, "piper"
         if engine == "piper":
