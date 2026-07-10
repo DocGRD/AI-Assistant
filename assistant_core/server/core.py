@@ -1619,7 +1619,7 @@ class AssistantServer:
         @app.get("/tts/available")
         async def tts_available():
             from assistant_core import tts
-            return {"engine": tts.available_engine(self._config.all() if self._config else {})}
+            return {"engine": tts.available_engine(self._config or {})}
 
         @app.post("/tts")
         async def tts_synth(payload: dict):
@@ -1627,7 +1627,7 @@ class AssistantServer:
             text = (payload or {}).get("text", "")
             if not text.strip():
                 raise HTTPException(status_code=400, detail="text is required")
-            result = tts.synthesize(text, self._config.all() if self._config else {})
+            result = tts.synthesize(text, self._config or {})
             if not result:
                 raise HTTPException(
                     status_code=503,
