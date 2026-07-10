@@ -799,6 +799,7 @@ export class ChatView extends ItemView {
             };
         }
 
+        const startedAt = Date.now();
         try {
             const resp = await fetch(`http://${host}:${port}/chat`, {
                 method:  "POST",
@@ -871,16 +872,76 @@ export class ChatView extends ItemView {
             this.statusEl.setText(`✓ ${provider.toUpperCase()} — ${data.timestamp}`);
 
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("timeout")) {
+            const info = this.describeChatError(err, Date.now() - startedAt);
+            if (info.fallback) {
+                // Service genuinely unreachable → tell the user why, then fall back to vault-file mode.
                 this.setConnectMode("vault");
                 this.serviceOnline = false;
                 await this.loadStatus();
+                await this.appendErrorMessage(info.title, info.detail, info.hint);
                 await this.sendViaVault(text);
             } else {
-                await this.appendErrorMessage(`Error: ${msg}`);
+                await this.appendErrorMessage(info.title, info.detail, info.hint);
+                this.statusEl.setText("⚠ Last request failed — see the message above.");
+                this.statusEl.className = "ai-assistant-status ai-assistant-status-offline";
             }
         }
+    }
+
+    /**
+     * Turn a thrown /chat error into a helpful title + detail + hint, and whether it warrants
+     * falling back to vault-file mode. The old code showed a bare "Error: …" (and a 60s client
+     * timeout wasn't even recognised — its DOMException message is "signal timed out" / "The
+     * operation was aborted", which matched nothing), so users saw a long wait then just "Error".
+     */
+    private describeChatError(err: unknown, elapsedMs: number):
+            { title: string; detail: string; hint: string; fallback: boolean } {
+        const { host, port } = this.plugin.settings;
+        const secs = Math.max(1, Math.round(elapsedMs / 1000));
+        const name = (err as { name?: string })?.name ?? "";
+        const msg  = err instanceof Error ? err.message : String(err ?? "");
+        const low  = msg.toLowerCase();
+
+        // Client-side timeout (AbortSignal.timeout → TimeoutError/AbortError; message varies by runtime).
+        if (name === "TimeoutError" || name === "AbortError"
+                || low.includes("timed out") || low.includes("timeout") || low.includes("aborted")) {
+            return {
+                title:  `No response after ${secs}s — the request timed out.`,
+                detail: "The service is reachable but didn't finish in time. A provider may be slow, "
+                      + "rate-limited or stalled, or a long task (web research, a large edit, or a "
+                      + "vault reindex) is still running in the background.",
+                hint:   "Try again, switch the provider in the header, or run `vault:logs errors` to see what happened.",
+                fallback: false,
+            };
+        }
+        // Service unreachable (connection refused / DNS / network).
+        if (low.includes("failed to fetch") || low.includes("networkerror")
+                || low.includes("err_connection") || low.includes("load failed")) {
+            return {
+                title:  `Can't reach Loremaster at ${host}:${port}.`,
+                detail: "No response from the Python service — it may be stopped, listening on a "
+                      + "different host/port, or blocked by the network/firewall.",
+                hint:   "Check the service is running and the host/port in Loremaster settings are correct. Falling back to vault-file mode for now.",
+                fallback: true,
+            };
+        }
+        // Auth.
+        if (low.includes("401") || low.includes("unauthorized") || low.includes("api-key") || low.includes("api key")) {
+            return {
+                title:  "The service rejected the request (unauthorized).",
+                detail: msg,
+                hint:   "The API token in Loremaster settings doesn't match the service's `api_token`. Update it and retry.",
+                fallback: false,
+            };
+        }
+        // A detail the server sent back (thrown as Error(detail) from a non-ok response) — usually
+        // already specific, e.g. "Provider error: All providers failed. Last error: groq (status=429)…".
+        return {
+            title:  "The service reported an error.",
+            detail: msg || "Unknown error (the service returned no detail).",
+            hint:   "Run `vault:logs errors` for the full traceback, or try again / switch provider.",
+            fallback: false,
+        };
     }
 
     // ------------------------------------------------------------------
@@ -1146,10 +1207,13 @@ export class ChatView extends ItemView {
         this.scrollToBottom();
     }
 
-    private async appendErrorMessage(text: string): Promise<void> {
+    private async appendErrorMessage(title: string, detail?: string, hint?: string): Promise<void> {
         const el = this.messagesEl.createDiv("ai-assistant-message ai-assistant-error");
         el.createEl("span", { text: "⚠ Error", cls: "ai-assistant-label" });
-        el.createDiv("ai-assistant-body").setText(text);
+        const body = el.createDiv("ai-assistant-body");
+        body.createDiv({ text: title, cls: "ai-assistant-error-title" });
+        if (detail) body.createDiv({ text: detail, cls: "ai-assistant-error-detail" });
+        if (hint) body.createDiv({ text: hint, cls: "ai-assistant-error-hint" });
         this.scrollToBottom();
     }
 

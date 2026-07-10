@@ -476,6 +476,20 @@ class AssistantServer:
             allow_headers  = ["*"],
         )
 
+        # ── Global error handler ─────────────────────────────────────────────
+        # Any unhandled exception (i.e. not a deliberate HTTPException) is logged with a full
+        # traceback and returned as an informative 500, so the plugin can show something better
+        # than a bare "Internal Server Error" and the user can find the cause with `vault:logs errors`.
+        @app.exception_handler(Exception)
+        async def _unhandled_error(request, exc):   # noqa: ANN001
+            logger.exception(
+                f"[Server] Unhandled error on {request.method} {request.url.path}: {exc}")
+            return JSONResponse(
+                status_code=500,
+                content={"detail": f"Internal error: {type(exc).__name__}: {exc}. "
+                                   f"Run `vault:logs errors` on the service for the full traceback."},
+            )
+
         # ── Optional LAN auth ────────────────────────────────────────────────
         # When api_token is set (recommended whenever host is 0.0.0.0), every
         # request must carry `X-API-Key: <token>`. CORS preflight (OPTIONS) is
