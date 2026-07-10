@@ -1,10 +1,19 @@
-<!-- help-version: 19 -->
+<!-- help-version: 20 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in Loremaster
 
 *A capability overview so you can learn everything Loremaster can do. Current through **v1.9**.*
+
+## Read-aloud on mobile + clearer errors (v1.9.1–v1.9.3)
+- **Read-aloud now works on Android.** Obsidian's mobile WebView has no built-in speech, so the
+  service synthesizes the audio (a local **Piper** neural voice, or espeak) and the plugin plays it —
+  Play/Pause/Stop and speed all work. Desktop still uses the instant built-in voice. Zero-cost, local,
+  private (audio never leaves your machine/LAN). **"Read note aloud"** now also appears in the mobile
+  command palette (it was hidden in reading view before).
+- **Chat errors are now informative** — a timeout / unreachable service / provider failure shows a
+  clear reason and a hint (e.g. run `vault:logs errors`) instead of a bare red "Error".
 
 ## Import HTML sets + self-diagnosis + smarter prompt (v1.9)
 - **Ingest a `.zip` of HTML** (or a folder of them) — e.g. an offline commentary export. Every file

@@ -1,6 +1,12 @@
-*Status: **Loremaster v1.9.0 — 2026-07-09** (GitHub pre-release + BRAT). Milestones 1–40 + all
-carried-forward + a v1.6–v1.9 UI & knowledge layer (**476 automated tests green**), deployed end-to-end
-(Linux systemd service, GPU embeddings, Obsidian plugin over the LAN; box on `main`). **v1.9 added:**
+*Status: **Loremaster v1.9.3 — 2026-07-10** (GitHub pre-release + BRAT). Milestones 1–40 + all
+carried-forward + a v1.6–v1.9 UI & knowledge layer (**489 automated tests green**), deployed end-to-end
+(Linux systemd service, GPU embeddings, Obsidian plugin over the LAN; box on `main`). **v1.9.1–v1.9.3
+patches:** Android plugin-load fix (mobile-safe read-aloud); intelligent chat errors + a server global
+exception handler; **server-side TTS** (`assistant_core/tts.py` + `POST /tts` → Piper neural voice / espeak
+fallback, model auto-discovered in `models/piper/*.onnx`) so **read-aloud works on Android** (the plugin
+plays the WAV in an `<audio>` element when Web Speech is absent); "Read note aloud" fixed to show in the
+mobile command palette; and an Approvals **tag-merge** fix (block-style YAML frontmatter no longer corrupts).
+**v1.9 added:**
 **HTML-collection ingest** — `vault:ingest` of a `.zip` (or folder) of interlinked `.htm/.html` imports
 each file as a note under `AI/Library/<collection>/` with **inter-file links rewritten to vault wikilinks**
 (`assistant_core/ingest/htmlset.py`, dependency-free); **`vault:logs [N|errors|today]`** lets the assistant
