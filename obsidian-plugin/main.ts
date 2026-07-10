@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor, Menu } from "obsidian";
+import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor, Menu, MarkdownView } from "obsidian";
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 
@@ -88,7 +88,20 @@ export default class AIAssistantPlugin extends Plugin {
         this.addCommand({
             id: "ai-read-aloud",
             name: "Read note aloud",
-            editorCallback: (editor: Editor) => this.reader.readNote(editor),
+            // Plain callback (not editorCallback) so it ALWAYS shows in the palette — including
+            // mobile/reading view, where there's no active editor (that's why it was missing on
+            // Android). Uses the editor when available (for sentence highlight), else reads the
+            // active file's text directly.
+            callback: async () => {
+                const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view?.editor && view.getMode() === "source") {
+                    this.reader.readNote(view.editor);
+                    return;
+                }
+                const file = this.app.workspace.getActiveFile();
+                if (!file) { new Notice("Open a note to read aloud."); return; }
+                this.reader.readText(await this.app.vault.read(file));
+            },
         });
         this.addCommand({
             id: "ai-read-stop",
