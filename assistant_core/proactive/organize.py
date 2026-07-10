@@ -270,18 +270,49 @@ def remove_pending(note: str) -> list[dict]:
 
 
 def _merge_tags(text: str, tags: list[str]) -> str:
+    """Merge `tags` into the note's frontmatter, handling BOTH styles cleanly:
+        tags: [a, b]                 (flow)
+        tags:\n  - a\n  - b          (block list)
+    The result is always a single clean flow list. This also repairs frontmatter left
+    malformed by an earlier buggy merge (a stray `-` tag, or orphaned `  - x` list lines).
+    """
     m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
-    if m:
-        fm = m.group(1)
-        tm = re.search(r"^tags:\s*\[?([^\]\n]*)\]?\s*$", fm, re.MULTILINE)
-        if tm:
-            existing = {t.strip().strip("'\"#") for t in re.split(r"[,\s]+", tm.group(1)) if t.strip()}
-            merged = ", ".join(sorted(existing | set(tags)))
-            new_fm = re.sub(r"^tags:.*$", f"tags: [{merged}]", fm, count=1, flags=re.MULTILINE)
-        else:
-            new_fm = fm + f"\ntags: [{', '.join(tags)}]"
-        return text[:m.start()] + f"---\n{new_fm}\n---\n" + text[m.end():]
-    return f"---\ntags: [{', '.join(tags)}]\n---\n\n" + text
+    if not m:
+        return f"---\ntags: [{', '.join(tags)}]\n---\n\n" + text
+
+    lines = m.group(1).split("\n")
+    existing: set[str] = set()
+    out: list[str] = []
+    found = False
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        km = re.match(r"^tags:\s*(.*)$", line)
+        if km and not found:
+            found = True
+            inline = km.group(1).strip().strip("[]")
+            if inline:                                   # flow style on the same line
+                for t in re.split(r"[,\s]+", inline):
+                    t = t.strip().strip("'\"#-")
+                    if t:
+                        existing.add(t)
+            # consume any following `  - tag` list items — real block style AND orphans left
+            # by an earlier broken merge (defensively strips the list-marker `-`).
+            j = i + 1
+            while j < len(lines) and re.match(r"^\s*-\s+\S", lines[j]):
+                t = re.sub(r"^\s*-\s+", "", lines[j]).strip().strip("'\"#")
+                if t:
+                    existing.add(t)
+                j += 1
+            i = j
+            continue
+        out.append(line)
+        i += 1
+
+    merged = ", ".join(sorted(existing | {t for t in tags if t}))
+    out.append(f"tags: [{merged}]")
+    new_fm = "\n".join(out)
+    return text[:m.start()] + f"---\n{new_fm}\n---\n" + text[m.end():]
 
 
 def apply_suggestion(vault, note: str, tags: list[str] | None = None,

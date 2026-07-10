@@ -212,3 +212,33 @@ class PerItemTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMergeTags(unittest.TestCase):
+    """Regression: block-style YAML tags used to corrupt on merge (stray '-' + orphaned list lines)."""
+
+    def _fm(self, text: str) -> str:
+        return text.split("---")[1].strip()
+
+    def test_block_style_stays_clean(self):
+        t = "---\ntitle: X\ntags:\n  - clippings\n---\n\nbody"
+        out = self._fm(organize._merge_tags(t, ["analysis", "software"]))
+        self.assertIn("tags: [analysis, clippings, software]", out)
+        self.assertNotIn("- clippings", out)     # no orphaned block list item
+        self.assertNotIn("[-", out)              # no stray dash tag
+
+    def test_repairs_previously_corrupted_frontmatter(self):
+        corrupted = "---\ntitle: X\ntags: [-, analysis, clippings, development]\n  - clippings\n---\n\nbody"
+        out = self._fm(organize._merge_tags(corrupted, []))
+        self.assertEqual(out, "title: X\ntags: [analysis, clippings, development]")
+
+    def test_flow_style_merges(self):
+        out = self._fm(organize._merge_tags("---\ntags: [a, b]\ntitle: X\n---\nbody", ["c"]))
+        self.assertIn("tags: [a, b, c]", out)
+
+    def test_adds_tags_when_absent(self):
+        out = self._fm(organize._merge_tags("---\ntitle: X\n---\nbody", ["new"]))
+        self.assertIn("tags: [new]", out)
+
+    def test_no_frontmatter_gets_one(self):
+        self.assertTrue(organize._merge_tags("just body", ["x"]).startswith("---\ntags: [x]\n---"))
