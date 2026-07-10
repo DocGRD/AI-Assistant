@@ -126,11 +126,16 @@ export default class AIAssistantPlugin extends Plugin {
             },
         });
 
-        // v1.8 — Loremaster actions in the editor right-click menu.
+        // v1.8 — Loremaster actions in the editor right-click / mobile selection menu.
         this.registerEvent(this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor) => {
-            menu.addItem((i) => i.setTitle("Loremaster: Read aloud").setIcon("volume-2")
+            const hasSel = !!editor.getSelection().trim();
+            // Read-aloud first, labelled for the selection when there is one (mobile: this is how
+            // you read a selection — the menu that pops up next to Copy/Cut, under its ⋯/▸ more).
+            menu.addItem((i) => i
+                .setTitle(hasSel ? "Loremaster: Read selection aloud" : "Loremaster: Read aloud")
+                .setIcon("volume-2")
                 .onClick(() => this.reader.readNote(editor)));
-            if (editor.getSelection()) {
+            if (hasSel) {
                 menu.addItem((i) => i.setTitle("Loremaster: Rewrite selection").setIcon("wand-2")
                     .onClick(() => new ComposeModal(this.app, this, editor, "rewrite").open()));
             }

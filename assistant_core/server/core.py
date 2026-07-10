@@ -1259,10 +1259,24 @@ class AssistantServer:
                 ctx_mgr_inst = ContextManager(self._router.registry, router=self._router,
                                               config=self._config)
                 if self._router.available_providers:
+                    # Trim to fit the TIGHTEST available provider, not just the first — otherwise a
+                    # big history that "fits" provider[0] still gets rejected when the router falls
+                    # through to a smaller free-tier model (e.g. cerebras' 8k context, groq's 6k TPM),
+                    # which is exactly the "request too large" wall-of-red users were hitting.
+                    reg = self._router.registry
+
+                    def _budget(p: str) -> int:
+                        s = reg.spec(p)
+                        if not s:
+                            return 10 ** 9
+                        return min(int(getattr(s, "tpm_limit", 10 ** 9)),
+                                   getattr(s, "context_window", 10 ** 9) - req.max_tokens)
+
+                    tightest = min(self._router.available_providers, key=_budget)
                     with self._history_lock:
                         self._history[:] = ctx_mgr_inst.trim(
                             self._history,
-                            self._router.available_providers[0],
+                            tightest,
                             self._system_prompt,
                             req.max_tokens,
                             private=effective_private,

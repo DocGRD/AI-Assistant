@@ -934,6 +934,19 @@ export class ChatView extends ItemView {
                 fallback: false,
             };
         }
+        // Context / request too large — the conversation outgrew the free-tier token limits.
+        if (low.includes("too large") || low.includes("context_length") || low.includes("context length")
+                || low.includes("reduce the length") || low.includes("reduce your message")
+                || low.includes("413") || low.includes("maximum context")) {
+            return {
+                title:  "The conversation got too long for the free-tier limits.",
+                detail: "This chat's history grew past what the free providers accept per request, so they "
+                      + "all rejected it. (The service trims/summarizes history, but a very long thread or a "
+                      + "huge note/selection can still exceed the smallest models.)",
+                hint:   "Tap Clear to start a fresh chat, or ask about a shorter selection.",
+                fallback: false,
+            };
+        }
         // A detail the server sent back (thrown as Error(detail) from a non-ok response) — usually
         // already specific, e.g. "Provider error: All providers failed. Last error: groq (status=429)…".
         return {
