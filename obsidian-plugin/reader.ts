@@ -25,6 +25,11 @@ function sentenceRanges(text: string): { start: number; end: number }[] {
     return out;
 }
 
+/** Remove a leading YAML frontmatter block (`---` … `---`) so it isn't read aloud. */
+function stripFrontmatter(text: string): string {
+    return text.replace(/^﻿?\s*---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
+}
+
 /** Markdown → clean speech text. */
 function speechText(md: string): string {
     return md
@@ -81,12 +86,19 @@ export class Reader {
     // --- public entry points --------------------------------------------------
     readNote(editor: Editor): void {
         const sel = editor.getSelection();
-        const text = sel && sel.trim() ? sel : editor.getValue();
+        let text: string, base: number;
+        if (sel && sel.trim()) {
+            text = sel;                                        // read just the selection…
+            base = editor.posToOffset(editor.getCursor("from"));
+        } else {
+            const full = editor.getValue();                    // …else the whole note, minus frontmatter
+            text = stripFrontmatter(full);
+            base = full.length - text.length;                  // keep the highlight aligned to the editor
+        }
         if (!text.trim()) { new Notice("Nothing to read."); return; }
         if (this.webAvailable) {
-            // when reading a selection, offsets are relative to the selection start
             this.editor = editor; this.el = null;
-            this._start(text, sel && sel.trim() ? editor.posToOffset(editor.getCursor("from")) : 0);
+            this._start(text, base);
         } else if (this.ttsFetch) {
             void this._startAudio(text);
         } else {
@@ -95,6 +107,7 @@ export class Reader {
     }
 
     readText(text: string, el?: HTMLElement): void {
+        text = stripFrontmatter(text);      // no-op for a selection/chat reply; strips it for a whole note
         if (!text.trim()) return;
         if (this.webAvailable) {
             this.editor = null; this.el = el ?? null;
@@ -122,11 +135,14 @@ export class Reader {
 
     // --- server-audio path (Android): synthesize on the box, play via <audio> ------------
     private async _startAudio(text: string): Promise<void> {
+        // Piper reads plain text literally, so strip frontmatter + markdown before synthesis.
+        const speak = speechText(stripFrontmatter(text));
+        if (!speak.trim()) { new Notice("Nothing to read."); return; }
         this.stop();
         this.mode = "audio";
         const notice = new Notice("Synthesizing audio…", 0);
         let blob: Blob | null = null;
-        try { blob = await this.ttsFetch!(text); } catch { /* handled below */ }
+        try { blob = await this.ttsFetch!(speak); } catch { /* handled below */ }
         notice.hide();
         if (!blob || !blob.size) {
             this.mode = "web";

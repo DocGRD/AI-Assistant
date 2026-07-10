@@ -95,10 +95,15 @@ export default class AIAssistantPlugin extends Plugin {
             // active file's text directly.
             callback: async () => {
                 const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                // Editing / Live Preview: readNote reads the selection if any (with highlight),
+                // else the whole note minus frontmatter.
                 if (view?.editor && view.getMode() === "source") {
                     this.reader.readNote(view.editor);
                     return;
                 }
+                // Reading view (incl. mobile): honor a highlighted text selection if there is one.
+                const domSel = (window.getSelection?.()?.toString() ?? "").trim();
+                if (domSel) { this.reader.readText(domSel); return; }
                 const file = this.app.workspace.getActiveFile();
                 if (!file) { new Notice("Open a note to read aloud."); return; }
                 this.reader.readText(await this.app.vault.read(file));
