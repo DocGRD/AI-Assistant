@@ -60,7 +60,7 @@ if _fastapi_available:
     import uvicorn
     from fastapi import FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import JSONResponse
+    from fastapi.responses import JSONResponse, Response
     from assistant_core.server.models import (
         ChatRequest, HandoffResponse, HandoffReturnRequest,
         HistoryMessage, StatusResponse, HistoryResponse, MemoryApplyRequest,
@@ -1612,6 +1612,30 @@ class AssistantServer:
                 raise HTTPException(status_code=400, detail="slug + action(resume|pause|cancel) required")
             g = gs.set_status(slug, status_map[action])
             return {"ok": bool(g), "slug": slug, "status": status_map[action]}
+
+        # ── POST /tts ────────────────────────────────────────────────────────
+        # v1.9.3 — server-side text-to-speech for platforms without Web Speech (Android).
+        # Returns a WAV the plugin plays in an <audio> element. Zero-cost/local/private.
+        @app.get("/tts/available")
+        async def tts_available():
+            from assistant_core import tts
+            return {"engine": tts.available_engine(self._config.all() if self._config else {})}
+
+        @app.post("/tts")
+        async def tts_synth(payload: dict):
+            from assistant_core import tts
+            text = (payload or {}).get("text", "")
+            if not text.strip():
+                raise HTTPException(status_code=400, detail="text is required")
+            result = tts.synthesize(text, self._config.all() if self._config else {})
+            if not result:
+                raise HTTPException(
+                    status_code=503,
+                    detail="No text-to-speech engine is available on the service "
+                           "(install piper or espeak, or set tts_piper_model).")
+            wav, engine = result
+            return Response(content=wav, media_type="audio/wav",
+                            headers={"X-TTS-Engine": engine, "Cache-Control": "no-store"})
 
         # ── GET /status ─────────────────────────────────────────────────────
         @app.get("/status", response_model=StatusResponse)

@@ -55,43 +55,90 @@ export class Reader {
     private el: HTMLElement | null = null;      // chat bubble being read (whole-element highlight)
     private bar: HTMLElement | null = null;
     private voices: SpeechSynthesisVoice[] = [];
+    // v1.9.3 — server-audio fallback for platforms without Web Speech (Android WebView).
+    private audio: HTMLAudioElement | null = null;
+    private mode: "web" | "audio" = "web";
 
-    constructor(private settings: ReaderSettings, private save: () => void) {
-        if (!this.synth) return;   // no speech synthesis on this device — read-aloud is a no-op
-        const load = () => { this.voices = this.synth?.getVoices() ?? []; };
-        try { load(); } catch { /* getVoices can throw on some WebViews */ }
-        this.synth.addEventListener?.("voiceschanged", load);
+    constructor(private settings: ReaderSettings, private save: () => void,
+                private ttsFetch?: (text: string) => Promise<Blob | null>) {
+        if (this.synth) {
+            const load = () => { this.voices = this.synth?.getVoices() ?? []; };
+            try { load(); } catch { /* getVoices can throw on some WebViews */ }
+            this.synth.addEventListener?.("voiceschanged", load);
+        }
     }
 
-    /** True when the device supports speech synthesis (false on some mobile WebViews). */
-    get available(): boolean {
+    /** True when the browser has a usable Web Speech engine (desktop; false on Android WebView). */
+    private get webAvailable(): boolean {
         return !!this.synth && typeof SpeechSynthesisUtterance !== "undefined";
+    }
+
+    /** True when read-aloud can run at all — Web Speech, or the server-audio fallback. */
+    get available(): boolean {
+        return this.webAvailable || !!this.ttsFetch;
     }
 
     // --- public entry points --------------------------------------------------
     readNote(editor: Editor): void {
-        if (!this.available) { new Notice("Read-aloud isn't available on this device."); return; }
         const sel = editor.getSelection();
         const text = sel && sel.trim() ? sel : editor.getValue();
         if (!text.trim()) { new Notice("Nothing to read."); return; }
-        // when reading a selection, offsets are relative to the selection start
-        this.editor = editor; this.el = null;
-        this._start(text, sel && sel.trim() ? editor.posToOffset(editor.getCursor("from")) : 0);
+        if (this.webAvailable) {
+            // when reading a selection, offsets are relative to the selection start
+            this.editor = editor; this.el = null;
+            this._start(text, sel && sel.trim() ? editor.posToOffset(editor.getCursor("from")) : 0);
+        } else if (this.ttsFetch) {
+            void this._startAudio(text);
+        } else {
+            new Notice("Read-aloud isn't available on this device.");
+        }
     }
 
     readText(text: string, el?: HTMLElement): void {
         if (!text.trim()) return;
-        if (!this.available) { new Notice("Read-aloud isn't available on this device."); return; }
-        this.editor = null; this.el = el ?? null;
-        this.el?.addClass("ai-assistant-reading");
-        this._start(text, 0);
+        if (this.webAvailable) {
+            this.editor = null; this.el = el ?? null;
+            this.el?.addClass("ai-assistant-reading");
+            this._start(text, 0);
+        } else if (this.ttsFetch) {
+            void this._startAudio(text);
+        } else {
+            new Notice("Read-aloud isn't available on this device.");
+        }
     }
 
     stop(): void {
         this.synth?.cancel();
+        if (this.audio) {
+            this.audio.pause();
+            if (this.audio.src.startsWith("blob:")) URL.revokeObjectURL(this.audio.src);
+            this.audio = null;
+        }
         this.idx = this.ranges.length;
         this._clearHighlight();
         this.bar?.remove(); this.bar = null;
+        this.mode = "web";
+    }
+
+    // --- server-audio path (Android): synthesize on the box, play via <audio> ------------
+    private async _startAudio(text: string): Promise<void> {
+        this.stop();
+        this.mode = "audio";
+        const notice = new Notice("Synthesizing audio…", 0);
+        let blob: Blob | null = null;
+        try { blob = await this.ttsFetch!(text); } catch { /* handled below */ }
+        notice.hide();
+        if (!blob || !blob.size) {
+            this.mode = "web";
+            new Notice("Read-aloud needs the Loremaster service reachable (no audio returned).");
+            return;
+        }
+        const audio = new Audio(URL.createObjectURL(blob));
+        this.audio = audio;
+        audio.playbackRate = this.settings.speed || 1;
+        audio.onended = () => this.stop();
+        this._ensureBar();
+        void audio.play();
     }
 
     // --- engine ---------------------------------------------------------------
@@ -152,6 +199,28 @@ export class Reader {
             b.addEventListener("click", fn); return b;
         };
         bar.createEl("span", { text: "🔊", cls: "ai-assistant-reader-icon" });
+
+        // Server-audio mode (Android): a single <audio> element — Play/Pause, Stop, Speed.
+        // No per-sentence controls or voice picker (those are Web-Speech-only).
+        if (this.mode === "audio") {
+            const playPause = mkBtn("⏸", "Pause / resume", () => {
+                if (!this.audio) return;
+                if (this.audio.paused) { void this.audio.play(); playPause.setText("⏸"); }
+                else { this.audio.pause(); playPause.setText("▶"); }
+            });
+            mkBtn("⏹", "Stop", () => this.stop());
+            const aspeed = bar.createEl("select", { cls: "ai-assistant-reader-speed" });
+            for (const s of SPEEDS) {
+                const o = aspeed.createEl("option", { text: `${s}×`, value: String(s) });
+                if (s === this.settings.speed) o.selected = true;
+            }
+            aspeed.addEventListener("change", () => {
+                this.settings.speed = parseFloat(aspeed.value); this.save();
+                if (this.audio) this.audio.playbackRate = this.settings.speed;
+            });
+            return;
+        }
+
         mkBtn("⏮", "Previous sentence", () => { this.idx = Math.max(0, this.idx - 1); this._restartFromCurrent(); });
         const playPause = mkBtn("⏸", "Pause / resume", () => {
             if (this.synth?.paused) { this.synth.resume(); playPause.setText("⏸"); }

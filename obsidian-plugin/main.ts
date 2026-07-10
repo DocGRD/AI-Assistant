@@ -30,7 +30,8 @@ export default class AIAssistantPlugin extends Plugin {
 
     async onload(): Promise<void> {
         await this.loadSettings();
-        this.reader = new Reader(this.settings.reader, () => void this.saveSettings());
+        this.reader = new Reader(this.settings.reader, () => void this.saveSettings(),
+                                 (text) => this.fetchTts(text));
 
         // Register the sidebar chat view + the Approvals/Goals side panel (v1.7 — non-blocking)
         this.registerView(CHAT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ChatView(leaf, this));
@@ -178,6 +179,24 @@ export default class AIAssistantPlugin extends Plugin {
             if (right) await right.setViewState({ type: CHAT_VIEW_TYPE, active: false });
         }
         return this.getChatView();
+    }
+
+    /** v1.9.3 — fetch synthesized speech from the service (used by read-aloud on Android, where
+     *  the browser has no Web Speech engine). Returns a WAV Blob, or null if unavailable. */
+    async fetchTts(text: string): Promise<Blob | null> {
+        const { host, port, apiToken } = this.settings;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (apiToken?.trim()) headers["X-API-Key"] = apiToken.trim();
+        try {
+            const resp = await fetch(`http://${host}:${port}/tts`, {
+                method: "POST", headers, body: JSON.stringify({ text }),
+                signal: AbortSignal.timeout(60000),
+            });
+            if (!resp.ok) return null;
+            return await resp.blob();
+        } catch {
+            return null;
+        }
     }
 
     // v1.8 — refine a proposed goal's plan with feedback (iterate before approving).
