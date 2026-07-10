@@ -593,27 +593,33 @@
 }
 
 .ai-assistant-error .ai-assistant-body {
-  background-color: var(--background-modifier-error);
-  color: var(--text-error);
+  /* Readable on every theme: normal text on a lightly error-tinted card with a red edge —
+     NOT red-on-red (which was unreadable on mobile/dark). */
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-error);
+  border-left: 3px solid var(--text-error);
   border-radius: 6px;
   padding: 8px 10px;
 }
 
 .ai-assistant-error-title {
   font-weight: 600;
+  color: var(--text-normal);
 }
 
 .ai-assistant-error-detail {
   margin-top: 4px;
-  opacity: 0.9;
+  color: var(--text-normal);
+  opacity: 0.95;
   font-size: 0.92em;
 }
 
 .ai-assistant-error-hint {
   margin-top: 6px;
+  color: var(--text-muted);
   font-size: 0.88em;
   font-style: italic;
-  opacity: 0.8;
 }
 
 /* Waiting indicator */

@@ -1259,10 +1259,12 @@ class AssistantServer:
                 ctx_mgr_inst = ContextManager(self._router.registry, router=self._router,
                                               config=self._config)
                 if self._router.available_providers:
-                    # Trim to fit the TIGHTEST available provider, not just the first — otherwise a
-                    # big history that "fits" provider[0] still gets rejected when the router falls
-                    # through to a smaller free-tier model (e.g. cerebras' 8k context, groq's 6k TPM),
-                    # which is exactly the "request too large" wall-of-red users were hitting.
+                    # Summarize/collapse history to fit the ROOMIEST available provider — so the
+                    # expensive (model-summarizing) pass keeps as much context as the best model can
+                    # take. The router then cheaply drops the oldest turns per-attempt so a smaller
+                    # fallback (cerebras 8k, groq 6k) still fits, instead of pre-shrinking every
+                    # request down to the smallest provider. (Fixes the "request too large" wall
+                    # without over-trimming when a big-window model handles the turn.)
                     reg = self._router.registry
 
                     def _budget(p: str) -> int:
@@ -1272,11 +1274,11 @@ class AssistantServer:
                         return min(int(getattr(s, "tpm_limit", 10 ** 9)),
                                    getattr(s, "context_window", 10 ** 9) - req.max_tokens)
 
-                    tightest = min(self._router.available_providers, key=_budget)
+                    roomiest = max(self._router.available_providers, key=_budget)
                     with self._history_lock:
                         self._history[:] = ctx_mgr_inst.trim(
                             self._history,
-                            tightest,
+                            roomiest,
                             self._system_prompt,
                             req.max_tokens,
                             private=effective_private,

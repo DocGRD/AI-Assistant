@@ -235,7 +235,12 @@ class ProviderRouter:
                 sys_prompt = system_prompt
                 if spec is not None and spec.provider != "webui":
                     sys_prompt = system_prompt + tier_addendum(spec.tier)
-                result = provider.generate(messages, sys_prompt, mt, temp)
+                # v1.9.6 — fit the history to THIS provider's budget at send time (the server
+                # already did the expensive summarize pass sized to the roomiest model; this just
+                # drops the oldest turns so a smaller fallback fits, instead of pre-shrinking every
+                # request to the smallest provider). Recent turns + the current message are kept.
+                fitted = self._fit_to_provider(messages, spec, system_prompt, mt)
+                result = provider.generate(fitted, sys_prompt, mt, temp)
                 # result is a str from all real providers
                 self._registry.error_log.record_success(name)
                 return result, name
@@ -272,6 +277,34 @@ class ProviderRouter:
                 continue
 
         raise ProviderError(f"All providers failed. Last error: {last_error}")
+
+    @staticmethod
+    def _input_budget(spec, mt: int) -> int | None:
+        """Safe input-token budget for a provider (the lower of its per-minute cap and its
+        context window minus the response reserve), or None when unknown/unlimited (e.g. webui)."""
+        if spec is None or getattr(spec, "provider", "") == "webui":
+            return None
+        caps: list[int] = []
+        tpm = int(getattr(spec, "tpm_limit", 0) or 0)
+        if tpm:
+            caps.append(int(tpm * 0.85))
+        ctx = int(getattr(spec, "context_window", 0) or 0)
+        if ctx:
+            caps.append(ctx - mt)
+        return min(caps) if caps else None
+
+    def _fit_to_provider(self, messages: list, spec, system_prompt: str, mt: int) -> list:
+        """Drop the OLDEST non-system messages until the history fits `spec`'s budget. Cheap and
+        non-recursive (no model call) — the intelligent summarize pass already ran server-side."""
+        budget = self._input_budget(spec, mt)
+        if budget is None or estimate_tokens(messages, system_prompt) <= budget:
+            return messages
+        head = [m for m in messages if getattr(m, "role", "") == "system"]
+        tail = [m for m in messages if getattr(m, "role", "") != "system"]
+        # keep dropping the oldest conversational turn until it fits (always keep the last message)
+        while len(tail) > 1 and estimate_tokens(head + tail, system_prompt) > budget:
+            tail.pop(0)
+        return head + tail
 
     # ------------------------------------------------------------------
     # Health flagging (Milestone 10) — driven by real traffic only
