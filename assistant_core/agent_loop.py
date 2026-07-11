@@ -338,6 +338,9 @@ def run_agent_loop(ctx: AgentContext) -> tuple[str, str]:
             provider_override = ctx.provider_override,
             private                = ctx.private,
             allow_webui_on_private = ctx.allow_webui_on_private,
+            # M43 — the agent loop emits vault:/command: directives that MUST land on their own
+            # line; reasoning models mangle that. Restrict to tool-reliable models (config gate).
+            require_tools = bool((ctx.config or {}).get("tool_reliable_routing", True)),
         )
         reply = reply or ""   # a provider can return None content (e.g. length/filter) — never crash on it
 

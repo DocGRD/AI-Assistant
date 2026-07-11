@@ -155,6 +155,7 @@ class ProviderRouter:
         allow_webui_on_private: bool = False,
         allow_webui: bool = True,
         task: str | None = None,
+        require_tools: bool = False,
     ) -> tuple[str, str]:
         """
         Generate a reply from the best available provider.
@@ -205,13 +206,16 @@ class ProviderRouter:
                     f"[Router] Override '{override}' ignored — trains_on_data="
                     f"{ov_spec.trains_on_data!r} not allowed for a private request."
                 )
-                order = self._registry.route_order(available, private, est_tokens, mt, high_volume, task=task)
+                order = self._registry.route_order(available, private, est_tokens, mt, high_volume,
+                                                   task=task, require_tools=require_tools)
             else:
-                rest  = self._registry.route_order(available, private, est_tokens, mt, high_volume, task=task)
+                rest  = self._registry.route_order(available, private, est_tokens, mt, high_volume,
+                                                   task=task, require_tools=require_tools)
                 order = [override] + [p for p in rest if p != override]
                 logger.info(f"[Router] Provider override: {override}")
         else:
-            order = self._registry.route_order(available, private, est_tokens, mt, high_volume, task=task)
+            order = self._registry.route_order(available, private, est_tokens, mt, high_volume,
+                                               task=task, require_tools=require_tools)
 
         # WebUI is the final fallback — but only when the caller allows it (edits
         # disable it so they can build their own edit-handoff), and for a private

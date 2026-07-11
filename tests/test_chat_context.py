@@ -40,7 +40,7 @@ class _FakeRouter:
 
     def generate(self, messages, system_prompt="", max_tokens=2048, temperature=0.7,
                  provider_override=None, private=False, allow_webui_on_private=False,
-                 allow_webui=True, task=None):
+                 allow_webui=True, task=None, **kw):
         self.captured_last_message = messages[-1].content if messages else ""
         self.captured_private = private
         self.captured_allow_webui = allow_webui

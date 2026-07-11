@@ -83,6 +83,35 @@ class RoutingTests(unittest.TestCase):
         # the 8B (small tier) is ranked after at least one large-tier model
         self.assertGreater(order.index("groq:llama-3.1-8b-instant"), 0)
 
+    # ---- M43 tool-reliable routing ---------------------------------------
+
+    def test_is_reasoning_model(self):
+        from assistant_core.providers.model_registry import is_reasoning_model
+        for mid in ("gpt-oss-120b", "openai/gpt-oss-20b", "deepseek-r1", "qwq-32b",
+                    "magistral-small", "o3-mini", "some-reasoning-model"):
+            self.assertTrue(is_reasoning_model(mid), mid)
+        for mid in ("llama-3.3-70b-versatile", "gemini-2.5-flash", "llama-4-maverick",
+                    "qwen3-32b", "llama-3.1-8b-instant"):
+            self.assertFalse(is_reasoning_model(mid), mid)
+
+    def test_require_tools_drops_small_and_reasoning(self):
+        from assistant_core.providers.model_registry import is_reasoning_model
+        order = self.reg.route_order(ACTIVE, private=False, est_tokens=200,
+                                     response_tokens=500, require_tools=True)
+        self.assertTrue(order)                                   # still has options
+        for k in order:
+            spec = self.reg.specs[k]
+            self.assertNotEqual(spec.tier, "small", f"{k} is small — should be filtered")
+            self.assertFalse(is_reasoning_model(spec.model_id), f"{k} is a reasoning model")
+        self.assertNotIn("groq:llama-3.1-8b-instant", order)    # the 8B is small → gone
+
+    def test_require_tools_degrades_when_no_reliable(self):
+        # If ONLY a small model is available, don't return empty — degrade to it so the
+        # turn still answers (better a mangled reply than a hard failure).
+        order = self.reg.route_order(["groq:llama-3.1-8b-instant"], private=False,
+                                     est_tokens=200, response_tokens=500, require_tools=True)
+        self.assertEqual(order, ["groq:llama-3.1-8b-instant"])
+
     def test_tier_derivation(self):
         from assistant_core.providers.model_registry import derive_tier
         self.assertEqual(derive_tier("llama-3.1-8b-instant"), "small")

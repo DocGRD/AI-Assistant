@@ -1,4 +1,4 @@
-<!-- help-version: 24 -->
+<!-- help-version: 25 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
@@ -29,6 +29,10 @@ tags: [help, user-guide, whats-new]
   runs until you approve.
 - **New plugins are picked up automatically.** Install or enable a plugin and its commands become available
   to Loremaster with no setup (there's also a **Refresh Obsidian commands** palette command to force it).
+- **Commands & tools are routed to reliable models (v1.10.4).** Running a command needs the assistant to emit
+  a precise directive; some "reasoning" models (which think out loud) mangle that format. Loremaster now
+  keeps tool/command turns on models that follow the format cleanly and skips reasoning models for those
+  turns — so commands and vault actions work consistently. (Toggle with `tool_reliable_routing`.)
 - Under the hood: `command:search <query>` finds commands, `command:run <id>` proposes one. You rarely type
   these — just ask.
 

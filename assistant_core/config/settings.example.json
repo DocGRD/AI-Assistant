@@ -66,6 +66,8 @@
   "hallucination_guard": "escalate_web",
   "write_guard": "flag",
 
+  "tool_reliable_routing": true,
+
   "auto_briefing_enabled": true,
   "briefing_hour": 6,
   "auto_organize_enabled": false,

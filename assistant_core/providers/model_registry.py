@@ -43,6 +43,21 @@ def derive_tier(model_id: str) -> str:
     return "mid"                             # unknown (e.g. gemini-flash) → middle
 
 
+# Reasoning / chain-of-thought models. They emit a "thinking" preamble (e.g. "We need to run
+# command:search …") that breaks the strict contract of the agent loop — a vault:/command:
+# directive must sit ALONE on its own line to be executed. So even though some are large and
+# smart, they are UNRELIABLE for tool/command turns and are excluded from them (M43).
+_REASONING_RE = re.compile(
+    r"(gpt-?oss|deepseek-?r1|\br1\b|qwq|magistral|thinking|reason(?:ing|er)?|o1|o3|o4-mini)",
+    re.IGNORECASE,
+)
+
+
+def is_reasoning_model(model_id: str) -> bool:
+    """True for chain-of-thought models whose preamble breaks strict directive output."""
+    return bool(_REASONING_RE.search(model_id or ""))
+
+
 # task → (prefer a larger tier?, desired strength tags). Absent/unknown task ⇒ neutral.
 TASK_PROFILE: dict[str, tuple[bool, set[str]]] = {
     "qa":       (True,  {"reasoning", "quality"}),
@@ -399,6 +414,7 @@ class ModelRegistry:
         long_form:       bool = False,
         want_tools:      bool = False,
         task:            str | None = None,
+        require_tools:   bool = False,
     ) -> list[str]:
         """
         Return route keys to try, best first. Pure and testable.
@@ -427,6 +443,18 @@ class ModelRegistry:
             if total > spec.context_window or est_tokens > spec.tpm_limit:
                 continue                                   # 4. size feasibility
             candidates.append(name)
+
+        # M43 — tool/command turns must use models that reliably emit directives on their own
+        # line. Drop reasoning models (CoT preamble breaks the format) and tiny models. Keep the
+        # filtered set only when non-empty, so a degraded state still answers rather than erroring.
+        if require_tools:
+            reliable = [c for c in candidates
+                        if self.specs[c].tier != "small" and not is_reasoning_model(self.specs[c].model_id)]
+            if reliable:
+                candidates = reliable
+            else:
+                logger.warning("[ModelRegistry] no tool-reliable model available — "
+                               "falling back to the full set for this turn")
 
         def default_index(name: str) -> int:
             try:
