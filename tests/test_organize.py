@@ -105,6 +105,25 @@ class OrganizeTests(unittest.TestCase):
                                     now=datetime(2026, 7, 8, 5, 0))
         self.assertEqual(rep["scanned"], 0)                 # deferred immediately
 
+    def test_organize_note_on_demand_stages_suggestions(self):   # v1.9.9 — per-note command
+        (Path(self.tmp) / "Target.md").write_text("A note about faith and prayer.", encoding="utf-8")
+        rag = _FakeRag([{"path": "Real Neighbour.md"}, {"path": "Ghost.md"}])
+        s = organize.organize_note(self.tmp, "Target.md", {}, rag=rag, router=_FakeRouter())
+        self.assertEqual(s["note"], "Target.md")
+        self.assertTrue(s["tags"])                                 # grounded tags suggested
+        self.assertIn("Real Neighbour", s["related"])              # valid link
+        self.assertNotIn("Ghost", s["related"])                    # fabricated link dropped
+        self.assertTrue(any(p["note"] == "Target.md" for p in organize.load_pending()))  # staged
+
+    def test_organize_note_resolves_by_basename(self):
+        (Path(self.tmp) / "sub").mkdir(exist_ok=True)
+        (Path(self.tmp) / "sub" / "Deep.md").write_text("faith", encoding="utf-8")
+        s = organize.organize_note(self.tmp, "Deep", {}, rag=None, router=_FakeRouter())
+        self.assertEqual(s["note"], "sub/Deep.md")                 # name-only input resolved
+
+    def test_organize_note_missing_returns_error(self):
+        self.assertIn("error", organize.organize_note(self.tmp, "Nope.md", {}))
+
 
 class PerItemTests(unittest.TestCase):
     """M35.1 — granular per-tag/per-link apply + dismiss + feedback learning."""

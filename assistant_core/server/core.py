@@ -882,9 +882,32 @@ class AssistantServer:
                                        provider_used="system", actual_provider="system", timestamp=ts)
 
             if _first == "vault:organize":
-                from assistant_core.proactive.organize import run_organize
+                from assistant_core.proactive.organize import run_organize, organize_note
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                rep = run_organize(self._config.get("vault_path"), self._config, self._rag,
+                vault = self._config.get("vault_path")
+                # `vault:organize <note>` (or the note you have open) → grounded tag/link
+                # suggestions for THAT note; bare `vault:organize` → scan recently-changed notes.
+                target = req.message.strip()[len("vault:organize"):].strip() or (req.active_note_path or "")
+                if target:
+                    s = organize_note(vault, target, self._config, self._rag, self._router)
+                    if s.get("error"):
+                        reply = f"Organize: {s['error']}."
+                    else:
+                        tags  = " ".join(f"#{t}" for t in s.get("tags", [])) or "_none_"
+                        links = " ".join(f"[[{l}]]" for l in s.get("related", [])) or "_none_"
+                        extra = []
+                        if s.get("folder"):  extra.append(f"suggested folder: `{s['folder']}`")
+                        if s.get("project"): extra.append(f"project: `{s['project']}`")
+                        staged = bool(s.get("tags") or s.get("related") or s.get("folder") or s.get("project"))
+                        reply = (f"**Suggestions for `{s['note']}`**\n"
+                                 f"- Tags: {tags}\n- Related: {links}"
+                                 + ("".join(f"\n- {e}" for e in extra))
+                                 + ("\n\nStaged in the **📥 Approvals** inbox — apply the ones you want "
+                                    "(per-tag / per-link)." if staged
+                                    else "\n\nNothing worth suggesting for this note."))
+                    return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                           actual_provider="system", timestamp=ts)
+                rep = run_organize(vault, self._config, self._rag,
                                    self._router, force=True)   # user asked for it now
                 reply = (f"Auto-organize: staged tag/link proposals for {rep['notes']} note(s) → "
                          f"{rep['proposal']} (review and approve — nothing applied yet)."

@@ -1,4 +1,4 @@
-<!-- help-version: 20 -->
+<!-- help-version: 21 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -50,7 +50,7 @@ line for `create`/`update`; use `-> ` between two paths for copy/move.
 | Command | What it does |
 |---|---|
 | `vault:briefing` | Write today's **Daily Briefing** (focus, changes, due cards, pending approvals, vault health) |
-| `vault:organize` | Stage **propose-only** tag / related-link / folder / project suggestions for recent notes |
+| `vault:organize [note]` | Stage **propose-only** tag / related-link / folder / project suggestions. **With a note** (or the note you have open) → suggestions for **that** note, using your existing tags + validated links → staged in the **📥 Approvals** inbox. Bare → scans recently-changed notes |
 | `vault:analytics` | Read-only **"explain my vault"** report → `AI/Reports/` (orphans, stale, unsourced, hubs, tag-merges) |
 | `vault:contradictions` | Flag notes that disagree on a number/date or via negation (deterministic) |
 | `vault:moc <topic>` | Propose a **Map-of-Content** index note for a topic → `AI/Proposed/` |

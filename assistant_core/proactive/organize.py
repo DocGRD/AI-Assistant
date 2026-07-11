@@ -236,6 +236,34 @@ def run_organize(vault, config: dict | None = None, rag=None, router=None,
     return {"notes": len(suggestions), "scanned": scanned, "proposal": proposal}
 
 
+def organize_note(vault, note_rel: str, config: dict | None = None, rag=None, router=None) -> dict:
+    """On-demand tag/link suggestions for ONE note (`vault:organize <note>` or the open note).
+    Reuses the vault's existing tags + validated semantic links, and stages the result in the
+    Approvals inbox for one-click apply. Returns the suggestion dict (or {'error': ...})."""
+    config = config or {}
+    vault = Path(vault)
+    rel = str(note_rel or "").replace("\\", "/").strip()
+    if not rel:
+        return {"error": "no note given"}
+    if not rel.endswith(".md"):
+        rel += ".md"
+    p = vault / rel
+    if not p.exists():                                   # resolve by basename (name-only input)
+        matches = [q for q in vault.rglob("*.md") if q.name.lower() == Path(rel).name.lower()]
+        if not matches:
+            return {"error": f"note not found: {note_rel}"}
+        p = matches[0]
+        rel = str(p.relative_to(vault)).replace("\\", "/")
+    try:
+        content = p.read_text(encoding="utf-8")
+    except Exception as exc:
+        return {"error": f"could not read {rel}: {exc}"}
+    s = suggest_for_note(rel, content, vault, rag, router, existing_tags(vault))
+    if s["tags"] or s["related"] or s.get("folder") or s.get("project"):
+        _merge_pending([s])                              # show in the 📥 Approvals inbox
+    return s
+
+
 # ---------------------------------------------------------------------------
 # Pending store + apply (used by the plugin Proactive panel)
 # ---------------------------------------------------------------------------
