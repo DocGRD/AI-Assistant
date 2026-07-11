@@ -68,6 +68,22 @@ if _fastapi_available:
     )
 
 
+# When Vault QA can't ground an answer it correctly refuses — but attaching source chips to
+# "I don't know" is misleading (implies those notes support the non-answer). Detect a refusal
+# so the caller drops the citations. (GUI-plan T02.2)
+_QA_REFUSAL_RE = re.compile(
+    r"^\s*(i\s+don'?t\s+know|i\s+do\s+not\s+know|no\s+relevant|i\s+(?:can'?t|cannot)\s+"
+    r"(?:find|answer|determine)|not\s+enough\s+(?:information|context)|the\s+(?:vault|notes?)\s+"
+    r"(?:don'?t|do\s+not|doesn'?t|does\s+not)\s+(?:contain|have|mention|say)|"
+    r"there\s+is\s+no\s+(?:information|mention))",
+    re.IGNORECASE,
+)
+
+
+def _is_qa_refusal(answer: str) -> bool:
+    return bool(_QA_REFUSAL_RE.match((answer or "").strip()))
+
+
 # ---------------------------------------------------------------------------
 # Server class
 # ---------------------------------------------------------------------------
@@ -332,10 +348,13 @@ class AssistantServer:
         if self._memory and self._ep_chat:
             self._memory.append_episode(self._ep_chat(f"[plugin vault-qa] {req.message}",
                                                       answer, provider=res["provider"]))
+        # Don't cite sources next to a refusal — misleading (T02.2).
+        _refused = _is_qa_refusal(answer)
         return HandoffResponse(
             status="ok", reply=answer, provider_used=res["provider"],
-            actual_provider=res["provider"], timestamp=ts, sources=res["sources"],
-            source_kinds=res.get("source_kinds", []),
+            actual_provider=res["provider"], timestamp=ts,
+            sources=[] if _refused else res["sources"],
+            source_kinds=[] if _refused else res.get("source_kinds", []),
         )
 
     def _edit_handoff_response(self, req, original: str, private: bool, ts: str) -> "HandoffResponse":
