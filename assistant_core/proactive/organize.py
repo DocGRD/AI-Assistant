@@ -120,11 +120,29 @@ def _suggest_tags(router, content: str, existing: list[str], private: bool = Fal
     return out[:5]
 
 
+# Exotic Unicode spaces (narrow/no-break/thin/zero-width) that creep into note titles and
+# Scripture refs — they don't match a real filename's regular spaces, so a link like
+# "1 John 1 ESV" is BOTH a missed self-link and a broken [[wikilink]]. Normalize them.
+_SPACE_MAP = {c: " " for c in (0x00A0, 0x202F, 0x2007, 0x2009, 0x2005, 0x2060, 0xFEFF)}
+
+
+def _norm_name(name: str) -> str:
+    """Collapse exotic Unicode spaces to a regular space so link names match real filenames."""
+    return re.sub(r"[ \t]+", " ", (name or "").translate(_SPACE_MAP)).strip()
+
+
 def _related_links(rag, note_path: str, vault, graph=None) -> list[str]:
     """Semantic + graph neighbours via the shared linking service — every link validated
-    against the vault (no fabricated links) and feedback-filtered for this note."""
+    against the vault (no fabricated links) and feedback-filtered for this note. Names are
+    whitespace-normalized so exotic spaces can't produce broken wikilinks or missed self-links."""
     from assistant_core import linking
-    return linking.related(vault, note_path, k=5, rag=rag, graph=graph)
+    seen, out = set(), []
+    for r in linking.related(vault, note_path, k=5, rag=rag, graph=graph):
+        n = _norm_name(r)
+        if n and n.lower() not in seen:
+            seen.add(n.lower())
+            out.append(n)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -321,9 +339,9 @@ def suggest_for_note(note_path: str, content: str, vault, rag, router,
     rel_paths = _related_paths(rag, note_path)
     # Candidate neighbours, minus self-links (a note never links to itself — the semantic
     # index otherwise returns the note as its own nearest neighbour).
-    self_names = {Path(note_path).stem.lower(), Path(note_path).name.lower()}
+    self_names = {_norm_name(Path(note_path).stem).lower(), _norm_name(Path(note_path).name).lower()}
     candidates = [r for r in _related_links(rag, note_path, vault)
-                  if Path(r).stem.lower() not in self_names]
+                  if _norm_name(Path(r).stem).lower() not in self_names]
     # Grounded reason per candidate — then keep only the ones the model DIDN'T judge unrelated
     # (semantic retrieval alone returns cross-domain junk; the reason is a cheap quality gate).
     reasons = _explain_links(router, note_path, content, candidates, vault, private=private)

@@ -307,6 +307,40 @@ class PerItemTests(unittest.TestCase):
         self.assertNotIn("Rocket Stove", s["related"])     # model judged unrelated → dropped
         self.assertIn("1 John 3", s["reasons"])
 
+    def test_norm_name_collapses_exotic_spaces(self):
+        nbsp = chr(0x202f)          # narrow no-break space, as in real Scripture refs
+        self.assertEqual(organize._norm_name(f"1{nbsp}John{nbsp}1{nbsp}ESV"), "1 John 1 ESV")
+        self.assertEqual(organize._norm_name("A" + chr(0x00a0) + "B"), "A B")
+        self.assertEqual(organize._norm_name("1 John 1 ESV"), "1 John 1 ESV")
+
+    def test_self_link_with_narrow_nbsp_is_filtered(self):
+        # regression: the index returned the note itself with narrow no-break spaces (U+202F)
+        # — a missed self-link AND a broken wikilink. Normalize → match self → drop.
+        nbsp = chr(0x202f)
+        v = Path(self.tmp)
+        (v / "1 John 1 ESV.md").write_text("faith and fellowship", encoding="utf-8")
+        (v / "1 John 3 ESV.md").write_text("love one another", encoding="utf-8")
+
+        class _Rag:
+            def has_index(self): return True
+            def relevant_notes(self, note_path, k=5): return []
+
+        class _Router:
+            available_providers = ["groq"]
+            def generate(self, m, task=None, private=False, allow_webui=True, **kw):
+                return '{"1 John 3 ESV": "Both are letters of John on fellowship and love."}', "groq"
+
+        import assistant_core.linking as _link
+        orig_link = _link.related
+        _link.related = lambda vault, note_path, k=5, rag=None, graph=None: [
+            f"1{nbsp}John{nbsp}1{nbsp}ESV", "1 John 3 ESV"]
+        try:
+            s = organize.suggest_for_note("1 John 1 ESV.md", "faith and fellowship",
+                                          self.tmp, _Rag(), _Router(), [])
+        finally:
+            _link.related = orig_link
+        self.assertEqual(s["related"], ["1 John 3 ESV"])   # self-link (exotic spaces) dropped
+
     def test_explain_links_one_call_returns_reasons(self):
         (Path(self.tmp) / "Neighbour.md").write_text("about prayer", encoding="utf-8")
 
