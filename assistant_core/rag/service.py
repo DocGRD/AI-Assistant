@@ -45,6 +45,15 @@ class RagService:
             self._embedder = LocalEmbedder(self.config)
         return self._embedder
 
+    def close(self) -> None:
+        """Release the embedding model + its GPU memory (called before a restart so the CUDA
+        arena is freed cleanly instead of leaking across the in-place os.execv restart)."""
+        if self._embedder is not None:
+            try:
+                self._embedder.close()
+            except Exception:
+                pass
+
     @property
     def store(self) -> VectorStore:
         if self._store is None:

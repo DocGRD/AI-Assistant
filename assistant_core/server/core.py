@@ -452,6 +452,14 @@ class AssistantServer:
     def _schedule_restart(self) -> None:
         def _exec():
             time.sleep(0.4)   # let the HTTP response flush first
+            # Release the embedder's GPU memory FIRST — os.execv replaces the image without
+            # tearing down onnxruntime's CUDA context, so its VRAM would otherwise leak (and
+            # pile up across restarts). Freeing the session here reclaims it cleanly.
+            try:
+                if self._rag is not None:
+                    self._rag.close()
+            except Exception as exc:
+                logger.debug(f"[Server] rag.close() before restart failed: {exc}")
             logger.info("[Server] Restarting (os.execv)")
             try:
                 os.execv(sys.executable, [sys.executable, "-m", "assistant_core", *sys.argv[1:]])

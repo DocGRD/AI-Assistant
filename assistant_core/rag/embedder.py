@@ -44,6 +44,7 @@ class LocalEmbedder:
 
     def __init__(self, config: dict | None = None):
         config = config or {}
+        self._config = config
         self.device  = str(config.get("embedding_device", "cpu")).lower()
         self.threads = config.get("embedding_threads")   # int | None (CPU thread cap)
         self._model  = None
@@ -60,7 +61,6 @@ class LocalEmbedder:
 
         kwargs: dict = {}
         if self.device == "cuda":
-            kwargs["cuda"] = True
             # Load CUDA/cuDNN from the `nvidia-*-cu12` pip packages so onnxruntime-gpu
             # finds them WITHOUT a system install or LD_LIBRARY_PATH (works under systemd).
             try:
@@ -69,6 +69,17 @@ class LocalEmbedder:
                     onnxruntime.preload_dlls()
             except Exception as exc:
                 logger.debug(f"[RAG] onnxruntime.preload_dlls skipped: {exc}")
+            # Cap the CUDA memory arena. Default onnxruntime grabs a huge arena (~3.6 GB for a
+            # ~130 MB model), starving anything else on the card (e.g. a co-resident local LLM).
+            # kSameAsRequested keeps the footprint minimal; gpu_mem_limit is a hard ceiling.
+            mem_mb = int(self._config.get("embedding_gpu_mem_mb", 1024) or 1024)
+            kwargs["providers"] = [
+                ("CUDAExecutionProvider", {
+                    "arena_extend_strategy": "kSameAsRequested",
+                    "gpu_mem_limit": mem_mb * 1024 * 1024,
+                }),
+                "CPUExecutionProvider",
+            ]
         if self.threads:
             try:
                 kwargs["threads"] = int(self.threads)
@@ -102,7 +113,7 @@ class LocalEmbedder:
                 if self.device == "cuda":
                     logger.warning(f"[RAG] CUDA embedding unavailable ({exc}) — falling back to CPU. "
                                    f"Install 'fastembed-gpu' + onnxruntime-gpu on the GPU box.")
-                    kwargs.pop("cuda", None)
+                    kwargs.pop("providers", None)
                     self._model = _build(kwargs)
                 else:
                     raise
@@ -123,3 +134,19 @@ class LocalEmbedder:
 
     def embed_one(self, text: str) -> np.ndarray:
         return self.embed([text])[0]
+
+    def close(self) -> None:
+        """Release the model (and its GPU memory). Call before a restart so the CUDA arena is
+        freed cleanly — the in-place `os.execv` restart otherwise leaks VRAM (onnxruntime's
+        context isn't torn down), which used to pile up across restarts."""
+        if self._model is None:
+            return
+        try:
+            del self._model
+        finally:
+            self._model = None
+        try:
+            import gc
+            gc.collect()
+        except Exception:
+            pass
