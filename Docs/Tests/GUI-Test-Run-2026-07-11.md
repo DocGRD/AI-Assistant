@@ -37,3 +37,33 @@ GUI suites (edit region-drift T04.3, read-aloud control bar T10, goals panel T15
 full provider-matrix fuzz (N06). Those need the live Obsidian/phone harness driven case-by-case.
 
 Automated suite after fixes: **532 tests green**.
+
+---
+
+## Wave 2 — provider-matrix fuzz (N06) + interaction-GUI
+
+### Bug #5 found & fixed — reasoning-model override hijacks a tool turn (Med, v1.10.6)
+Forcing `provider_override` to a reasoning model (`groq:openai/gpt-oss-20b`) on a command request produced a
+**phantom "please approve this command" reply with `proposal: None`** — the reasoning model described the
+command in prose instead of emitting the directive, and the explicit override bypassed the M43 `require_tools`
+filter. Fix: `generate()` skips a non-tool-reliable override on tool turns → routes to a reliable model
+(refactored into `ModelRegistry.is_tool_reliable()`). **Verified live:** gpt-oss-20b override → routed to
+`cerebras:zai-glm-4.7` → **real command_run card**. 533 tests.
+
+### Provider-matrix fuzz — passed (graceful degradation)
+- **Weak 8B override on a command** → fell through to a reliable model → correct card, no raw spam. ✅
+- **Reasoning qwen3-32b override on a command** → fell through → correct `daily-notes` card. ✅
+- **Weak 8B on plain chat** → graceful `_NO_ANSWER` fallback (no crash / no spam). ✅
+- No raw `command:`/`vault:` directive spam surfaced to the user in any cell. ✅
+
+### Interaction-GUI wave (driven in real Obsidian, GRDVault) — no new bugs
+- **T14.4 risky command:** `command:run app:delete-file` → card shows **"⚠ This command may make significant
+  or irreversible changes."** + Approve/Reject; **Reject → "✕ Rejected — nothing ran"**. P0 destructive-action
+  gate confirmed in the UI. ✅
+- **T15 Goals panel** renders cleanly ("No active goals…"); tab switch Approvals↔Goals works. ✅
+- (Earlier live session: command Approve&run → sidebar toggled → "✓ Ran"; Approvals reasons wrapped + only
+  relevant links.) ✅
+- Note: a *client* vault's `AI/Help/*` is stale (help-version 18) because help-seeding runs server-side
+  against the *server's* vault — expected, not a defect.
+
+**Campaign total: 5 bugs found & fixed** (v1.10.5 + v1.10.6), all with regression tests. Automated suite: **533 green**.
