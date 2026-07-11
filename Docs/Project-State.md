@@ -1,3 +1,17 @@
+*Status: **Loremaster v1.10.0 — 2026-07-11** (GitHub pre-release + BRAT). **M41 — Obsidian command-palette
+awareness + propose-to-run:** Loremaster now knows the user's whole command palette — Obsidian core **and
+every installed community plugin** — and can **use their plugins** for them. The plugin enumerates
+`app.commands` (id + name + plugin source) and pushes the catalog to the service (`POST /commands`) on load,
+on workspace change, before each chat send, and via a **Refresh Obsidian commands** command; the service
+stores it per-device (outside the vault, `state/commands.json`, git-ignored) in `assistant_core/commands_catalog.py`.
+The model discovers commands with `command:search <query>` / `command:list [plugin]` and **proposes** one with
+`command:run <id>` (agent-loop directive + server intercept; a compact `[Obsidian command palette]` summary is
+injected each turn so the model is aware). Execution never happens server-side — `command:run` stages a
+`command_run` proposal the plugin renders as **Approve & run**, then executes via `executeCommandById` in the
+renderer (only place Obsidian commands can run); destructive/outward-facing commands (delete/publish/sync) are
+⚠-flagged, and every command is approved before it runs. System-Prompt `PROMPT_VERSION → 2`, `HELP_VERSION → 22`.
+**515 automated tests green** (+12 `tests/test_commands_catalog.py`). Backend + plugin (bumped to 1.10.0).*
+
 *Status: **Loremaster v1.9.3 — 2026-07-10** (GitHub pre-release + BRAT). Milestones 1–40 + all
 carried-forward + a v1.6–v1.9 UI & knowledge layer (**489 automated tests green**), deployed end-to-end
 (Linux systemd service, GPU embeddings, Obsidian plugin over the LAN; box on `main`). **v1.9.1–v1.9.3

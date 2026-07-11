@@ -1,4 +1,4 @@
-<!-- help-version: 21 -->
+<!-- help-version: 22 -->
 ---
 tags: [help, user-guide]
 ---

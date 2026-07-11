@@ -1,4 +1,4 @@
-<!-- help-version: 18 -->
+<!-- help-version: 22 -->
 ---
 tags: [help, user-guide]
 ---
@@ -20,6 +20,18 @@ Part of [[How-To-Use]]. See [[Commands]] for the exact syntax.
   `vault:actions`.
 - **Capture** — `vault:clip <url>` saves web pages **and YouTube transcripts**; `vault:template` fills your
   Templater templates.
+
+## Using your Obsidian plugins (v1.10)
+Loremaster is aware of your **whole Obsidian command palette** — core commands and the commands from every
+community plugin you install — so it can actually *drive your plugins* for you.
+- **Just ask in plain language:** "insert my daily-note template", "open the calendar", "create a new
+  Excalidraw drawing", "start a Kanban board". Loremaster searches the palette, picks the matching command,
+  and shows a one-click **Approve & run** card. It (not the service) runs the command inside Obsidian.
+- **Safe by default:** every command is approved before it runs, and destructive or outward-facing ones
+  (delete, publish, sync) are flagged with a ⚠.
+- **Zero setup for new plugins:** install or enable a plugin and its commands are immediately available to
+  Loremaster. It re-syncs on load, when the workspace changes, and via the **Refresh Obsidian commands**
+  palette command. (Power users: `command:search <query>` and `command:run <id>` do this explicitly.)
 
 ## Chatting & context
 Type in the sidebar and **Send**. To steer what the assistant looks at:

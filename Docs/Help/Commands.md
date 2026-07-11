@@ -1,4 +1,4 @@
-<!-- help-version: 21 -->
+<!-- help-version: 22 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -69,6 +69,22 @@ Running goals live under the **🎯 Goals** button.*
 |---|---|
 | `vault:clip <url>` | Save a web page's readable text — or a **YouTube** transcript — as a sourced, indexed note in `AI/Clippings/` (disabled in Private mode) |
 | `vault:template <name> [:: context]` | Fill a **Templater/Templates** template's fields from context → propose-only note |
+
+## Obsidian command palette (core + your plugins)
+Loremaster knows your whole Obsidian command palette — core **and every community plugin you install** — so
+you can ask it to *use your plugins* ("insert my daily-note template", "open the calendar", "start a Kanban
+board"). It finds the matching command and **proposes** running it; you approve with one click and the plugin
+runs it. New plugins are picked up automatically (or force a re-sync from the palette).
+
+| Command | What it does |
+|---|---|
+| `command:search <query>` | Find matching palette commands (returns each command's name + `id`) |
+| `command:list [plugin]` | Browse the whole palette, or one plugin's commands |
+| `command:run <id>` | **Propose** running a command → one-click **Approve & run** (destructive ones are flagged; nothing runs until you approve). The plugin executes it — the service can't |
+
+*You usually don't type these — just ask in plain language ("use Templater to insert my daily note") and
+Loremaster searches, then proposes the right command. The palette syncs on load, when you install/enable a
+plugin, and via the **Refresh Obsidian commands** command.*
 
 *Inline editing (editor commands, hotkeyable): **Continue writing**, **Rewrite selection**, **Compose with
 Loremaster…** open a popup that previews the result before it's inserted (private routing — your note text

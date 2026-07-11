@@ -1,10 +1,22 @@
-<!-- help-version: 21 -->
+<!-- help-version: 22 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in Loremaster
 
-*A capability overview so you can learn everything Loremaster can do. Current through **v1.9**.*
+*A capability overview so you can learn everything Loremaster can do. Current through **v1.10**.*
+
+## Loremaster can use your Obsidian plugins (v1.10)
+- **Loremaster now knows your whole Obsidian command palette — core *and* every community plugin you
+  install** — and can run those commands for you. Ask in plain language ("insert my daily-note template",
+  "open the calendar", "create a new Excalidraw drawing") and it finds the matching command and **proposes**
+  running it: a one-click **Approve & run** card. The plugin executes it (the service can't reach Obsidian's
+  commands), and destructive/outward-facing commands (delete, publish, sync) are flagged with a ⚠ — nothing
+  runs until you approve.
+- **New plugins are picked up automatically.** Install or enable a plugin and its commands become available
+  to Loremaster with no setup (there's also a **Refresh Obsidian commands** palette command to force it).
+- Under the hood: `command:search <query>` finds commands, `command:run <id>` proposes one. You rarely type
+  these — just ask.
 
 ## Read-aloud on mobile + clearer errors (v1.9.1–v1.9.3)
 - **Read-aloud now works on Android.** Obsidian's mobile WebView has no built-in speech, so the

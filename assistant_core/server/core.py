@@ -64,6 +64,7 @@ if _fastapi_available:
     from assistant_core.server.models import (
         ChatRequest, HandoffResponse, HandoffReturnRequest,
         HistoryMessage, StatusResponse, HistoryResponse, MemoryApplyRequest,
+        CommandsSyncRequest,
     )
 
 
@@ -542,6 +543,24 @@ class AssistantServer:
             self._schedule_restart()
             return {"status": "restarting"}
 
+        # ── M41 — Obsidian command-palette catalog sync ─────────────────────
+        @app.post("/commands")
+        async def commands_sync(req: CommandsSyncRequest):
+            """The plugin pushes the full command catalog (on load + when plugins change)
+            so the model stays aware of every available command, including newly installed
+            community plugins. Stored per-service (outside the vault)."""
+            from assistant_core import commands_catalog
+            n = commands_catalog.replace(req.commands, req.plugins, req.hash)
+            return {"status": "ok", "stored": n, "plugins": len(req.plugins)}
+
+        @app.get("/commands")
+        async def commands_get():
+            """Diagnostics: what the service currently knows about the palette."""
+            from assistant_core import commands_catalog
+            return {"count": commands_catalog.count(),
+                    "plugins": commands_catalog.plugin_sources(),
+                    "hash": commands_catalog.current_hash()}
+
         # ── POST /chat ──────────────────────────────────────────────────────
         @app.post("/chat", response_model=HandoffResponse)
         async def chat(req: ChatRequest):
@@ -583,6 +602,19 @@ class AssistantServer:
             # to the LLM, which then "kept working" instead of just returning the result.
             from assistant_core.vault_commands import VAULT_COMMANDS, handle_vault_command
             _first = req.message.strip().split(None, 1)[0].lower()
+
+            # M41 — Obsidian command-palette directive typed directly, or echoed back by
+            # the plugin. `command:search`/`command:list` are read-only lookups; `command:run`
+            # returns a command_run proposal the plugin executes on approval. Handled here
+            # (not the agent loop) so it's instant and never burns a model call.
+            from assistant_core import commands_catalog
+            if _first in commands_catalog.COMMAND_DIRECTIVES:
+                arg = req.message.strip()[len(_first):].strip()
+                res = commands_catalog.handle(_first, arg)
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                return HandoffResponse(
+                    status="ok", reply=res["output"], provider_used="system",
+                    actual_provider="system", timestamp=ts, proposal=res.get("proposal"))
 
             # M19 — vault:ocr <note>: OCR the note's images into an AI/Derived sidecar.
             if _first == "vault:ocr":
@@ -1259,6 +1291,14 @@ class AssistantServer:
                         context_blocks.append(f"[Mentioned note: {mp}]\n\n{_cap(mp, result.output)}")
                         logger.info(f"[Server] Mention injected: {mp}")
 
+            # M41 — make the model aware of the Obsidian command palette (core + every
+            # installed plugin) so it can discover and propose running commands. Compact
+            # summary only (count + plugin sources); the model drills in via command:search.
+            from assistant_core import commands_catalog
+            _cmd_summary = commands_catalog.summary()
+            if _cmd_summary:
+                context_blocks.append(f"[Obsidian command palette]\n{_cmd_summary}")
+
             effective_message = req.message
             if context_blocks:
                 # Frame injected context as BACKGROUND, clearly separated from the user's
@@ -1388,6 +1428,17 @@ class AssistantServer:
                     status="ok", reply=reply, provider_used=used_provider,
                     actual_provider=used_provider, timestamp=ts,
                     proposal=ctx.pending_restructure)
+
+            # M41 — the agent staged an Obsidian command-palette command (it can't execute
+            # one — only the plugin can): return it as a proposal the plugin runs on approval.
+            if getattr(ctx, "pending_command", None):
+                if self._memory and self._ep_vault:
+                    self._memory.append_episode(
+                        self._ep_vault("propose_command", ctx.pending_command["command_id"][:100]))
+                return HandoffResponse(
+                    status="ok", reply=reply, provider_used=used_provider,
+                    actual_provider=used_provider, timestamp=ts,
+                    proposal=ctx.pending_command)
 
             # If the assistant produced a research prompt via the agent loop (e.g. the user
             # asked in plain language rather than typing vault:research), surface it through

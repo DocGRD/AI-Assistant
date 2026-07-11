@@ -48,6 +48,11 @@ if _fastapi_available:
         sources:             list[str]  = []   # M11 — Vault QA source notes (path#heading)
         source_kinds:        list[str]  = []   # M16 — "vector"|"graph" per source (aligned with sources)
 
+    class CommandsSyncRequest(BaseModel):        # M41 — plugin pushes the palette catalog
+        commands: list[dict] = []                # [{id, name, source}]
+        plugins:  list[str]  = []                # enabled community-plugin ids (for labelling)
+        hash:     str        = ""                # id-set hash so the server can spot drift
+
     class HandoffReturnRequest(BaseModel):
         response_text:    str
         original_message: str | None = None

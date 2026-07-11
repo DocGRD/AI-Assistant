@@ -94,7 +94,10 @@ RESTRUCTURE_COMMANDS = {"vault:copy", "vault:move", "vault:trash", "vault:mkdir"
 # A weak model can spew malformed, concatenated `vault:...` commands as its "answer"
 # (e.g. `We need to issue vault:list.vault:list "x"vault:list "x"`). If they don't parse as
 # real commands the loop would otherwise show that raw text. Strip command-spam for display.
-_INLINE_CMD_RE = re.compile(r'vault:[a-z][a-z-]*(?:\s+"[^"\n]*"|\s+[^\s\n]+)*', re.IGNORECASE)
+_INLINE_CMD_RE = re.compile(r'(?:vault|command):[a-z][a-z-]*(?:\s+"[^"\n]*"|\s+[^\s\n]+)*', re.IGNORECASE)
+
+# M41 — Obsidian command-palette directives the agent may emit (awareness + propose-to-run).
+COMMAND_DIRECTIVES = {"command:search", "command:list", "command:run"}
 
 
 def _clean_for_display(text: str) -> str:
@@ -211,14 +214,14 @@ def extract_vault_commands(reply: str) -> list[str]:
     i        = 0
     while i < len(lines):
         line = lines[i].strip()
-        if re.match(r"^vault:[a-z]+", line, re.IGNORECASE):
+        if re.match(r"^(?:vault|command):[a-z]+", line, re.IGNORECASE):
             is_body = line.split(None, 1)[0].lower() in _BODY_COMMANDS
             cmd_lines = [line]
             i += 1
             while i < len(lines):
                 next_line = lines[i]
-                # The next vault: command always ends the current one.
-                if re.match(r"^vault:[a-z]+", next_line.strip(), re.IGNORECASE):
+                # The next vault:/command: directive always ends the current one.
+                if re.match(r"^(?:vault|command):[a-z]+", next_line.strip(), re.IGNORECASE):
                     break
                 # Single-line-arg commands also stop at a blank line; body commands
                 # (create/update) keep blank lines as part of the note content.
@@ -267,6 +270,10 @@ class AgentContext:
     # can't run it autonomously; instead it stages a proposal here and ends the turn.
     # The server surfaces it as a proposal the user approves (one click) to execute.
     pending_restructure:     dict | None = None
+    # M41 — when the agent wants to run an Obsidian command-palette command it can't
+    # execute (only the plugin can), it stages a command_run proposal here and ends the
+    # turn; the server surfaces it for one-click approval and the plugin executes it.
+    pending_command:         dict | None = None
     # M33 — config + rag so the agent can run the rich commands (webresearch, ingest,
     # guide, passage, …) via vault_dispatch.run_extended.
     config:                  dict = field(default_factory=dict)
@@ -361,7 +368,7 @@ def run_agent_loop(ctx: AgentContext) -> tuple[str, str]:
         # ── Show non-command commentary to terminal ────────────────────────
         clean_reply = "\n".join(
             ln for ln in reply.splitlines()
-            if not re.match(r"^vault:[a-z]+", ln.strip(), re.IGNORECASE)
+            if not re.match(r"^(?:vault|command):[a-z]+", ln.strip(), re.IGNORECASE)
         ).strip()
         if clean_reply:
             src = f" [{ctx.source_label}]" if ctx.source_label else f" [{used_provider}]"
@@ -389,6 +396,25 @@ def run_agent_loop(ctx: AgentContext) -> tuple[str, str]:
                 tool_results.append(f"[Proposed {prefix} — awaiting the user's one-click approval.]")
                 ledger.record(step + 1, used_provider, prefix, False, "proposed — awaiting approval")
                 logger.info(f"[Agent] Proposed restructuring: {cmd.strip()}")
+                continue
+
+            # M41 — Obsidian command-palette directives. search/list are read-only lookups
+            # the agent runs mid-loop; run stages a proposal (the plugin executes on approve).
+            if prefix in COMMAND_DIRECTIVES:
+                from assistant_core import commands_catalog
+                arg = parts[1].strip() if len(parts) > 1 else ""
+                res = commands_catalog.handle(prefix, arg)
+                if prefix == "command:run" and res.get("proposal"):
+                    if ctx.pending_command is None:
+                        ctx.pending_command = res["proposal"]
+                    tool_results.append("[Proposed running an Obsidian command — awaiting the "
+                                        "user's one-click approval.]")
+                    ledger.record(step + 1, used_provider, prefix, False, "proposed — awaiting approval")
+                else:
+                    tool_results.append(f"[Tool result for `{prefix}`]\n{res['output']}")
+                    ledger.record(step + 1, used_provider, prefix, True, arg[:120])
+                ctx.tools_used.append(prefix)
+                print(f"\n[Agent executing: {prefix}]")
                 continue
 
             # Check blocked commands first
@@ -462,6 +488,21 @@ def run_agent_loop(ctx: AgentContext) -> tuple[str, str]:
             with ctx.history_lock:
                 ctx.history.append(Message(role="assistant", content=msg))
             logger.info(f"[Agent] Ending turn — restructuring proposed: {prop['command']}")
+            ledger.persist("done — awaiting approval", step + 1, max_steps)
+            return msg, used_provider
+
+        # M41 — an Obsidian command was staged for approval: end the turn (the plugin, not
+        # the service, executes it). The server attaches ctx.pending_command as a proposal.
+        if ctx.pending_command is not None:
+            prop = ctx.pending_command
+            warn = " ⚠ This command may make significant or irreversible changes." if prop.get("risky") else ""
+            msg = (clean_reply + "\n\n" if clean_reply else "") + (
+                f"I've prepared an Obsidian command for your approval: **{prop['name']}** "
+                f"(`{prop['command_id']}`).{warn} Approve it below and I'll run it — nothing "
+                "happens until you do.")
+            with ctx.history_lock:
+                ctx.history.append(Message(role="assistant", content=msg))
+            logger.info(f"[Agent] Ending turn — command proposed: {prop['command_id']}")
             ledger.persist("done — awaiting approval", step + 1, max_steps)
             return msg, used_provider
 

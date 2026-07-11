@@ -260,6 +260,17 @@ interface RestructureProposal {
     dst?:     string | null;
     id:       string;
 }
+// M41 — an Obsidian command-palette command the agent proposes running. The plugin (not
+// the service) executes it via app.commands.executeCommandById once the user approves.
+interface CommandRunProposal {
+    kind:       "command_run";
+    id:         string;
+    command_id: string;               // the exact Obsidian command id to execute
+    name:       string;               // human-readable command name
+    source?:    string;               // plugin id / "core"
+    risky?:     boolean;              // destructive/outward-facing → show a warning
+    summary:    string;
+}
 
 // Provider keys are no longer a fixed union — the dropdown is populated from the
 // service's /status endpoint, which is itself driven by Provider-Registry.md.
@@ -273,7 +284,7 @@ interface HandoffResponse {
     timestamp:            string;
     prompt_to_copy?:      string;
     vault_actions_taken?: string[];   // commands executed from web AI suggestions
-    proposal?:            EditProposal | RestructureProposal;   // M9 edit / M29 restructure
+    proposal?:            EditProposal | RestructureProposal | CommandRunProposal;  // M9 / M29 / M41
     sources?:             string[];       // M11 — Vault QA source notes
     source_kinds?:        string[];       // M16 — "vector"|"graph" per source
 }
@@ -710,6 +721,10 @@ export class ChatView extends ItemView {
         this.inputEl.value = "";
         this.setLoading(true);
 
+        // M41 — make sure the service has the current palette before this turn (cheap: no-ops
+        // when nothing changed since last sync). Fire-and-forget so it never adds latency.
+        void this.plugin.syncCommands();
+
         if (this.chatMode === "edit-handoff-awaiting") {
             await this.submitEditHandoffReturn(text);
         } else if (this.chatMode === "handoff-awaiting-response") {
@@ -848,6 +863,12 @@ export class ChatView extends ItemView {
                 if ((data.proposal as RestructureProposal).kind === "restructure") {
                     if (data.reply) await this.appendMessage("assistant", data.reply);
                     this.renderRestructureProposal(data.proposal as RestructureProposal);
+                    return;
+                }
+                // M41 — an Obsidian command-palette command to run on approval.
+                if ((data.proposal as CommandRunProposal).kind === "command_run") {
+                    if (data.reply) await this.appendMessage("assistant", data.reply);
+                    this.renderCommandProposal(data.proposal as CommandRunProposal);
                     return;
                 }
                 const edit = data.proposal as EditProposal;
@@ -1722,6 +1743,43 @@ export class ChatView extends ItemView {
         this.pendingSelection = null;
         this.inputEl.value = command;
         void this.handleSend();
+    }
+
+    // ------------------------------------------------------------------
+    // M41 — Obsidian command-palette proposal: approve → execute in the plugin → report.
+    // ------------------------------------------------------------------
+    private renderCommandProposal(p: CommandRunProposal): void {
+        const el = this.messagesEl.createDiv("ai-assistant-message ai-assistant-proposal");
+        el.createEl("span", { text: "⌘ Run Obsidian command", cls: "ai-assistant-label" });
+        const body = el.createDiv("ai-assistant-body");
+        body.createEl("p", { text: p.name, cls: "ai-assistant-proposal-intent" });
+        body.createEl("pre", { text: p.command_id, cls: "ai-assistant-proposal-word-original" });
+        if (p.risky) {
+            body.createEl("p", {
+                text: "⚠ This command may make significant or irreversible changes.",
+                cls: "ai-assistant-proposal-warning",
+            });
+        }
+
+        const controls = body.createDiv("ai-assistant-proposal-controls");
+        const done = (text: string) => {
+            el.addClass("ai-assistant-proposal-applied");
+            controls.empty();
+            controls.createEl("span", { text, cls: "ai-assistant-proposal-done" });
+        };
+        controls.createEl("button", { text: "Approve & run", cls: "ai-assistant-proposal-replace" })
+            .addEventListener("click", () => {
+                // Execute in the plugin — only the renderer can run Obsidian commands.
+                const ok = this.plugin.runPaletteCommand(p.command_id);
+                done(ok ? `✓ Ran “${p.name}”`
+                        : `✗ “${p.name}” couldn't run right now (it may need a different note or view active).`);
+                new Notice(ok ? `Ran: ${p.name}` : `Couldn't run: ${p.name}`);
+            });
+        controls.createEl("button", { text: "Reject", cls: "ai-assistant-proposal-keep" })
+            .addEventListener("click", () => done("✕ Rejected — nothing ran"));
+
+        this.scrollToBottom();
+        this.focusInput();
     }
 
     // M9 — edit proposal dialog (single commit point) + apply

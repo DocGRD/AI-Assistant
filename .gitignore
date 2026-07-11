@@ -39,6 +39,9 @@ logs/*.log.*
 # M11 — local RAG vector index (per-machine, rebuildable from the vault)
 data/
 
+# M41 — per-service Obsidian command-palette catalog (device-specific plugin set)
+state/
+
 
 # stray temp logs anywhere
 *.log

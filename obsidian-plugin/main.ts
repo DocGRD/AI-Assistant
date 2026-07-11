@@ -1,6 +1,7 @@
 import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor, Menu, MarkdownView } from "obsidian";
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
+import { buildCatalog, executeCommand } from "./commands";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -114,6 +115,13 @@ export default class AIAssistantPlugin extends Plugin {
             name: "Stop reading",
             callback: () => this.reader.stop(),
         });
+        // M41 — push the current Obsidian command palette to the service so Loremaster
+        // knows every command (incl. plugins you just installed). Runs automatically too.
+        this.addCommand({
+            id: "ai-refresh-commands",
+            name: "Refresh Obsidian commands (sync to Loremaster)",
+            callback: () => void this.syncCommands(true),
+        });
         // M40 — fill a Templater/Templates template from context (propose-only).
         this.addCommand({
             id: "ai-fill-template",
@@ -153,6 +161,11 @@ export default class AIAssistantPlugin extends Plugin {
             if (!this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE).length) {
                 this.activateChatView();
             }
+            // M41 — push the palette catalog once the app (and its plugins) are loaded.
+            void this.syncCommands();
+            // Re-sync when the workspace changes (plugins enable/disable panels, etc.),
+            // debounced. syncCommands() no-ops when the id-set hasn't actually changed.
+            this.registerEvent(this.app.workspace.on("layout-change", () => this.scheduleCommandSync()));
         });
     }
 
@@ -207,6 +220,45 @@ export default class AIAssistantPlugin extends Plugin {
         } catch {
             return null;
         }
+    }
+
+    // ------------------------------------------------------------------
+    // M41 — Obsidian command-palette catalog sync + execution
+    // ------------------------------------------------------------------
+    private lastCommandsHash = "";
+    private commandSyncTimer: number | null = null;
+
+    /** Debounced re-sync (the workspace changed — a plugin may have been enabled). */
+    scheduleCommandSync(): void {
+        if (this.commandSyncTimer !== null) window.clearTimeout(this.commandSyncTimer);
+        this.commandSyncTimer = window.setTimeout(() => { void this.syncCommands(); }, 2500);
+    }
+
+    /** Push the palette catalog to the service. No-ops when the id-set is unchanged
+     *  (unless `force`). Runs on load, on workspace change, before a chat send, and from
+     *  the "Refresh Obsidian commands" command — so newly installed plugins are known. */
+    async syncCommands(force = false): Promise<void> {
+        let payload;
+        try { payload = buildCatalog(this.app); } catch { return; }
+        if (!force && payload.hash === this.lastCommandsHash) return;
+        const { host, port, apiToken } = this.settings;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (apiToken?.trim()) headers["X-API-Key"] = apiToken.trim();
+        try {
+            const resp = await fetch(`http://${host}:${port}/commands`, {
+                method: "POST", headers, body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(8000),
+            });
+            if (resp.ok) {
+                this.lastCommandsHash = payload.hash;
+                if (force) new Notice(`Synced ${payload.commands.length} Obsidian commands to Loremaster.`);
+            }
+        } catch { /* service offline — retried on the next trigger */ }
+    }
+
+    /** Execute an approved palette command by id. Returns true if it ran. */
+    runPaletteCommand(id: string): boolean {
+        return executeCommand(this.app, id);
     }
 
     // v1.8 — refine a proposed goal's plan with feedback (iterate before approving).

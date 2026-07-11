@@ -408,6 +408,14 @@
   background-color: rgba(239, 68, 68, 0.12);
 }
 
+/* M41 — warning line on a risky Obsidian command_run proposal. */
+.ai-assistant-proposal-warning {
+  margin: 2px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-warning, #b45309);
+}
+
 .ai-assistant-proposal-options {
   display: flex;
   flex-wrap: wrap;
