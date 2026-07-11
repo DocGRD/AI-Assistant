@@ -397,6 +397,15 @@ class ModelRegistry:
     # and we prefer batch/volume providers.
     LARGE_TOKENS = 8_000
 
+    def is_tool_reliable(self, route_key: str) -> bool:
+        """True if this model can reliably emit vault:/command: directives on their own line —
+        i.e. not a reasoning/CoT model and not a tiny model. Used to keep tool/command turns
+        (and overrides for them) on models that follow the strict format (M43)."""
+        spec = self.specs.get((route_key or "").lower())
+        if spec is None:
+            return False
+        return spec.tier != "small" and not is_reasoning_model(spec.model_id)
+
     def _tags(self, spec: ModelSpec) -> set[str]:
         """Lowercased word tags from a spec's strengths, for task matching."""
         tags: set[str] = set()
@@ -448,8 +457,7 @@ class ModelRegistry:
         # line. Drop reasoning models (CoT preamble breaks the format) and tiny models. Keep the
         # filtered set only when non-empty, so a degraded state still answers rather than erroring.
         if require_tools:
-            reliable = [c for c in candidates
-                        if self.specs[c].tier != "small" and not is_reasoning_model(self.specs[c].model_id)]
+            reliable = [c for c in candidates if self.is_tool_reliable(c)]
             if reliable:
                 candidates = reliable
             else:

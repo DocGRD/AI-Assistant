@@ -105,6 +105,17 @@ class RoutingTests(unittest.TestCase):
             self.assertFalse(is_reasoning_model(spec.model_id), f"{k} is a reasoning model")
         self.assertNotIn("groq:llama-3.1-8b-instant", order)    # the 8B is small → gone
 
+    def test_is_tool_reliable(self):
+        # large/mid instruction models are reliable; small + reasoning are not
+        self.assertTrue(self.reg.is_tool_reliable("groq"))          # llama-3.3-70b (large)
+        self.assertFalse(self.reg.is_tool_reliable("groq:llama-3.1-8b-instant"))  # small
+        self.assertFalse(self.reg.is_tool_reliable("nope-unknown-key"))            # missing → False
+        # a reasoning model, if present in the registry, is not reliable
+        for k, spec in self.reg.specs.items():
+            from assistant_core.providers.model_registry import is_reasoning_model
+            if is_reasoning_model(spec.model_id):
+                self.assertFalse(self.reg.is_tool_reliable(k), k)
+
     def test_require_tools_degrades_when_no_reliable(self):
         # If ONLY a small model is available, don't return empty — degrade to it so the
         # turn still answers (better a mangled reply than a hard failure).

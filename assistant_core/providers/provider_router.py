@@ -200,12 +200,22 @@ class ProviderRouter:
         if provider_override:
             override = provider_override.lower()
             ov_spec  = self._registry.specs.get(override)
+            _ov_unreliable = (require_tools and ov_spec is not None
+                              and not self._registry.is_tool_reliable(override))
             # Privacy wins over a manual override.
             if private and ov_spec is not None and (ov_spec.trains_on_data or "").lower() != "no":
                 logger.warning(
                     f"[Router] Override '{override}' ignored — trains_on_data="
                     f"{ov_spec.trains_on_data!r} not allowed for a private request."
                 )
+                order = self._registry.route_order(available, private, est_tokens, mt, high_volume,
+                                                   task=task, require_tools=require_tools)
+            elif _ov_unreliable:
+                # M43 — a reasoning/small model can't reliably emit vault:/command: directives, so
+                # on a tool turn it produces phantom results (e.g. "approve this command" with no
+                # actual card). Don't let an override hijack a tool turn — route to reliable models.
+                logger.info(f"[Router] Override '{override}' skipped for a tool turn "
+                            f"(not tool-reliable); routing to a reliable model instead.")
                 order = self._registry.route_order(available, private, est_tokens, mt, high_volume,
                                                    task=task, require_tools=require_tools)
             else:
