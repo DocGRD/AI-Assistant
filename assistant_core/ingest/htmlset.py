@@ -149,9 +149,14 @@ def ingest_html_collection(vault, src_path, config: dict | None = None, rag=None
         (Path(vault) / note_dir).mkdir(parents=True, exist_ok=True)
         report["collection"], report["note_dir"], report["note_path"] = collection, note_dir, note_dir
 
-        # Pass 1 — assign every source file a unique target note; key by basename for link resolution.
+        # Pass 1 — assign every source file a unique target note. Key link resolution by the
+        # file's *archive-relative path* (NOT bare basename) so same-named files in different
+        # folders (a/Note.htm vs b/Note.htm — common in commentary sets) resolve to DISTINCT
+        # notes. A basename map is kept only as a last-resort fallback for flat/odd links.
+        root_res = root.resolve()
         used: set[str] = set()
-        basename_map: dict[str, str] = {}     # "mhc1001.htm" -> "AI/Library/matthew-henry/mhc1001"
+        rel_map: dict[str, str] = {}          # "a/note.htm" -> "AI/Library/coll/note"
+        basename_map: dict[str, str] = {}     # "note.htm" -> first note (fallback only)
         target_of: dict[Path, tuple[str, str]] = {}
         for f in files:
             base = _slugify(f.stem, "page")
@@ -160,21 +165,31 @@ def ingest_html_collection(vault, src_path, config: dict | None = None, rag=None
                 i += 1; name = f"{base}-{i}"
             used.add(name)
             target_of[f] = (name, f"{note_dir}/{name}.md")
+            rel_map[f.resolve().relative_to(root_res).as_posix().lower()] = f"{note_dir}/{name}"
             basename_map.setdefault(f.name.lower(), f"{note_dir}/{name}")
 
-        def _resolver(href: str):
-            h = href.replace("\\", "/").split("#", 1)[0].split("?", 1)[0].strip()
-            if not h or h.lower().startswith(("http://", "https://", "mailto:")):
-                return None
-            return basename_map.get(Path(h).name.lower())
+        def _make_resolver(cur: Path):
+            cur_dir = cur.resolve().parent
+            def _resolve(href: str):
+                h = href.replace("\\", "/").split("#", 1)[0].split("?", 1)[0].strip()
+                if not h or h.lower().startswith(("http://", "https://", "mailto:", "tel:")):
+                    return None
+                try:                              # resolve relative to THIS file's directory
+                    key = (cur_dir / h).resolve().relative_to(root_res).as_posix().lower()
+                    if key in rel_map:
+                        return rel_map[key]
+                except (ValueError, OSError):
+                    pass
+                return basename_map.get(Path(h).name.lower())   # fallback (flat/ambiguous only)
+            return _resolve
 
-        # Pass 2 — convert + write each note with links rewritten.
+        # Pass 2 — convert + write each note with links rewritten (per-file resolver).
         date = datetime.now().strftime("%Y-%m-%d")
         for f in files:
             name, rel = target_of[f]
             raw = f.read_text(encoding="utf-8", errors="replace")
             title = extract_title(raw, f.stem)
-            body_md = html_to_markdown(raw, _resolver)
+            body_md = html_to_markdown(raw, _make_resolver(f))
             if not body_md:
                 continue
             note = _build_note(title, body_md, str(src), collection, date)

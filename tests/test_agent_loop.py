@@ -137,6 +137,20 @@ class CleanForDisplayTests(unittest.TestCase):
         r = 'We need to issue vault:list.vault:list "05 - Personal Growth"vault:list "05 - Personal Growth"'
         self.assertEqual(_clean_for_display(r), "")   # command-spam → empty (caller shows fallback)
 
+    def test_multiple_inline_commands_on_one_line_are_stripped(self):
+        # regression: greedy arg-match used to swallow later commands as "args" of the first, so
+        # `command:run a command:run b command:search c` counted as ONE token → not stripped.
+        from assistant_core.agent_loop import _clean_for_display, _INLINE_CMD_RE
+        r = "text command:run a command:run b command:search c more"
+        self.assertEqual(len(_INLINE_CMD_RE.findall(r)), 3)      # three distinct commands
+        self.assertNotIn("command:run", _clean_for_display(r))   # all stripped
+
+    def test_reasoning_style_vault_command_mix_stripped(self):
+        from assistant_core.agent_loop import _clean_for_display
+        r = "We need to run command:search left sidebar toggle vault:search left sidebar toggle"
+        self.assertNotIn("command:search", _clean_for_display(r))
+        self.assertNotIn("vault:search", _clean_for_display(r))
+
 
 class AgentLoopTaskLedgerTests(unittest.TestCase):
     """M20 Slice 3 — the externalized task ledger is injected into the system prompt

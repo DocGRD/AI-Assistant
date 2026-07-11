@@ -94,7 +94,12 @@ RESTRUCTURE_COMMANDS = {"vault:copy", "vault:move", "vault:trash", "vault:mkdir"
 # A weak model can spew malformed, concatenated `vault:...` commands as its "answer"
 # (e.g. `We need to issue vault:list.vault:list "x"vault:list "x"`). If they don't parse as
 # real commands the loop would otherwise show that raw text. Strip command-spam for display.
-_INLINE_CMD_RE = re.compile(r'(?:vault|command):[a-z][a-z-]*(?:\s+"[^"\n]*"|\s+[^\s\n]+)*', re.IGNORECASE)
+# The arg-run stops at the next vault:/command: token (negative lookahead) — otherwise a greedy
+# match swallows several inline commands as one, so `command:run a command:run b` counted as a
+# single token and _clean_for_display failed to strip the spam (weak-model one-line command dump).
+_INLINE_CMD_RE = re.compile(
+    r'(?:vault|command):[a-z][a-z-]*(?:\s+"[^"\n]*"|\s+(?!(?:vault|command):)[^\s\n]+)*',
+    re.IGNORECASE)
 
 # M41 — Obsidian command-palette directives the agent may emit (awareness + propose-to-run).
 COMMAND_DIRECTIVES = {"command:search", "command:list", "command:run"}

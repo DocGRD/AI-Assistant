@@ -159,6 +159,7 @@ def _excerpt(text: str, n: int = 600) -> str:
 def _resolve_link_path(vault, name: str):
     """Resolve a wikilink target (name or path, with/without .md) to a file, or None."""
     vault = Path(vault)
+    name = _norm_name(name)                       # exotic spaces won't match real filenames
     cand = name if name.endswith(".md") else f"{name}.md"
     p = vault / cand
     if p.exists():

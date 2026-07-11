@@ -71,6 +71,27 @@ class TestZipIngest(unittest.TestCase):
         rep = ingest_file(str(self.vault), "no-such-file.zip", {})
         self.assertTrue(rep.get("error"))
 
+    def test_duplicate_basenames_resolve_to_distinct_notes(self):
+        # regression: same filename in different folders (a/Note.htm vs b/Note.htm — common in
+        # commentary sets) used to collapse to ONE note via a basename-keyed link map. Links must
+        # resolve by archive-relative PATH so each points at its own distinct note.
+        z = self.vault.parent / "dup.zip"
+        with zipfile.ZipFile(z, "w") as zf:
+            zf.writestr("a/Note.htm", '<html><body>A to <a href="../b/Note.htm">Bee</a></body></html>')
+            zf.writestr("b/Note.htm", '<html><body>B to <a href="../a/Note.htm">Ay</a></body></html>')
+            zf.writestr("index.htm", '<html><body><a href="a/Note.htm">a</a> <a href="b/Note.htm">b</a></body></html>')
+        rep = ingest_file(str(self.vault), str(z), {})
+        self.assertIsNone(rep.get("error"))
+        self.assertEqual(rep["files"], 3)                     # note, note-2, index (deduped)
+        base = self.vault / "AI/Library/dup"
+        idx = (base / "index.md").read_text(encoding="utf-8")
+        na = (base / "note.md").read_text(encoding="utf-8")   # from a/Note.htm
+        # index links to BOTH distinct notes, not the same one twice
+        self.assertIn("[[AI/Library/dup/note|a]]", idx)
+        self.assertIn("[[AI/Library/dup/note-2|b]]", idx)
+        # a/Note links to b/Note == note-2 (the OTHER file), not itself
+        self.assertIn("[[AI/Library/dup/note-2|Bee]]", na)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -127,7 +127,7 @@ def _tokens(s: str) -> list[str]:
 
 def _score(query: str, cmd: dict) -> float:
     """Cheap, dependency-free fuzzy score of `query` against a command's name + id."""
-    q = query.lower().strip()
+    q = (query or "").lower().strip()
     if not q:
         return 0.0
     name = cmd["name"].lower()
