@@ -228,6 +228,56 @@ class PerItemTests(unittest.TestCase):
         self.assertIn("project: Homestead", (Path(self.tmp) / "Note.md").read_text(encoding="utf-8"))
         self.assertEqual(organize.load_pending(), [])
 
+    # ── M42 — link reasons + Related table ──────────────────────────────────
+    def test_apply_suggestion_writes_reason_table(self):
+        note = Path(self.tmp) / "Src.md"
+        note.write_text("Body.", encoding="utf-8")
+        (Path(self.tmp) / "Neighbour.md").write_text("x", encoding="utf-8")
+        organize._save_pending([{"note": "Src.md", "tags": [], "related": ["Neighbour"],
+                                 "reasons": {"Neighbour": "Both discuss walking in the light."}}])
+        ok = organize.apply_suggestion(self.tmp, "Src.md", [], ["Neighbour"],
+                                       {"Neighbour": "Both discuss walking in the light."})
+        self.assertTrue(ok)
+        txt = note.read_text(encoding="utf-8")
+        self.assertIn("| Links | Reason |", txt)                     # table header
+        self.assertIn("| **[[Neighbour]]** |", txt)                  # link cell
+        self.assertIn("Both discuss walking in the light.", txt)     # reason cell
+
+    def test_apply_one_link_uses_stored_reason(self):
+        organize._save_pending([{"note": "Note.md", "tags": [], "related": ["Neighbour"],
+                                 "reasons": {"Neighbour": "Shared theme of prayer."}}])
+        ok = organize.apply_one(self.tmp, "Note.md", "link", "Neighbour")
+        self.assertTrue(ok)
+        txt = (Path(self.tmp) / "Note.md").read_text(encoding="utf-8")
+        self.assertIn("| Links | Reason |", txt)
+        self.assertIn("Shared theme of prayer.", txt)
+
+    def test_reason_cell_escapes_pipes_and_newlines(self):
+        self.assertNotIn("\n", organize._clean_reason("a\nb"))
+        self.assertIn("\\|", organize._clean_reason("a|b"))
+        self.assertTrue(organize._clean_reason("").strip())          # never empty
+
+    def test_parse_reasons_json_and_fallback(self):
+        rel = ["1 John 4 ESV", "1 Chronicles 27 ESV"]
+        js = '{"1 John 4 ESV": "Builds on fellowship.", "1 Chronicles 27 ESV": "Orderly stewardship."}'
+        out = organize._parse_reasons(js, rel)
+        self.assertEqual(out["1 John 4 ESV"], "Builds on fellowship.")
+        # loose line form maps by basename too
+        loose = "[[1 John 4 ESV]] - Builds on fellowship."
+        self.assertIn("1 John 4 ESV", organize._parse_reasons(loose, rel))
+
+    def test_explain_links_one_call_returns_reasons(self):
+        (Path(self.tmp) / "Neighbour.md").write_text("about prayer", encoding="utf-8")
+
+        class _ReasonRouter:
+            available_providers = ["groq"]
+            def generate(self, messages, task=None, private=False, allow_webui=True, **kw):
+                return '{"Neighbour": "Both are about prayer and faith."}', "groq"
+
+        out = organize._explain_links(_ReasonRouter(), "Src.md", "faith and prayer",
+                                      ["Neighbour"], self.tmp)
+        self.assertEqual(out.get("Neighbour"), "Both are about prayer and faith.")
+
 
 if __name__ == "__main__":
     unittest.main()

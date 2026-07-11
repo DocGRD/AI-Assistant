@@ -308,7 +308,7 @@ interface Goal {
 }
 
 // M36 — unified Approvals inbox (organize + memory + goals)
-interface ApprovalItem { itemkind: string; value: string; label: string; }
+interface ApprovalItem { itemkind: string; value: string; label: string; detail?: string; }
 interface Approval {
     id: string;
     kind: string;          // "organize" | "memory" | "goal"
@@ -1583,13 +1583,18 @@ export class ChatView extends ItemView {
 
     private approvalChip(box: HTMLElement, id: string, item: ApprovalItem, onChange: () => void): void {
         const chip = box.createDiv("ai-assistant-proactive-chip");
-        chip.createEl("span", { text: item.label, cls: "ai-assistant-proactive-chiplabel" });
-        const ok = chip.createEl("button", { text: "✓", cls: "ai-assistant-quick-btn" });
+        const row = chip.createDiv("ai-assistant-proactive-chiprow");
+        row.createEl("span", { text: item.label, cls: "ai-assistant-proactive-chiplabel" });
+        const ok = row.createEl("button", { text: "✓", cls: "ai-assistant-quick-btn" });
         ok.setAttribute("aria-label", "Apply");
         ok.addEventListener("click", async () => { await this.resolveApproval("apply", id, item); onChange(); void this.refreshCounts(); });
-        const no = chip.createEl("button", { text: "✕", cls: "ai-assistant-quick-btn" });
+        const no = row.createEl("button", { text: "✕", cls: "ai-assistant-quick-btn" });
         no.setAttribute("aria-label", "Dismiss");
         no.addEventListener("click", async () => { await this.resolveApproval("reject", id, item); onChange(); void this.refreshCounts(); });
+        // M42 — show the grounded reason for a suggested link (wrapped, full text).
+        if (item.detail?.trim()) {
+            chip.createEl("div", { text: item.detail.trim(), cls: "ai-assistant-proactive-reason" });
+        }
     }
 
     private async resolveApproval(action: "apply" | "reject", id: string, item?: ApprovalItem): Promise<void> {

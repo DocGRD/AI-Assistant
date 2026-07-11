@@ -18,7 +18,7 @@ from pathlib import Path
 
 # v1.7 — packaged AI/Help knowledge base. Bump when the seed/help/*.md content changes so
 # seed_help() refreshes the vault copies (which carry a matching `<!-- help-version: N -->`).
-HELP_VERSION = 22
+HELP_VERSION = 23
 _HELP_STAMP = re.compile(r"help-version:\s*(\d+)")
 
 # v1.9 — the System-Prompt is now packaged + version-stamped (assistant_core/seed/system/

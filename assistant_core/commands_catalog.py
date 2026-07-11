@@ -58,7 +58,8 @@ def _load() -> dict:
         return {"commands": [], "plugins": [], "hash": "", "synced_at": ""}
 
 
-def replace(commands: list[dict], plugins: list[str] | None = None, hash_: str = "") -> int:
+def replace(commands: list[dict], plugins: list[str] | None = None, hash_: str = "",
+            plugin_descriptions: dict | None = None) -> int:
     """Persist the full catalog the plugin just pushed. Returns the stored command count."""
     clean: list[dict] = []
     seen: set[str] = set()
@@ -75,9 +76,13 @@ def replace(commands: list[dict], plugins: list[str] | None = None, hash_: str =
             "name": str(c.get("name", "")).strip() or cid,
             "source": source,
         })
+    kept_plugins = sorted({p for p in (plugins or []) if p and p != _SELF_PLUGIN})
+    descs = {k: str(v).strip() for k, v in (plugin_descriptions or {}).items()
+             if k in kept_plugins and str(v).strip()}
     data = {
         "commands": clean,
-        "plugins": sorted({p for p in (plugins or []) if p and p != _SELF_PLUGIN}),
+        "plugins": kept_plugins,
+        "plugin_descriptions": descs,
         "hash": hash_,
         "synced_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -98,6 +103,10 @@ def all_commands() -> list[dict]:
 
 def plugin_sources() -> list[str]:
     return _load().get("plugins", [])
+
+
+def plugin_descriptions() -> dict:
+    return _load().get("plugin_descriptions", {})
 
 
 def count() -> int:
@@ -247,9 +256,16 @@ def handle(prefix: str, arg: str) -> dict:
             body = _format_hits(sub[:40]) if sub else f"No commands from “{arg}”."
             return {"output": f"Obsidian commands ({arg}):\n{body}", "proposal": None}
         pl = plugin_sources()
-        head = (f"{len(cmds)} Obsidian commands available across {len(pl)} plugin(s): "
-                f"{', '.join(pl) if pl else 'core app only'}.\n"
-                f"Showing the first 40 — narrow with `command:list <plugin>` or `command:search`:\n")
+        descs = plugin_descriptions()
+        if pl:
+            plug_lines = "\n".join(
+                f"- **{name}**" + (f" — {descs[name]}" if descs.get(name) else "") for name in pl)
+            head = (f"{len(cmds)} Obsidian commands available across {len(pl)} plugin(s):\n"
+                    f"{plug_lines}\n\nShowing the first 40 commands — narrow with "
+                    f"`command:list <plugin>` or `command:search`:\n")
+        else:
+            head = (f"{len(cmds)} Obsidian commands available (core app only).\n"
+                    f"Showing the first 40 — narrow with `command:search`:\n")
         return {"output": head + _format_hits(cmds[:40]), "proposal": None}
 
     if prefix == "command:run":

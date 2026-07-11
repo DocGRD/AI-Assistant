@@ -1,10 +1,22 @@
-<!-- help-version: 22 -->
+<!-- help-version: 23 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in Loremaster
 
 *A capability overview so you can learn everything Loremaster can do. Current through **v1.10**.*
+
+## Explained link suggestions + readable Approvals (v1.10.1)
+- **Suggested links now come with a reason.** When Loremaster proposes a related note (auto-organize or
+  `vault:organize <note>`), it explains *why* it's related — grounded in the actual content of both notes.
+  You see the reason under each link in the **📥 Approvals** panel before you decide.
+- **Reasons are written into the note.** Applying the links adds a **`| Links | Reason |` table** under a
+  `## Related` heading, so the rationale lives beside the link in your note (not just in the panel).
+- **The Approvals panel now wraps text** — long note names and reasons are fully visible instead of being
+  cut off.
+- **Loremaster understands your plugins better** — the command catalog now carries each plugin's description
+  (what it's for), so it picks the right command more reliably. (Obsidian exposes no per-command help text,
+  so individual commands are still understood from their name + id.)
 
 ## Loremaster can use your Obsidian plugins (v1.10)
 - **Loremaster now knows your whole Obsidian command palette — core *and* every community plugin you

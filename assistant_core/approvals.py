@@ -45,8 +45,10 @@ def list_approvals(vault) -> list[dict]:
 
     # organize — one approval per note; items = suggested tags + links + folder + project
     for s in organize.load_pending():
+        reasons = s.get("reasons") or {}
         items = [{"itemkind": "tag", "value": t, "label": f"#{t}"} for t in s.get("tags", [])]
-        items += [{"itemkind": "link", "value": r, "label": f"[[{r}]]"} for r in s.get("related", [])]
+        items += [{"itemkind": "link", "value": r, "label": f"[[{r}]]",
+                   "detail": reasons.get(r, "")} for r in s.get("related", [])]
         if s.get("folder"):
             items.append({"itemkind": "folder", "value": s["folder"], "label": f"→ move to {s['folder']}/"})
         if s.get("project"):
@@ -97,7 +99,8 @@ def apply_approval(vault, approval_id: str, item: dict | None = None) -> dict:
         s = next((x for x in organize.load_pending() if x["note"] == ref), None)
         if not s:
             return {"applied": False, "reason": "not found"}
-        return {"applied": organize.apply_suggestion(vault, ref, s.get("tags"), s.get("related"))}
+        return {"applied": organize.apply_suggestion(vault, ref, s.get("tags"), s.get("related"),
+                                                     s.get("reasons"))}
 
     if kind == "memory":
         if item:

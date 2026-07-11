@@ -1,3 +1,14 @@
+*Status: **Loremaster v1.10.1 — 2026-07-11**. **M42 — explained link suggestions + readable Approvals:**
+auto-organize/`vault:organize` now generate a grounded **reason** for each suggested related link (one LLM
+call per note over short excerpts of both notes — `organize._explain_links` → `{link: reason}`, tolerant JSON
+parse, best-effort). Reasons show under each link in the 📥 Approvals panel (`ApprovalItem.detail`, wrapped)
+and, on apply, are written into the note as a **`| Links | Reason |` table** under `## Related`
+(`_append_related_rows`; per-item apply looks the reason up from the pending store). The Approvals panel CSS
+now **wraps** long note names + reasons (was truncated with ellipsis). The command catalog also carries each
+plugin's **manifest description** (`plugin_descriptions`) surfaced via `command:list`, since Obsidian exposes
+no per-command help text — commands are still understood from name + id. `HELP_VERSION → 23`. **520 tests
+green** (+5). Plugin 1.10.1.*
+
 *Status: **Loremaster v1.10.0 — 2026-07-11** (GitHub pre-release + BRAT). **M41 — Obsidian command-palette
 awareness + propose-to-run:** Loremaster now knows the user's whole command palette — Obsidian core **and
 every installed community plugin** — and can **use their plugins** for them. The plugin enumerates

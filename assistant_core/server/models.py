@@ -50,7 +50,8 @@ if _fastapi_available:
 
     class CommandsSyncRequest(BaseModel):        # M41 — plugin pushes the palette catalog
         commands: list[dict] = []                # [{id, name, source}]
-        plugins:  list[str]  = []                # enabled community-plugin ids (for labelling)
+        plugins:  list[str]  = []                # enabled community-plugin display names
+        plugin_descriptions: dict = {}           # M42 — name → manifest description (what it does)
         hash:     str        = ""                # id-set hash so the server can spot drift
 
     class HandoffReturnRequest(BaseModel):

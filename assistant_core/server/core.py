@@ -550,7 +550,8 @@ class AssistantServer:
             so the model stays aware of every available command, including newly installed
             community plugins. Stored per-service (outside the vault)."""
             from assistant_core import commands_catalog
-            n = commands_catalog.replace(req.commands, req.plugins, req.hash)
+            n = commands_catalog.replace(req.commands, req.plugins, req.hash,
+                                         plugin_descriptions=req.plugin_descriptions)
             return {"status": "ok", "stored": n, "plugins": len(req.plugins)}
 
         @app.get("/commands")

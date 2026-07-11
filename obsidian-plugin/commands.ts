@@ -22,6 +22,7 @@ export interface PaletteCommand {
 export interface CatalogPayload {
     commands: PaletteCommand[];
     plugins: string[];   // display names of the community plugins contributing commands
+    plugin_descriptions: Record<string, string>;  // name → manifest description (what it's for)
     hash: string;        // stable hash of the id-set — cheap drift detection
 }
 
@@ -56,18 +57,25 @@ export function catalogHash(cmds: PaletteCommand[]): string {
 /** Build the full payload to push to the service (commands + plugin display names + hash). */
 export function buildCatalog(app: App): CatalogPayload {
     const anyApp = app as unknown as {
-        plugins?: { enabledPlugins?: Set<string>; manifests?: Record<string, { name?: string }> };
+        plugins?: {
+            enabledPlugins?: Set<string>;
+            manifests?: Record<string, { name?: string; description?: string }>;
+        };
     };
     const cmds = listPaletteCommands(app);
     const manifests = anyApp?.plugins?.manifests ?? {};
     const enabled: Set<string> = anyApp?.plugins?.enabledPlugins ?? new Set<string>();
     const names = new Set<string>();
+    const descriptions: Record<string, string> = {};
     for (const c of cmds) {
         if (c.source !== "core" && enabled.has(c.source)) {
-            names.add(manifests[c.source]?.name ?? c.source);
+            const name = manifests[c.source]?.name ?? c.source;
+            names.add(name);
+            const desc = manifests[c.source]?.description;
+            if (desc) descriptions[name] = desc;   // the "what this plugin does" text Obsidian has
         }
     }
-    return { commands: cmds, plugins: [...names].sort(), hash: catalogHash(cmds) };
+    return { commands: cmds, plugins: [...names].sort(), plugin_descriptions: descriptions, hash: catalogHash(cmds) };
 }
 
 /** Execute a palette command by id. Returns true if it ran, false if unavailable/blocked. */

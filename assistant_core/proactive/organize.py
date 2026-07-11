@@ -127,6 +127,130 @@ def _related_links(rag, note_path: str, vault, graph=None) -> list[str]:
     return linking.related(vault, note_path, k=5, rag=rag, graph=graph)
 
 
+# ---------------------------------------------------------------------------
+# M42 — grounded reasons for each suggested link (why it relates), so the user sees
+# the rationale in the Approvals panel and it's written into the note as a table.
+# ---------------------------------------------------------------------------
+
+def _excerpt(text: str, n: int = 600) -> str:
+    """Strip frontmatter + collapse whitespace to a short excerpt for prompting."""
+    text = re.sub(r"^---\n.*?\n---\n", "", text or "", count=1, flags=re.DOTALL)
+    return re.sub(r"\s+", " ", text).strip()[:n]
+
+
+def _resolve_link_path(vault, name: str):
+    """Resolve a wikilink target (name or path, with/without .md) to a file, or None."""
+    vault = Path(vault)
+    cand = name if name.endswith(".md") else f"{name}.md"
+    p = vault / cand
+    if p.exists():
+        return p
+    base = Path(cand).name.lower()
+    for q in vault.rglob("*.md"):
+        if q.name.lower() == base:
+            return q
+    return None
+
+
+def _explain_links(router, source_rel: str, source_content: str, related: list[str],
+                   vault, private: bool = False) -> dict:
+    """Ask the model, in ONE call, why each related note connects to the source note —
+    grounded in short excerpts of both. Returns {link_name: reason}. Best-effort: on any
+    failure (or no router) returns {} and links are still suggested, just without reasons."""
+    if not router or not getattr(router, "available_providers", None) or not related:
+        return {}
+    from assistant_core.providers.base_provider import Message
+    src = _excerpt(source_content, 900)
+    blocks = []
+    for name in related:
+        p = _resolve_link_path(vault, name)
+        ex = _excerpt(p.read_text(encoding="utf-8"), 500) if p else ""
+        blocks.append(f"[[{name}]]:\n{ex or '(no excerpt available)'}")
+    joined = "\n\n".join(blocks)
+    prompt = (
+        f"The note \"{Path(source_rel).stem}\" says:\n{src}\n\n"
+        f"For EACH candidate note below, write ONE or TWO sentences explaining specifically why it is "
+        f"related to \"{Path(source_rel).stem}\" — grounded in the actual content shown, referencing "
+        f"concrete shared themes, people, or ideas. Do NOT invent facts not supported by the excerpts. "
+        f"Return STRICT JSON: an object mapping each note's exact name (without the [[ ]]) to its reason "
+        f"string. No prose outside the JSON.\n\nCandidates:\n{joined}"
+    )
+    try:
+        reply, _ = router.generate([Message(role="user", content=prompt)],
+                                   task="extract", private=private, allow_webui=False)
+    except Exception as exc:
+        logger.info(f"[Organize] link-reason call failed: {exc}")
+        return {}
+    return _parse_reasons(reply or "", related)
+
+
+def _parse_reasons(reply: str, related: list[str]) -> dict:
+    """Parse the model's reason output → {name: reason}. Tolerant of fenced/loose JSON and,
+    failing that, `[[Name]] - reason` / `Name: reason` lines."""
+    out: dict = {}
+    m = re.search(r"\{.*\}", reply, re.DOTALL)
+    if m:
+        try:
+            data = json.loads(m.group(0))
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    key = str(k).strip().strip("[]").strip()
+                    if isinstance(v, str) and v.strip():
+                        out[key] = v.strip()
+        except Exception:
+            pass
+    if not out:                                        # line-based fallback
+        for line in reply.splitlines():
+            lm = re.match(r"\s*(?:[-*]\s*)?\[?\[?(.+?)\]?\]?\s*[:\-–]\s*(.+)", line)
+            if lm:
+                out[lm.group(1).strip()] = lm.group(2).strip()
+    # map loosely (case-insensitive, basename) back to the exact suggested names
+    by_low = {r.lower(): r for r in related}
+    by_base = {Path(r).name.lower(): r for r in related}
+    mapped: dict = {}
+    for k, v in out.items():
+        exact = by_low.get(k.lower()) or by_base.get(Path(k).name.lower())
+        if exact:
+            mapped[exact] = v
+    return mapped
+
+
+# --- Related table (Links | Reason) writing ---------------------------------
+_REL_HEADER = "| Links | Reason |"
+_REL_DIVIDER = "| --- | --- |"
+
+
+def _clean_reason(r: str) -> str:
+    """One-line, table-safe reason cell (escape pipes, collapse newlines)."""
+    r = re.sub(r"\s+", " ", (r or "").replace("|", "\\|")).strip()
+    return r or "Semantically related to this note."
+
+
+def _rel_row(link: str, reason: str) -> str:
+    return f"| **[[{link}]]** | {_clean_reason(reason)} |"
+
+
+def _append_related_rows(text: str, rows: list[tuple[str, str]]) -> str:
+    """Append (link, reason) rows to the note's `## Related` table, creating the section /
+    table header when absent. Idempotent per link is handled by the callers."""
+    if not rows:
+        return text
+    new_rows = [_rel_row(l, r) for l, r in rows]
+    trailing_nl = "\n" if text.endswith("\n") else ""
+    if _REL_HEADER in text:                            # insert after the existing table block
+        lines = text.splitlines()
+        hi = next(i for i, ln in enumerate(lines) if ln.strip() == _REL_HEADER)
+        j = hi + 1
+        while j < len(lines) and lines[j].lstrip().startswith("|"):
+            j += 1
+        lines[j:j] = new_rows
+        return "\n".join(lines) + trailing_nl
+    block = "\n".join([_REL_HEADER, _REL_DIVIDER, *new_rows])
+    if "## Related" in text:                           # heading exists (maybe old bullets) — add table
+        return text.rstrip() + "\n\n" + block + "\n"
+    return text.rstrip() + "\n\n## Related\n\n" + block + "\n"
+
+
 def _note_is_private(text: str) -> bool:
     return bool(re.search(r"^private:\s*true", text, re.MULTILINE | re.IGNORECASE))
 
@@ -181,10 +305,12 @@ def suggest_for_note(note_path: str, content: str, vault, rag, router,
                      existing: list[str]) -> dict:
     private = _note_is_private(content)
     rel_paths = _related_paths(rag, note_path)
+    related = _related_links(rag, note_path, vault)
     return {
         "note":    note_path,
         "tags":    _suggest_tags(router, content, existing, private=private),
-        "related": _related_links(rag, note_path, vault),
+        "related": related,
+        "reasons": _explain_links(router, note_path, content, related, vault, private=private),
         "folder":  _suggest_folder(vault, note_path, rel_paths),   # M38 auto-filing
         "project": _suggest_project(vault, content, rel_paths),    # M38 project association
     }
@@ -287,6 +413,7 @@ def _merge_pending(suggestions: list[dict]) -> None:
     by_note = {s["note"]: s for s in load_pending()}
     for s in suggestions:
         by_note[s["note"]] = {"note": s["note"], "tags": s["tags"], "related": s["related"],
+                              "reasons": s.get("reasons", {}),
                               "folder": s.get("folder", ""), "project": s.get("project", "")}
     _save_pending(list(by_note.values()))
 
@@ -344,23 +471,26 @@ def _merge_tags(text: str, tags: list[str]) -> str:
 
 
 def apply_suggestion(vault, note: str, tags: list[str] | None = None,
-                     related: list[str] | None = None) -> bool:
-    """Commit a whole proposal: merge tags + append a validated Related section, and record
-    every applied tag/link as an accept so future suggestions learn from it."""
+                     related: list[str] | None = None, reasons: dict | None = None) -> bool:
+    """Commit a whole proposal: merge tags + append a validated **Related table** (each link
+    with its grounded reason), and record every applied tag/link as an accept so future
+    suggestions learn from it."""
     p = Path(vault) / note
     if not p.exists():
         remove_pending(note)
         return False
+    reasons = reasons or {}
     text = p.read_text(encoding="utf-8")
     if tags:
         text = _merge_tags(text, tags)
         for t in tags:
             feedback.record("tag", t, True)
-    if related and "## Related" not in text:
-        # re-validate links at apply time (the vault may have changed since proposal)
-        valid = [r for r in related if link_exists(r, vault)]
+    if related:
+        # re-validate links at apply time (the vault may have changed since proposal), and
+        # skip any already present in the note so re-applying never duplicates a row.
+        valid = [r for r in related if link_exists(r, vault) and f"[[{r}]]" not in text]
         if valid:
-            text = text.rstrip() + "\n\n## Related\n\n" + "\n".join(f"- [[{r}]]" for r in valid) + "\n"
+            text = _append_related_rows(text, [(r, reasons.get(r, "")) for r in valid])
             for r in valid:
                 feedback.record("link", r, True, scope=note)
     p.write_text(text, encoding="utf-8")
@@ -388,6 +518,8 @@ def _update_pending_item(note: str, kind: str, value: str) -> bool:
             if len(vals) != len(s.get(list_key, [])):
                 changed = True
             s[list_key] = vals
+            if kind == "link" and isinstance(s.get("reasons"), dict):
+                s["reasons"].pop(value, None)          # drop the resolved link's reason
         elif scalar_key and s.get(scalar_key):
             s[scalar_key] = ""
             changed = True
@@ -406,6 +538,14 @@ def _apply_tag(vault, note: str, tag: str) -> bool:
     return True
 
 
+def _pending_reason(note: str, link: str) -> str:
+    """Look up the stored reason for a link from the note's pending entry."""
+    for s in load_pending():
+        if s.get("note") == note:
+            return (s.get("reasons") or {}).get(link, "")
+    return ""
+
+
 def _apply_link(vault, note: str, link: str) -> bool:
     p = Path(vault) / note
     if not p.exists():
@@ -416,10 +556,7 @@ def _apply_link(vault, note: str, link: str) -> bool:
     text = p.read_text(encoding="utf-8")
     if f"[[{link}]]" in text:
         return True                           # already linked — nothing to do
-    if "## Related" in text:
-        text = text.rstrip() + f"\n- [[{link}]]\n"   # add under the existing section
-    else:
-        text = text.rstrip() + f"\n\n## Related\n\n- [[{link}]]\n"
+    text = _append_related_rows(text, [(link, _pending_reason(note, link))])
     p.write_text(text, encoding="utf-8")
     return True
 
