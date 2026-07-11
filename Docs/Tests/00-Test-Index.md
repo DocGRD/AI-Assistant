@@ -33,6 +33,7 @@
 | [[M22-Document-Ingestion-Tests]] | 22 | `vault:ingest` — PDF/EPUB/DOCX → indexed AI/Library |
 | [[M24-M28-Study-Search-Tests]] | 24–28 | Scripture passages, provenance audit, structured search, audio, flashcards |
 | [[E2E-Scenario-Tests]] | all | Human/GUI end-to-end scenarios (also driven by the desktop-automation harness) |
+| [[GUI-Test-Plan-Exhaustive]] | **all (v1.10.4)** | **Standing exhaustive desktop-automation GUI plan — edge-case & weak-spot hunt (W1–W12 risk map, 20 functional + 10 non-functional suites, P0 safety-first, fuzz matrix). Run this every release.** |
 
 See also [[User-Guide]] for day-to-day usage, and [[Deployment-Guide]] for install/config plus the
 exact command to run each milestone's tests.
