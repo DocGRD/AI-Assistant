@@ -266,6 +266,47 @@ class PerItemTests(unittest.TestCase):
         loose = "[[1 John 4 ESV]] - Builds on fellowship."
         self.assertIn("1 John 4 ESV", organize._parse_reasons(loose, rel))
 
+    def test_negative_reason_detection(self):
+        self.assertTrue(organize._is_negative_reason("This note is not related to the topic."))
+        self.assertTrue(organize._is_negative_reason("It has no connection to the biblical text."))
+        self.assertTrue(organize._is_negative_reason("Unrelated — about rocket stoves."))
+        self.assertFalse(organize._is_negative_reason("Both discuss walking in the light."))
+
+    def test_suggest_filters_self_and_unrelated_links(self):
+        v = Path(self.tmp)
+        (v / "1 John 1.md").write_text("faith and fellowship and light", encoding="utf-8")
+        (v / "1 John 3.md").write_text("children of God, love one another", encoding="utf-8")
+        (v / "Rocket Stove.md").write_text("efficient wood burning stove", encoding="utf-8")
+
+        class _Rag:
+            def has_index(self): return True
+            def relevant_notes(self, note_path, k=5):
+                # index returns the note itself + a good match + a junk match
+                return [{"path": "1 John 1.md"}, {"path": "1 John 3.md"}, {"path": "Rocket Stove.md"}]
+
+        class _Router:
+            available_providers = ["groq"]
+            def generate(self, messages, task=None, private=False, allow_webui=True, **kw):
+                # tag call → any string; reason call → JSON judging Rocket Stove unrelated
+                text = messages[0].content
+                if "candidate" in text.lower() or "[[1 John 3]]" in text:
+                    return ('{"1 John 3": "Both develop the theme of walking in the light.", '
+                            '"Rocket Stove": "This note is not related; it is about wood stoves."}'), "groq"
+                return "faith, fellowship", "groq"
+
+        # linking.related may reorder/validate; monkeypatch _related_links to our candidates
+        orig = organize._related_links
+        organize._related_links = lambda rag, note_path, vault, graph=None: ["1 John 1", "1 John 3", "Rocket Stove"]
+        try:
+            s = organize.suggest_for_note("1 John 1.md", "faith and fellowship and light",
+                                          self.tmp, _Rag(), _Router(), ["faith"])
+        finally:
+            organize._related_links = orig
+        self.assertIn("1 John 3", s["related"])            # good match kept
+        self.assertNotIn("1 John 1", s["related"])         # self-link dropped
+        self.assertNotIn("Rocket Stove", s["related"])     # model judged unrelated → dropped
+        self.assertIn("1 John 3", s["reasons"])
+
     def test_explain_links_one_call_returns_reasons(self):
         (Path(self.tmp) / "Neighbour.md").write_text("about prayer", encoding="utf-8")
 

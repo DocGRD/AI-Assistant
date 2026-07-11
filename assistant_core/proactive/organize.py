@@ -184,6 +184,20 @@ def _explain_links(router, source_rel: str, source_content: str, related: list[s
     return _parse_reasons(reply or "", related)
 
 
+_NEG_REASON = re.compile(
+    r"\b(not\s+related|no\s+(?:clear\s+)?(?:connection|relation|relevance)|has\s+no\s+connection|"
+    r"unrelated|not\s+connected|not\s+relevant|no\s+direct\s+(?:connection|link)|"
+    r"isn['’]t\s+related|does\s+not\s+relate|nothing\s+to\s+do\s+with)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_negative_reason(reason: str) -> bool:
+    """True when the model's reason says the note ISN'T actually related — so we drop the link
+    from the suggestion (semantic retrieval returns cross-domain neighbours; this filters them)."""
+    return bool(_NEG_REASON.search(reason or ""))
+
+
 def _parse_reasons(reply: str, related: list[str]) -> dict:
     """Parse the model's reason output → {name: reason}. Tolerant of fenced/loose JSON and,
     failing that, `[[Name]] - reason` / `Name: reason` lines."""
@@ -305,12 +319,21 @@ def suggest_for_note(note_path: str, content: str, vault, rag, router,
                      existing: list[str]) -> dict:
     private = _note_is_private(content)
     rel_paths = _related_paths(rag, note_path)
-    related = _related_links(rag, note_path, vault)
+    # Candidate neighbours, minus self-links (a note never links to itself — the semantic
+    # index otherwise returns the note as its own nearest neighbour).
+    self_names = {Path(note_path).stem.lower(), Path(note_path).name.lower()}
+    candidates = [r for r in _related_links(rag, note_path, vault)
+                  if Path(r).stem.lower() not in self_names]
+    # Grounded reason per candidate — then keep only the ones the model DIDN'T judge unrelated
+    # (semantic retrieval alone returns cross-domain junk; the reason is a cheap quality gate).
+    reasons = _explain_links(router, note_path, content, candidates, vault, private=private)
+    related = [r for r in candidates if not _is_negative_reason(reasons.get(r, ""))]
+    reasons = {r: reasons[r] for r in related if r in reasons}
     return {
         "note":    note_path,
         "tags":    _suggest_tags(router, content, existing, private=private),
         "related": related,
-        "reasons": _explain_links(router, note_path, content, related, vault, private=private),
+        "reasons": reasons,
         "folder":  _suggest_folder(vault, note_path, rel_paths),   # M38 auto-filing
         "project": _suggest_project(vault, content, rel_paths),    # M38 project association
     }

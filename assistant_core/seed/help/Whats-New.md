@@ -1,4 +1,4 @@
-<!-- help-version: 23 -->
+<!-- help-version: 24 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
@@ -7,9 +7,11 @@ tags: [help, user-guide, whats-new]
 *A capability overview so you can learn everything Loremaster can do. Current through **v1.10.1**.*
 
 ## Explained link suggestions + readable Approvals (v1.10.1)
-- **Suggested links now come with a reason.** When Loremaster proposes a related note (auto-organize or
-  `vault:organize <note>`), it explains *why* it's related — grounded in the actual content of both notes.
-  You see the reason under each link in the **📥 Approvals** panel before you decide.
+- **Suggested links now come with a reason** — *and only genuinely-related links are suggested.* When
+  Loremaster proposes a related note (auto-organize or `vault:organize <note>`), it explains *why* it's
+  related, grounded in the actual content of both notes, and you see that reason under each link in the
+  **📥 Approvals** panel before you decide. It also **drops self-links and any candidate it judges
+  unrelated**, so cross-domain noise from the semantic index no longer clutters your suggestions.
 - **Reasons are written into the note.** Applying the links adds a **`| Links | Reason |` table** under a
   `## Related` heading, so the rationale lives beside the link in your note (not just in the panel).
 - **The Approvals panel now wraps text** — long note names and reasons are fully visible instead of being
