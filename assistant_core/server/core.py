@@ -898,6 +898,7 @@ class AssistantServer:
             # facts from recent episodes into the 📥 Approvals inbox; nothing saved until approved.
             if _first == "vault:consolidate":
                 from assistant_core.consolidation import ConsolidationEngine
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 vault = self._config.get("vault_path")
                 embedder = self._rag.embedder if (self._rag and getattr(self._rag, "enabled", False)) else None
                 try:

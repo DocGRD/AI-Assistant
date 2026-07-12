@@ -46,6 +46,20 @@ class ServerEndpointsTests(unittest.TestCase):
         self.assertIn("search_vault", d["reply"])                # the tool ran
         self.assertEqual(reg.calls[0][0], "search_vault")
 
+    def test_vault_consolidate_intercept(self):   # M44 — would 500 on the ts-unbound bug
+        from unittest import mock
+        fake_engine = mock.MagicMock()
+        fake_engine.run.return_value = {
+            "new_facts": ["fact a", "fact b"], "days": ["2026-07-11"],
+            "proposal": "AI/Memory/proposed/consolidation-2026-07-11.md"}
+        with mock.patch("assistant_core.consolidation.ConsolidationEngine", return_value=fake_engine):
+            d = self._client().post("/chat", json={"message": "vault:consolidate"}).json()
+        self.assertEqual(d["provider_used"], "system")     # server intercept, not an LLM turn
+        self.assertIn("reply", d)                          # not a 500 (the ts UnboundLocalError)
+        self.assertIn("2 durable", d["reply"])
+        self.assertIn("Approvals", d["reply"])
+        fake_engine.run.assert_called_once_with(apply=False)   # propose-only
+
     def test_vault_research_triggers_handoff_roundtrip(self):   # M20 round-trip
         reg = _FakeReg()
         d = self._client(registry=reg).post(
