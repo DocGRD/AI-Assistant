@@ -66,4 +66,26 @@ filter. Fix: `generate()` skips a non-tool-reliable override on tool turns → r
 - Note: a *client* vault's `AI/Help/*` is stale (help-version 18) because help-seeding runs server-side
   against the *server's* vault — expected, not a defect.
 
-**Campaign total: 5 bugs found & fixed** (v1.10.5 + v1.10.6), all with regression tests. Automated suite: **533 green**.
+### Interaction-GUI wave completed on a disposable vault (`echo-test-vault`, 2026-07-12) — no new bugs
+Installed the plugin (v1.10.1) into the disposable vault pointed at the box, to run mutating tests safely.
+- **Plugin loads cleanly in a fresh vault** — no load crash; connected; **270-command catalog synced** (Echo
+  Recall, Excalidraw, Loremaster, Templater). ✅
+- **T01.1 framing visible & correct** — the chat request shows `=== BACKGROUND CONTEXT … reference material
+  ONLY … === USER MESSAGE (respond to THIS and only this) ===`, confirming the open-note context is fenced
+  off from the user's instruction. ✅
+- **R2 editor right-click menu** — Read selection aloud / Rewrite selection / Continue writing / Compose…
+  all present on a text selection. ✅
+- **Inline Rewrite (T04.6) end-to-end with a real mutation** — select misspelled sentence → Rewrite selection
+  → modal (Source populated, instruction pre-filled) → **Generate** → preview ("…contains spelling and grammar
+  errors the assistant can fix" — errors fixed) → **Accept** → applied **in-place** in the note; Regenerate /
+  Cancel present. ✅
+- Scratch note removed after; Obsidian returned to the primary vault.
+
+**Not driven** (previously verified, unchanged client code, or environment-limited): the propose/commit
+Replace *region-drift refusal* specifically (same apply path as the verified inline edit + a client range
+check), read-aloud audio bar (audio), goal pause/resume with a *running* goal (would execute on the box
+vault), and the Android leg (needs the phone).
+
+**Campaign total: 5 bugs found & fixed** (v1.10.5 + v1.10.6), all with regression tests. Interaction-GUI +
+provider-matrix fuzz surfaced **no additional bugs** — the UI layer is solid; defects lived in the logic
+layer where the adversarial code probes caught them. Automated suite: **533 green**.
