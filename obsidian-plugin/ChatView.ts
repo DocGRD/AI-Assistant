@@ -319,6 +319,34 @@ interface Approval {
     whole_only: boolean;
 }
 
+/** Cross-platform clipboard copy. `navigator.clipboard` is undefined or rejects on Android's
+ *  WebView (no secure context / no gesture), which silently broke the handoff "Copy Prompt"
+ *  button on mobile. Try the modern API (guarded), then fall back to a hidden-textarea +
+ *  execCommand, which works in far more WebView contexts. Returns whether the copy succeeded. */
+export async function copyToClipboard(text: string): Promise<boolean> {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch { /* fall through to the legacy path (mobile / non-secure context) */ }
+    try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+    } catch {
+        return false;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // ChatView
 // ---------------------------------------------------------------------------
@@ -1106,9 +1134,9 @@ export class ChatView extends ItemView {
         const controls = body.createDiv("ai-assistant-handoff-controls");
         const copyBtn = controls.createEl("button", { text: "📋 Copy Prompt", cls: "ai-assistant-copy-btn" });
         copyBtn.addEventListener("click", async () => {
-            await navigator.clipboard.writeText(promptToCopy);
-            copyBtn.setText("✓ Copied!");
-            setTimeout(() => copyBtn.setText("📋 Copy Prompt"), 2000);
+            const ok = await copyToClipboard(promptToCopy);
+            copyBtn.setText(ok ? "✓ Copied!" : "Select the prompt above to copy");
+            setTimeout(() => copyBtn.setText("📋 Copy Prompt"), 2500);
             // BUG-005: return focus after clicking copy
             this.focusInput();
         });
@@ -2043,9 +2071,9 @@ export class ChatView extends ItemView {
         const controls = body.createDiv("ai-assistant-handoff-controls");
         const copyBtn = controls.createEl("button", { text: "📋 Copy Prompt", cls: "ai-assistant-copy-btn" });
         copyBtn.addEventListener("click", async () => {
-            await navigator.clipboard.writeText(promptToCopy);
-            copyBtn.setText("✓ Copied!");
-            setTimeout(() => copyBtn.setText("📋 Copy Prompt"), 2000);
+            const ok = await copyToClipboard(promptToCopy);
+            copyBtn.setText(ok ? "✓ Copied!" : "Select the prompt above to copy");
+            setTimeout(() => copyBtn.setText("📋 Copy Prompt"), 2500);
             this.focusInput();
         });
         controls.createEl("button", { text: "Cancel", cls: "ai-assistant-proposal-cancel" })
