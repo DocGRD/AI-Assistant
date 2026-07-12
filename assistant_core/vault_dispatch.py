@@ -25,7 +25,7 @@ logger = logging.getLogger("assistant")
 EXTENDED_COMMANDS = {
     "vault:webresearch", "vault:ingest", "vault:ocr", "vault:analyze", "vault:graph",
     "vault:graph-merge", "vault:guide", "vault:query", "vault:sources", "vault:passage",
-    "vault:transcribe", "vault:cards", "vault:review", "vault:logs",
+    "vault:transcribe", "vault:cards", "vault:review", "vault:logs", "vault:consolidate",
 }
 
 
@@ -94,6 +94,27 @@ def run_extended(prefix: str, arg: str, ctx) -> "ExtResult | None":
             # v1.9 — self-diagnosis: read the service's own logs (outside the vault).
             from assistant_core import logs_reader
             return ExtResult(logs_reader.format_reply(logs_reader.read_logs(arg)), terminal=True)
+
+        if prefix == "vault:consolidate":
+            # M44 — on-demand memory consolidation ("dreaming"). PROPOSE-ONLY: extracts durable
+            # facts from recent episodes into a review note + the 📥 Approvals inbox; nothing is
+            # saved to Learned-Facts until the user approves. (Also runs nightly on its own.)
+            from assistant_core.consolidation import ConsolidationEngine
+            embedder = rag.embedder if (rag and getattr(rag, "enabled", False)) else None
+            try:
+                rep = ConsolidationEngine(vault, router, embedder).run(apply=False)
+            except Exception as exc:
+                return ExtResult(f"Memory consolidation could not run: {exc}", success=False, terminal=True)
+            _episode(ctx, "consolidate", f"{len(rep.get('new_facts', []))} facts")
+            if not rep.get("proposal"):
+                return ExtResult("Memory consolidation ran — no new durable facts to propose "
+                                 "(no new episodes since the last run).", terminal=True)
+            return ExtResult(
+                f"Memory consolidation complete — proposed **{len(rep['new_facts'])} durable "
+                f"fact(s)** from {len(rep.get('days', []))} day(s) of activity. Review and approve "
+                f"them in the **📥 Approvals** inbox (memory items) — nothing is saved to "
+                f"Learned-Facts until you approve. (Proposal note: `{rep['proposal']}`.)",
+                terminal=True)
 
         if prefix == "vault:passage":
             from assistant_core.scripture.passage import build_passage_guide

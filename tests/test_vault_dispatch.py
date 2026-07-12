@@ -48,6 +48,31 @@ class RunExtendedTests(unittest.TestCase):
         self.assertIn("The answer is 42", res.output)  # synthesis injected (not a paste-prompt)
         self.assertIn("AI/Research", res.output)
 
+    def test_consolidate_in_extended_set(self):
+        self.assertIn("vault:consolidate", EXTENDED_COMMANDS)
+
+    def test_consolidate_runs_and_reports(self):
+        fake_engine = mock.MagicMock()
+        fake_engine.run.return_value = {
+            "new_facts": ["The box is at 192.168.68.148", "Piper is the TTS engine"],
+            "days": ["2026-07-11"], "proposal": "AI/Memory/proposed/consolidation-2026-07-11.md"}
+        with mock.patch("assistant_core.consolidation.ConsolidationEngine", return_value=fake_engine):
+            res = run_extended("vault:consolidate", "", _ctx(self.tmp))
+        self.assertIsNotNone(res)
+        self.assertTrue(res.success)
+        self.assertTrue(res.terminal)
+        self.assertIn("2 durable", res.output)
+        self.assertIn("Approvals", res.output)
+        fake_engine.run.assert_called_once_with(apply=False)   # propose-only, never auto-applies
+
+    def test_consolidate_no_new_episodes(self):
+        fake_engine = mock.MagicMock()
+        fake_engine.run.return_value = {"new_facts": [], "days": [], "proposal": None}
+        with mock.patch("assistant_core.consolidation.ConsolidationEngine", return_value=fake_engine):
+            res = run_extended("vault:consolidate", "", _ctx(self.tmp))
+        self.assertTrue(res.terminal)
+        self.assertIn("no new durable facts", res.output.lower())
+
     def test_sources_command(self):
         (Path(self.tmp) / "Bio.md").write_text("photosynthesis chlorophyll sunlight", encoding="utf-8")
         res = run_extended("vault:sources", "photosynthesis chlorophyll sunlight", _ctx(self.tmp))

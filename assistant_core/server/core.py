@@ -894,6 +894,30 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # M44 — on-demand memory consolidation ("dreaming"). PROPOSE-ONLY: extracts durable
+            # facts from recent episodes into the 📥 Approvals inbox; nothing saved until approved.
+            if _first == "vault:consolidate":
+                from assistant_core.consolidation import ConsolidationEngine
+                vault = self._config.get("vault_path")
+                embedder = self._rag.embedder if (self._rag and getattr(self._rag, "enabled", False)) else None
+                try:
+                    rep = ConsolidationEngine(vault, self._router, embedder).run(apply=False)
+                except Exception as exc:
+                    return HandoffResponse(status="ok", reply=f"Memory consolidation could not run: {exc}",
+                                           provider_used="system", actual_provider="system", timestamp=ts)
+                if not rep.get("proposal"):
+                    reply = ("Memory consolidation ran — no new durable facts to propose "
+                             "(no new episodes since the last run).")
+                else:
+                    reply = (f"Memory consolidation complete — proposed **{len(rep['new_facts'])} durable "
+                             f"fact(s)** from {len(rep.get('days', []))} day(s) of activity. Review them in "
+                             f"the **📥 Approvals** inbox (memory items) — nothing is saved to Learned-Facts "
+                             f"until you approve. (Proposal: `{rep['proposal']}`.)")
+                    if self._memory and self._ep_vault:
+                        self._memory.append_episode(self._ep_vault("consolidate", str(len(rep['new_facts']))))
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # v1.7 — `vault:ask <q>` runs grounded, cited Vault QA (same as the QA toggle),
             # not the agent, so it answers from the vault (incl. the AI/Help KB) with sources.
             if _first == "vault:ask":

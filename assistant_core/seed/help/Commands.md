@@ -1,4 +1,4 @@
-<!-- help-version: 25 -->
+<!-- help-version: 26 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -50,6 +50,7 @@ line for `create`/`update`; use `-> ` between two paths for copy/move.
 | Command | What it does |
 |---|---|
 | `vault:briefing` | Write today's **Daily Briefing** (focus, changes, due cards, pending approvals, vault health) |
+| `vault:consolidate` | Run **memory consolidation ("dreaming")** on demand → extracts durable facts from recent activity into **propose-only** memory items in the **📥 Approvals** inbox (nothing saved to Learned-Facts until you approve). Also runs nightly. |
 | `vault:organize [note]` | Stage **propose-only** tag / related-link / folder / project suggestions. **With a note** (or the note you have open) → suggestions for **that** note, using your existing tags + validated links → staged in the **📥 Approvals** inbox. Bare → scans recently-changed notes. **Each related link comes with a grounded *reason*** (why it relates) shown in the panel; approving writes the links + reasons as a `\| Links \| Reason \|` table under `## Related` |
 | `vault:analytics` | Read-only **"explain my vault"** report → `AI/Reports/` (orphans, stale, unsourced, hubs, tag-merges) |
 | `vault:contradictions` | Flag notes that disagree on a number/date or via negation (deterministic) |
