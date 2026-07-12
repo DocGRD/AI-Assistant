@@ -86,6 +86,25 @@ Replace *region-drift refusal* specifically (same apply path as the verified inl
 check), read-aloud audio bar (audio), goal pause/resume with a *running* goal (would execute on the box
 vault), and the Android leg (needs the phone).
 
-**Campaign total: 5 bugs found & fixed** (v1.10.5 + v1.10.6), all with regression tests. Interaction-GUI +
-provider-matrix fuzz surfaced **no additional bugs** — the UI layer is solid; defects lived in the logic
-layer where the adversarial code probes caught them. Automated suite: **533 green**.
+### Android leg (T19) — static crash-class audit (no device/emulator on this machine)
+No `adb`/`emulator`/Android SDK installed, so the interactive mobile tests can't be automated here. Ran the
+**static Android-compatibility audit** of the built bundle (this is what actually catches the historical
+mobile crash-class, e.g. the v1.9.1 `speechSynthesis`-in-constructor bug):
+- **Zero Node/Electron APIs** (`require('fs'/'path'/'child_process')`, `ipcRenderer`, `__dirname`,
+  `process.*`) — clean; nothing that a mobile WebView lacks. ✅
+- **`speechSynthesis` / `SpeechSynthesisUtterance` are guarded** (`'speechSynthesis' in window` / `typeof`) —
+  the v1.9.1 fix holds; plugin won't crash on load on Android. ✅ (T19.1 crash-class cleared statically)
+- **Bug #6 found & fixed (Med, v1.10.7 / plugin 1.10.2):** the web-AI handoff **"📋 Copy Prompt"** button
+  called `navigator.clipboard.writeText` **unguarded, no try/catch** — undefined/rejects on Android's WebView,
+  so it **silently failed on mobile** exactly when a mobile user hits the handoff (all providers down). New
+  `copyToClipboard()` helper (modern API → hidden-textarea `execCommand` fallback) + success/failure feedback.
+
+**Still requires a real device/emulator** (blocked here: no tooling; an emulator is also blocked on Obsidian
+Sync account login): read-aloud **Piper playback** (T19.2), on-device **rendering** of chat/Approvals/command
+cards (T19.3), and **cellular/Tailscale** connectivity (T19.4). Fastest path = a ~2-min manual check on the
+phone after updating the plugin (BRAT), or wireless-ADB (needs the user to enable USB debugging on the phone).
+
+**Campaign total: 6 bugs found & fixed** (v1.10.5 → v1.10.7), all with regression tests or a static-audit
+re-confirm. Provider-matrix fuzz + interaction-GUI + Android static audit surfaced the reasoning-override bug
+(#5) and the Android clipboard bug (#6); the UI layer is otherwise solid. Automated suite: **533 green**;
+bundle Android-clean.
