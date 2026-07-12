@@ -532,6 +532,10 @@ Practical and direct. This user is technically capable and values precision.
     def _write_ep(self, text: str) -> None:
         if self._ep_path is None:
             return
+        # Normalize exotic Unicode (narrow-nbsp, nbsp, non-breaking hyphen, zero-width) that models
+        # emit — episodes feed consolidation, and those chars break link-matching / fact de-dup.
+        from assistant_core.textnorm import normalize_exotic
+        text = normalize_exotic(text)
         try:
             with open(self._ep_path, "a", encoding="utf-8") as fh:
                 fh.write(text)

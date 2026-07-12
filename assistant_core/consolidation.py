@@ -100,12 +100,17 @@ def parse_facts(reply: str) -> list[str]:
 def extract_candidate_facts(router, episode_text: str) -> list[str]:
     """One forced-private LLM call → candidate durable facts for a day."""
     from assistant_core.providers.base_provider import Message
+    from assistant_core.textnorm import normalize_exotic
+    # Old episodes may carry exotic Unicode (narrow-nbsp, non-breaking hyphen); normalize the
+    # input AND the extracted facts so a fact like "1 John 4" never de-dupes wrong or later
+    # produces a broken [[wikilink]].
+    episode_text = normalize_exotic(episode_text)
     msgs = [Message(role="user", content=f"Activity log:\n\n{episode_text[:8000]}")]
     reply, _ = router.generate(
         messages=msgs, system_prompt=EXTRACT_SYSTEM,
         private=True, allow_webui_on_private=False,
     )
-    return parse_facts(reply or "")
+    return [normalize_exotic(f) for f in parse_facts(reply or "")]
 
 
 def existing_facts(vault) -> list[str]:
