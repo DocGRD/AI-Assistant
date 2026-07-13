@@ -1,12 +1,17 @@
-<!-- help-version: 28 -->
+<!-- help-version: 29 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in Loremaster
 
-*A capability overview so you can learn everything Loremaster can do. Current through **v1.10.14**.*
+*A capability overview so you can learn everything Loremaster can do. Current through **v1.10.15**.*
 
-## Loremaster understands itself + robust handling of huge notes (v1.10.13–v1.10.14)
+## Loremaster understands itself + robust handling of huge notes (v1.10.13–v1.10.15)
+- **Everyday replies are much faster (v1.10.15).** A routing bug tiered every Gemini model as
+  "small" (the word "gemini" contains "mini"!), which quietly benched Google's fast, high-capacity
+  Flash models on tool/agent turns — so normal requests were stuck on small per-minute limits and
+  fell back to a slow provider, sometimes timing out. Fixed: Gemini is tiered correctly and now
+  carries everyday turns quickly (non-private only — it's never used for private notes).
 - **Loremaster now knows what it is and how it works** — its architecture (a Python service + this Obsidian
   plugin), where everything lives in your vault (`AI/Memory/Episodes/`, `Learned-Facts`, proposals, reports…),
   and its own memory lifecycle (nightly consolidation + the **30-day episode archival** window). So questions

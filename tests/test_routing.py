@@ -130,6 +130,13 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(derive_tier("llama-3.3-70b-versatile"), "large")
         self.assertEqual(derive_tier("gpt-oss-120b"), "large")
         self.assertEqual(derive_tier("llama-4-maverick-17b-128e-instruct"), "large")
+        # size tokens must be word-boundary matched, not naive substrings:
+        # "gemini" contains "mini" — Gemini must NOT be tiered small (it excluded Gemini from
+        # tool turns and left everyday routing on tiny-TPM groq → slow nvidia fallback).
+        self.assertEqual(derive_tier("models/gemini-2.5-flash"), "mid")
+        self.assertEqual(derive_tier("models/gemini-2.5-flash-lite"), "mid")
+        self.assertEqual(derive_tier("gemini-3-pro-preview"), "mid")
+        self.assertEqual(derive_tier("gpt-4o-mini"), "small")   # real "mini" still small
 
     # ---- candidates never chosen -----------------------------------------
 

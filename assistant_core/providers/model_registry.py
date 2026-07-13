@@ -36,7 +36,11 @@ def derive_tier(model_id: str) -> str:
         if n <= 45:
             return "mid"
         return "large"
-    if "mini" in mid or "nano" in mid or "small" in mid:
+    # Word-boundary match so a size token doesn't match a substring of a NAME — e.g. naive
+    # `"mini" in "gemini"` is True and wrongly tiered every Gemini model as small (which then
+    # excluded Gemini from tool turns via is_tool_reliable). \b treats '-'/'/' as boundaries,
+    # so "gpt-4o-mini" / "gemini-nano" still match correctly.
+    if re.search(r"\b(mini|nano|small)\b", mid):
         return "small"
     if any(k in mid for k in ("opus", "gpt-4", "70", "120", "405", "large")):
         return "large"
