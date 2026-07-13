@@ -324,7 +324,10 @@ class ProviderRouter:
         if tail and estimate_tokens(head + tail, system_prompt) > budget:
             others = estimate_tokens(head + tail[:-1], system_prompt) if len(tail) > 1 else \
                      estimate_tokens(head, system_prompt)
-            room = max(500, budget - others)
+            # Target 85% of budget: our chars/4 estimate UNDER-counts unicode-heavy content vs a
+            # provider's real tokenizer, so truncating exactly to budget can still 400. The margin
+            # absorbs that gap so the request actually fits.
+            room = max(500, int(budget * 0.85) - others)
             tail[-1] = self._truncate_message(tail[-1], room)
         return head + tail
 
