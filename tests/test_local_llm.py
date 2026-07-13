@@ -10,6 +10,7 @@ from assistant_core import local_llm
 
 def _reset_cache():
     local_llm._avail_cache.update(checked=0.0, ok=False)
+    local_llm._cooldown_until = 0.0
 
 
 class TestLocalLLM(unittest.TestCase):
@@ -41,6 +42,22 @@ class TestLocalLLM(unittest.TestCase):
     def test_complete_none_on_error(self):
         with mock.patch("urllib.request.urlopen", side_effect=OSError("boom")):
             self.assertIsNone(local_llm.complete("t", "s", {}))
+
+    def test_failure_opens_cooldown_so_next_calls_fail_fast(self):
+        # A timeout must NOT be paid again on every subsequent call in the same request
+        # (this is what made a map-reduce hang N × timeout on a contended box).
+        with mock.patch("urllib.request.urlopen", side_effect=TimeoutError("timed out")):
+            self.assertIsNone(local_llm.complete("t", "s", {}))
+        self.assertGreater(local_llm._cooldown_until, 0.0)
+        # available() now short-circuits to False without touching the socket…
+        with mock.patch("urllib.request.urlopen", side_effect=AssertionError("must not probe")):
+            self.assertFalse(local_llm.available({}))
+        # …until the cooldown expires.
+        local_llm._cooldown_until = 0.0
+        resp = mock.MagicMock(); resp.status = 200
+        resp.__enter__ = lambda s: resp; resp.__exit__ = lambda *a: False
+        with mock.patch("urllib.request.urlopen", return_value=resp):
+            self.assertTrue(local_llm.available({}, force=True))
 
     def test_model_name_default_and_override(self):
         self.assertEqual(local_llm.model_name({}), local_llm.DEFAULT_MODEL)

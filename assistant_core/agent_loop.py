@@ -42,8 +42,11 @@ MAX_STEPS = 10   # raised from 5
 
 # M45 — a tool result bigger than this (chars) is condensed via map-reduce summarization (chunk →
 # summarize each → combine, keyed to the user's question) instead of overflowing the context.
-_CONDENSE_OVER_CHARS   = 12000   # ~3k tokens — over this, condense
-_CONDENSE_TARGET_CHARS = 6000    # ~1.5k tokens — condensed target size
+_CONDENSE_OVER_CHARS   = 48000   # ~12k tokens — only condense a genuinely context-threatening
+                                 # read. A normal search/list result (a few KB) must pass through
+                                 # untouched: condensing a list is lossy, and it's not big enough
+                                 # to need it. This is a rare safety net, not a routine step.
+_CONDENSE_TARGET_CHARS = 8000    # ~2k tokens — condensed target size
 
 # ---------------------------------------------------------------------------
 # Vault command table

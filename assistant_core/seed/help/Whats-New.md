@@ -1,20 +1,26 @@
-<!-- help-version: 27 -->
+<!-- help-version: 28 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in Loremaster
 
-*A capability overview so you can learn everything Loremaster can do. Current through **v1.10.1**.*
+*A capability overview so you can learn everything Loremaster can do. Current through **v1.10.14**.*
 
-## Loremaster understands itself + smarter handling of huge notes (v1.10.13)
+## Loremaster understands itself + robust handling of huge notes (v1.10.13–v1.10.14)
 - **Loremaster now knows what it is and how it works** — its architecture (a Python service + this Obsidian
   plugin), where everything lives in your vault (`AI/Memory/Episodes/`, `Learned-Facts`, proposals, reports…),
   and its own memory lifecycle (nightly consolidation + the **30-day episode archival** window). So questions
-  like "why isn't this episode archived?" or "where are my facts stored?" get correct answers instead of guesses.
-- **Reading a huge note no longer stalls or gets blind-truncated.** When the assistant reads a very large file,
-  it now **map-reduce summarizes** it — chunk → summarize each chunk → combine, steered by your question — so
-  key points survive. Runs on the free local model when available. (Toggle: `condense_large_reads`.) This also
-  fixed a case where reading a 100 KB note overflowed every provider and stalled a reply for minutes.
+  like "why isn't this episode archived?" or "where are my facts stored?" get correct answers instead of guesses
+  — and it answers them **from what it knows**, instead of reflexively opening a huge status file.
+- **A large read no longer stalls a reply.** Only a genuinely context-threatening read (tens of KB) is
+  condensed now — a normal search or list result passes straight through (condensing a list would lose items).
+  When condensing *is* needed it **map-reduce summarizes** (chunk → summarize each → combine, steered by your
+  question) so key points survive instead of being blind-truncated. (Toggle: `condense_large_reads`.)
+- **The free local model can no longer hang a request.** If the on-device model times out once (e.g. the home
+  server's GPU is busy), Loremaster backs off it for a few minutes and uses the cloud router instead — so a
+  simple request can't sit for minutes waiting on a stuck local model.
+- **Hardening:** the full system prompt is now single-sourced (a stale hidden fallback copy that could drift
+  out of sync was removed), so what the assistant knows about itself and its commands stays consistent.
 
 ## Explained link suggestions + readable Approvals (v1.10.1)
 - **Suggested links now come with a reason** — *and only genuinely-related links are suggested.* When

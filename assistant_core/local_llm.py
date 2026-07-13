@@ -30,6 +30,9 @@ DEFAULT_BASE_URL = "http://127.0.0.1:11434/v1"
 
 _avail_cache = {"checked": 0.0, "ok": False}
 _AVAIL_TTL = 60.0  # seconds
+_cooldown_until = 0.0        # after a completion times out/fails, treat local as down until this
+_COOLDOWN_SECS = 300.0       # 5 min — a contended/OOM box (GPU pressure) shouldn't be re-hammered
+                             # 60s at a time on every chunk of a map-reduce.
 
 
 def _base_url(config: dict | None) -> str:
@@ -45,6 +48,8 @@ def available(config: dict | None = None, *, force: bool = False) -> bool:
     if (config or {}).get("local_model") == "off":
         return False
     now = time.time()
+    if not force and now < _cooldown_until:
+        return False                      # recently timed out — don't retry for a while
     if not force and (now - _avail_cache["checked"]) < _AVAIL_TTL:
         return _avail_cache["ok"]
     ok = False
@@ -61,8 +66,10 @@ def available(config: dict | None = None, *, force: bool = False) -> bool:
 
 
 def complete(prompt: str, system: str, config: dict | None = None,
-             max_tokens: int = 300, temperature: float = 0.3, timeout: int = 60) -> str | None:
-    """One chat completion from the local model. Returns text, or None on any failure."""
+             max_tokens: int = 300, temperature: float = 0.3, timeout: int = 30) -> str | None:
+    """One chat completion from the local model. Returns text, or None on any failure.
+    On failure (esp. timeout) it opens a cooldown so callers making many calls in a row
+    (e.g. a map-reduce over chunks) fall through to the cloud router instead of blocking N×timeout."""
     body = json.dumps({
         "model": model_name(config),
         "messages": [{"role": "system", "content": system},
@@ -78,8 +85,11 @@ def complete(prompt: str, system: str, config: dict | None = None,
             data = json.loads(resp.read().decode("utf-8"))
         return (data["choices"][0]["message"]["content"] or "").strip() or None
     except Exception as exc:
-        logger.warning(f"[LocalLLM] completion failed: {exc}")
-        _avail_cache["checked"] = 0.0   # re-probe next time
+        logger.warning(f"[LocalLLM] completion failed: {exc} — cooling down local model "
+                       f"for {int(_COOLDOWN_SECS)}s")
+        global _cooldown_until
+        _cooldown_until = time.time() + _COOLDOWN_SECS
+        _avail_cache.update(checked=time.time(), ok=False)
         return None
 
 
