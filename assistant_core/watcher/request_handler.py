@@ -397,11 +397,8 @@ class RequestHandler:
             logger.error(f"[RequestHandler] Could not write error: {exc}")
 
     def _default_system_prompt(self) -> str:
-        """Fallback used only when no prompt is supplied (e.g. standalone watcher.py)."""
-        return (
-            "You are a helpful AI assistant integrated with Obsidian. "
-            "Help with analysis, summarization, research, planning, and knowledge management. "
-            "Be concise and practical. Format responses clearly with sections and bullet points. "
-            "When you need information from the vault, use vault:read or vault:search — "
-            "the system will execute those commands and show you the results."
-        )
+        """Fallback used only when no prompt is supplied (e.g. standalone watcher.py).
+        Single-sourced from the same minimal safe stub as MemoryManager, so this path also
+        carries the honesty guardrail and can't drift into its own separate prompt."""
+        from assistant_core.memory.memory_manager import DEFAULT_SYSTEM_PROMPT
+        return DEFAULT_SYSTEM_PROMPT
