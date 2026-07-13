@@ -318,7 +318,36 @@ class ProviderRouter:
         # keep dropping the oldest conversational turn until it fits (always keep the last message)
         while len(tail) > 1 and estimate_tokens(head + tail, system_prompt) > budget:
             tail.pop(0)
+        # A single message can still be too big to fit (e.g. the agent read a 100 KB note into a
+        # tool result). Dropping siblings can't shrink it — so HARD-TRUNCATE its content. Otherwise
+        # it 413s/400s every API provider and the nvidia endpoints hang ~90s each before webui.
+        if tail and estimate_tokens(head + tail, system_prompt) > budget:
+            others = estimate_tokens(head + tail[:-1], system_prompt) if len(tail) > 1 else \
+                     estimate_tokens(head, system_prompt)
+            room = max(500, budget - others)
+            tail[-1] = self._truncate_message(tail[-1], room)
         return head + tail
+
+    @staticmethod
+    def _truncate_message(msg, token_room: int):
+        """Hard-truncate a single message's content so it fits `token_room` tokens, keeping its
+        head AND tail (both the injected context and the actual question survive) with a marker.
+        Matches estimate_tokens' formula ((chars + 16)//CHARS_PER_TOKEN) with a safety margin."""
+        from assistant_core.providers.model_registry import CHARS_PER_TOKEN
+        content = getattr(msg, "content", "") or ""
+        # max content chars so that (chars + 16)//CHARS_PER_TOKEN <= token_room, minus 1 token slack
+        char_budget = max(200, (token_room - 1) * CHARS_PER_TOKEN - 16)
+        if len(content) <= char_budget:
+            return msg
+        marker = "\n\n… [truncated to fit the model's context window] …\n\n"
+        keep = char_budget - len(marker)
+        if keep < 40:                                  # too tight for head+tail → keep the tail
+            new = content[-char_budget:]
+        else:
+            head_n = int(keep * 0.6)
+            new = content[:head_n] + marker + content[-(keep - head_n):]
+        from assistant_core.providers.base_provider import Message
+        return Message(role=getattr(msg, "role", "user"), content=new)
 
     # ------------------------------------------------------------------
     # Health flagging (Milestone 10) — driven by real traffic only

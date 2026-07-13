@@ -43,6 +43,31 @@ class TestContextFit(unittest.TestCase):
         self.assertLess(len(fitted), len(msgs))                # something was dropped
         self.assertEqual(fitted[-1].content, "the current question")  # latest message preserved
 
+    def test_single_oversized_message_is_truncated_to_fit(self):
+        # regression: the agent read a 100 KB note into ONE tool-result message. Dropping siblings
+        # can't shrink it, so it used to 413/400 every provider and hang nvidia ~90s each. It must
+        # now be hard-truncated so the request fits.
+        from assistant_core.providers.model_registry import estimate_tokens
+        r = ProviderRouter.__new__(ProviderRouter)
+        huge = _Msg("user", "word " * 40000)                    # ~40k tokens, one message
+        spec = _Spec(tpm=6000, ctx=8192)                        # small provider (~5100-token budget)
+        fitted = r._fit_to_provider([huge], spec, "sys", 2048)
+        budget = ProviderRouter._input_budget(spec, 2048)
+        self.assertLessEqual(estimate_tokens(fitted, "sys"), budget)   # actually fits now
+        self.assertEqual(len(fitted), 1)
+        self.assertIn("truncated to fit", fitted[-1].content)           # visible marker
+
+    def test_oversized_latest_after_dropping_still_fits(self):
+        from assistant_core.providers.model_registry import estimate_tokens
+        r = ProviderRouter.__new__(ProviderRouter)
+        msgs = [_Msg("user", "old " * 3000), _Msg("assistant", "mid " * 3000),
+                _Msg("user", "huge " * 30000)]                  # latest is the oversized one
+        spec = _Spec(tpm=6000, ctx=8192)
+        fitted = r._fit_to_provider(msgs, spec, "sys", 2048)
+        budget = ProviderRouter._input_budget(spec, 2048)
+        self.assertLessEqual(estimate_tokens(fitted, "sys"), budget)
+        self.assertIn("truncated to fit", fitted[-1].content)
+
 
 if __name__ == "__main__":
     unittest.main()

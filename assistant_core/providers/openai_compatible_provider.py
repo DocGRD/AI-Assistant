@@ -66,9 +66,12 @@ class OpenAICompatibleProvider(BaseProvider):
 
         # Per-request timeout (config `request_timeout`, default 45s) + fail fast so a
         # hung/slow provider raises and the router falls back instead of stalling the turn.
+        # max_retries=0: the ROUTER does cross-provider failover, so the client's own retry is
+        # redundant AND doubles the wait on a hang (a timing-out provider was costing 2×45s=90s
+        # before failover — the nvidia stall that pushed a turn past 3 minutes).
         timeout = (config or {}).get("request_timeout", 45)
         self._client = OpenAI(api_key=api_key, base_url=self._base_url,
-                              timeout=timeout, max_retries=1)
+                              timeout=timeout, max_retries=0)
 
     @property
     def name(self) -> str:
