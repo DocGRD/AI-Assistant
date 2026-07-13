@@ -67,6 +67,7 @@
   "write_guard": "flag",
 
   "tool_reliable_routing": true,
+  "condense_large_reads": true,
 
   "auto_briefing_enabled": true,
   "briefing_hour": 6,

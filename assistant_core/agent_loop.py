@@ -40,6 +40,11 @@ logger = logging.getLogger("assistant")
 
 MAX_STEPS = 10   # raised from 5
 
+# M45 — a tool result bigger than this (chars) is condensed via map-reduce summarization (chunk →
+# summarize each → combine, keyed to the user's question) instead of overflowing the context.
+_CONDENSE_OVER_CHARS   = 12000   # ~3k tokens — over this, condense
+_CONDENSE_TARGET_CHARS = 6000    # ~1.5k tokens — condensed target size
+
 # ---------------------------------------------------------------------------
 # Vault command table
 # ---------------------------------------------------------------------------
@@ -455,7 +460,25 @@ def run_agent_loop(ctx: AgentContext) -> tuple[str, str]:
 
             tool_input  = parts[1].strip() if len(parts) > 1 else ""
             result      = ctx.registry.run(tool_name, tool_input)
-            result_text = f"{'✓' if result.success else '✗'} [{tool_name}]\n\n{result.output}"
+            output      = result.output
+            # A huge read (e.g. a 100 KB note) would overflow every free provider. Instead of
+            # blind-truncating (which loses the middle), MAP-REDUCE summarize it — chunk →
+            # summarize each → combine — keyed to the user's question so key points survive.
+            if (result.success and len(output) > _CONDENSE_OVER_CHARS
+                    and (ctx.config or {}).get("condense_large_reads", True)):
+                try:
+                    from assistant_core.summarize import map_reduce_summarize
+                    condensed = map_reduce_summarize(output, ctx.router, ctx.config,
+                                                     target_chars=_CONDENSE_TARGET_CHARS,
+                                                     focus=ctx.user_input)
+                    if condensed and len(condensed) < len(output):
+                        logger.info(f"[Agent] Condensed {tool_name} output "
+                                    f"{len(output)}→{len(condensed)} chars (map-reduce).")
+                        output = (f"[Condensed from {len(result.output)} chars — key points "
+                                  f"retained relevant to your question]\n\n{condensed}")
+                except Exception as exc:
+                    logger.debug(f"[Agent] condense failed: {exc}")
+            result_text = f"{'✓' if result.success else '✗'} [{tool_name}]\n\n{output}"
             result_text = _maybe_add_correction_hint(tool_name, result_text)
 
             tool_results.append(f"[Tool result for `{prefix}`]\n{result_text}")
