@@ -105,16 +105,20 @@ def detect(vault, limit: int = 20) -> list[dict]:
     return pairs[:limit]
 
 
-def confirm_pair(router, pair: dict) -> bool | None:
+def confirm_pair(router, pair: dict, private: bool = True) -> bool | None:
     """Optional single low-temp LLM check that a flagged pair is a real contradiction.
-    Returns True/False, or None if no router / the call fails. Never raises."""
+    Returns True/False, or None if no router / the call fails. Never raises.
+    `private` defaults to True: this sends note-derived text to a model, so it must stay on
+    no-train providers unless a caller that knows the notes are non-private opts out — the
+    project's promise is that private note content never goes to a train-on-data provider."""
     if router is None:
         return None
     try:
         from assistant_core.providers.base_provider import Message
         q = ("Do these two statements contradict each other? Answer only YES or NO.\n"
              f"1) {pair['a']['text']}\n2) {pair['b']['text']}")
-        reply, _ = router.generate([Message(role="user", content=q)], task="verify", allow_webui=False)
+        reply, _ = router.generate([Message(role="user", content=q)], task="verify",
+                                   private=private, allow_webui=False)
         return (reply or "").strip().upper().startswith("YES")
     except Exception as exc:
         logger.info(f"[contradiction] confirm failed: {exc}")

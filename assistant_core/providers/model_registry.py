@@ -42,7 +42,9 @@ def derive_tier(model_id: str) -> str:
     # so "gpt-4o-mini" / "gemini-nano" still match correctly.
     if re.search(r"\b(mini|nano|small)\b", mid):
         return "small"
-    if any(k in mid for k in ("opus", "gpt-4", "70", "120", "405", "large")):
+    # Word-boundary the bare param-count tokens so a date/version substring can't mis-tier —
+    # e.g. naive `"120" in "gemini-exp-1206"` is True. Name tokens (opus/gpt-4/large) stay substring.
+    if any(k in mid for k in ("opus", "gpt-4", "large")) or re.search(r"\b(70|120|405)\b", mid):
         return "large"
     return "mid"                             # unknown (e.g. gemini-flash) → middle
 
