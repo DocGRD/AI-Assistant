@@ -10,13 +10,17 @@ Build a *proposed* Provider-Registry.md from each provider's own `/models` endpo
      plus an editable `AI/System/Model-Capabilities.md` override map (future).
 
 Output is propose/commit: written to `Provider-Registry-proposed.md`; the existing
-`vault:update-providers apply` commits it. Models already `active` in the live registry
-keep that status + their hand-edited notes; everything new is `candidate` (register, then
-promote after `vault:models` / a probe confirms it). RPDs are NOT discoverable via /models
-(dashboard-only), so they are carried over from the existing registry or left `?`.
+`vault:update-providers apply` commits it. This is a **merge, not a clobber**: a model already
+in the live registry keeps ALL its curated values (context/tpm/rpm/rpd/tpd, trains_on_data,
+status, strengths, hand-edited notes), matched tolerantly of a `models/` prefix drift. A
+genuinely NEW chat model comes in **active** with `?` limits (rate limits are dashboard-only,
+not discoverable via /models — fill them in when known). Generative-media / embodied models
+(imagen/veo/lyria/robotics/…) are routed to the non-chat table so they're never chat-activated.
 """
 
 from __future__ import annotations
+
+from assistant_core.providers.registry_loader import NO_KNOWN_LIMIT
 
 # id substrings that mean "not a normal chat model" → split into a separate table
 # (NOT dropped — we'll likely want embeddings / transcription / safety models later).
@@ -24,6 +28,9 @@ _NON_CHAT = (
     "embed", "embedding", "whisper", "-tts", "tts-", "rerank", "guard", "safeguard",
     "-image", "image-", "-vision-embed", "-audio", "audio-", "-live", "live-", "moderation",
     "diffusion", "deplot", "fuyu", "kosmos", "orpheus", "starcoder", "codegemma", "codestral",
+    # generative-media / embodied families that are NOT chat-completion models — they'd error
+    # if routed for chat, so they must never be auto-activated (they go to the non-chat table).
+    "imagen", "veo", "lyria", "nano-banana", "robotics", "-er-", "gemini-robotics",
 )
 
 # (substring, category) — classify the non-chat models we keep in the second table.
@@ -33,6 +40,8 @@ _NON_CHAT_CATEGORY: list[tuple[str, str]] = [
     ("-tts", "text-to-speech"), ("tts-", "text-to-speech"), ("orpheus", "text-to-speech"),
     ("guard", "safety"), ("safeguard", "safety"), ("moderation", "safety"),
     ("rerank", "rerank"),
+    ("imagen", "image"), ("nano-banana", "image"), ("veo", "video"), ("lyria", "music"),
+    ("robotics", "robotics"), ("-er-", "robotics"),
     ("-image", "image"), ("image-", "image"), ("diffusion", "image"), ("fuyu", "image"),
     ("-live", "live"), ("live-", "live"), ("kosmos", "multimodal"), ("deplot", "multimodal"),
     ("codegemma", "code"), ("codestral", "code"), ("starcoder", "code"),
@@ -77,33 +86,59 @@ def _trains_on_data(provider: str) -> str:
     return {"groq": "no", "cerebras": "no", "google": "yes", "nvidia": "logs"}.get(provider, "varies")
 
 
+def _norm_id(mid: str) -> str:
+    """Normalize a model id for matching against the curated registry. Google's `/models`
+    returns `models/gemini-2.5-flash` while the registry may store it bare as `gemini-2.5-flash`;
+    without this, that prefix drift makes a KNOWN model look brand-new and its curated limits get
+    wiped. Strip a leading `models/` and lowercase."""
+    m = mid[len("models/"):] if mid.lower().startswith("models/") else mid
+    return m.lower()
+
+
+def _fmt_limit(val) -> str:
+    """Render a ModelSpec limit int back into a table cell: unknown → '?', else the number."""
+    if val in (None, 0, NO_KNOWN_LIMIT):
+        return "?"
+    return str(val)
+
+
 def build_proposed_registry(discovered: dict[str, dict], existing_specs: list,
                             base_urls: dict[str, str]) -> str:
     """
     `discovered` = {provider: {"models": [ids], "error": str|None}} (from discover_models).
-    `existing_specs` = current ModelSpecs (to preserve active status + notes + RPD).
+    `existing_specs` = current ModelSpecs — MERGED, not clobbered: a model already in the
+    registry keeps ALL its curated values (context/tpm/rpm/rpd/tpd, trains_on_data, status,
+    strengths, notes), matched tolerantly of a `models/` prefix drift. A genuinely new chat
+    model comes in **active** with `?` limits (unknown until a dashboard/probe fills them in).
     Returns a complete Provider-Registry-proposed.md as a string (propose/commit).
     """
-    existing = {(s.provider, s.model_id): s for s in existing_specs}
-    chat_rows: list[tuple] = []        # (provider, model_id, status, strengths, rpd, ctx, trains, note)
+    existing = {(s.provider, _norm_id(s.model_id)): s for s in existing_specs}
+    chat_rows: list[tuple] = []        # (provider, mid, ctx, tpm, rpm, rpd, tpd, trains, status, strengths, note)
     other_rows: list[tuple] = []       # (provider, model_id, category, note)
     for provider, info in sorted(discovered.items()):
         if info.get("error"):
             continue
         for mid in info["models"]:
-            prev = existing.get((provider, mid))
+            prev = existing.get((provider, _norm_id(mid)))
             if not is_chat_model(mid):
-                # Keep it — embeddings/transcription/safety/etc. land in a second table.
+                # Keep it — embeddings/transcription/safety/media/etc. land in a second table.
                 note = (prev.notes if (prev and getattr(prev, "notes", ""))
                         else "discovered from /models — specialized (non-chat)")
                 other_rows.append((provider, mid, classify_non_chat(mid), note))
                 continue
-            status = prev.status if prev else "candidate"
-            rpd = prev.rpd_limit if (prev and getattr(prev, "rpd_limit", None)) else "?"
-            ctx = prev.context_window if (prev and getattr(prev, "context_window", None)) else "?"
-            note = prev.notes if (prev and getattr(prev, "notes", "")) else "discovered from /models — confirm before promoting"
-            chat_rows.append((provider, mid, status, " ".join(classify_strengths(mid)),
-                              rpd, ctx, _trains_on_data(provider), note))
+            # MERGE: carry every curated value we already know; only fill gaps for new models.
+            status = getattr(prev, "status", None) or "active"      # new chat model → active
+            ctx    = _fmt_limit(getattr(prev, "context_window", None))
+            tpm    = _fmt_limit(getattr(prev, "tpm_limit", None))
+            rpm    = _fmt_limit(getattr(prev, "rpm_limit", None))
+            rpd    = _fmt_limit(getattr(prev, "rpd_limit", None))
+            tpd    = _fmt_limit(getattr(prev, "tpd_limit", None))
+            trains = (getattr(prev, "trains_on_data", "") or "").strip() or _trains_on_data(provider)
+            prev_strengths = getattr(prev, "strengths", None)
+            strengths = " ".join(prev_strengths) if prev_strengths else " ".join(classify_strengths(mid))
+            note = (getattr(prev, "notes", "") if (prev and getattr(prev, "notes", ""))
+                    else "discovered from /models — new, auto-active (verify limits on the dashboard)")
+            chat_rows.append((provider, mid, ctx, tpm, rpm, rpd, tpd, trains, status, strengths, note))
 
     lines = [
         "# Provider Registry — PROPOSED (from live /models discovery)",
@@ -114,9 +149,9 @@ def build_proposed_registry(discovered: dict[str, dict], existing_specs: list,
         "| provider_key | base_url | model_id | context_window | tpm | rpm | rpd | tpd | trains_on_data | status | strengths | notes |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
-    for provider, mid, status, strengths, rpd, ctx, trains, note in chat_rows:
+    for provider, mid, ctx, tpm, rpm, rpd, tpd, trains, status, strengths, note in chat_rows:
         base = base_urls.get(provider, "")
-        lines.append(f"| {provider} | {base} | {mid} | {ctx} | ? | ? | {rpd} | ? | "
+        lines.append(f"| {provider} | {base} | {mid} | {ctx} | {tpm} | {rpm} | {rpd} | {tpd} | "
                      f"{trains} | {status} | {strengths} | {note} |")
 
     # Second table — specialized / non-chat models, kept for future use (embeddings,
