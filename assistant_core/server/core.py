@@ -84,6 +84,33 @@ def _is_qa_refusal(answer: str) -> bool:
     return bool(_QA_REFUSAL_RE.match((answer or "").strip()))
 
 
+# A natural-language "set a goal" request. Some models (e.g. gemini) answer such a request via
+# QA instead of emitting `vault:goal`, so no goal is ever created. Detecting the intent here and
+# routing straight to the goal planner makes goal-setting reliable regardless of which model
+# answers. Anchored + requires a create-verb next to "goal", so questions ABOUT goals don't match.
+_GOAL_INTENT_RE = re.compile(
+    r"^\s*(?:(?:hey|ok|okay|nice|so|well|please|thanks|cool|great|and|then|now|also|"
+    r"can\s+(?:we|you)|could\s+you|would\s+you|let'?s|i(?:'d| would)\s+like\s+(?:to|you\s+to)|"
+    r"i\s+want\s+(?:to|you\s+to)|help\s+me)\s+)*"
+    r"(?:make|create|set(?:\s*up)?|setup|plan|start|add|build|establish|schedule)\s+"
+    r"(?:me\s+)?(?:a|an|the|my|another)?\s*(?:new|recurring|daily|weekly)?\s*goal\b"
+    r"[\s:,\-]*(?:to|for|that|about|of|where|which|:)?\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _detect_goal_request(message: str) -> str | None:
+    """Return the goal description if `message` is a natural-language 'set a goal' request,
+    else None. Requires a create-verb adjacent to 'goal' and a non-trivial description."""
+    m = _GOAL_INTENT_RE.match(message or "")
+    if not m:
+        return None
+    desc = (m.group(1) or "").strip().strip(".").strip()
+    # Drop a leading filler article the optional (to|for|…) group didn't catch ("goal the X").
+    desc = re.sub(r"^(?:the|a|an|to|for|of|that)\s+", "", desc, flags=re.IGNORECASE).strip()
+    return desc if len(desc) >= 4 else None
+
+
 # ---------------------------------------------------------------------------
 # Server class
 # ---------------------------------------------------------------------------
@@ -622,6 +649,15 @@ class AssistantServer:
             # to the LLM, which then "kept working" instead of just returning the result.
             from assistant_core.vault_commands import VAULT_COMMANDS, handle_vault_command
             _first = req.message.strip().split(None, 1)[0].lower()
+
+            # A natural-language goal request → route straight to the goal planner (the vault:goal
+            # intercept below). Without this, some models answer via QA and no goal is created.
+            if _first != "vault:goal":
+                _gdesc = _detect_goal_request(req.message)
+                if _gdesc:
+                    logger.info(f"[Server] Goal-intent detected → vault:goal {_gdesc[:60]!r}")
+                    req.message = f"vault:goal {_gdesc}"
+                    _first = "vault:goal"
 
             # M41 — Obsidian command-palette directive typed directly, or echoed back by
             # the plugin. `command:search`/`command:list` are read-only lookups; `command:run`

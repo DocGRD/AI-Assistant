@@ -29,6 +29,22 @@ class _FakeReg:
 
 
 @unittest.skipUnless(_fastapi_available, "fastapi/httpx not installed")
+class GoalIntentDetectorTests(unittest.TestCase):
+    def test_detects_and_extracts_goal_requests(self):
+        from assistant_core.server.core import _detect_goal_request as d
+        self.assertEqual(d("Set a goal to summarize my Nahum notes"), "summarize my Nahum notes")
+        self.assertEqual(d("Nice so can we make a goal the harvest reference information"),
+                         "harvest reference information")
+        self.assertEqual(d("let's set up a weekly goal to review my flashcards"),
+                         "review my flashcards")
+
+    def test_ignores_non_goal_messages(self):
+        from assistant_core.server.core import _detect_goal_request as d
+        for msg in ["what is my goal for today", "how do goals work", "my goal is to be healthy",
+                    "summarize my Nahum notes", "did you finish the goal"]:
+            self.assertIsNone(d(msg), msg)
+
+
 class ServerEndpointsTests(unittest.TestCase):
     def _client(self, history=None, registry=None):
         from fastapi.testclient import TestClient
