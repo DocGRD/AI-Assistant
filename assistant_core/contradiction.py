@@ -88,7 +88,11 @@ def detect(vault, limit: int = 20) -> list[dict]:
             seen.add(key)
             ca, cb = claims[a], claims[b]
             shared = ca["terms"] & cb["terms"]
-            if len(shared) < _MIN_SHARED or ca["note"] == cb["note"] and ca["text"] == cb["text"]:
+            # Skip too-weak overlaps, and skip pairs from the SAME note — the feature reports
+            # notes that disagree with *each other*; two sentences in one note were being flagged
+            # as a note contradicting itself (the buggy `A or B and C` precedence only skipped the
+            # exact-duplicate-text case, so quote-collection notes produced "X vs X" noise).
+            if len(shared) < _MIN_SHARED or ca["note"] == cb["note"]:
                 continue
             reason = None
             if ca["nums"] and cb["nums"] and ca["nums"] != cb["nums"]:

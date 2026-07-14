@@ -35,7 +35,14 @@ _BAD = re.compile(r"[^\w \-'&/.]")
 
 def _clean_entity(name: str) -> str:
     name = _BAD.sub("", name).strip().strip("-").strip()
-    return " ".join(name.split())[:60]
+    name = " ".join(name.split())[:60]
+    # Reject junk the model sometimes emits as an "entity": pure numbers, quantities and
+    # fragments with no real name content (e.g. "100000", "13", "116-17") — these flooded the
+    # graph with thousands of meaningless entity notes. Require at least one letter, which still
+    # keeps legitimate digit-led names like "1 John" / "2 Samuel".
+    if not re.search(r"[A-Za-z]", name):
+        return ""
+    return name
 
 
 def parse_triples(reply: str) -> list[tuple[str, str, str]]:

@@ -23,6 +23,13 @@ class ParseTriplesTests(unittest.TestCase):
         self.assertEqual(parse_triples("NONE"), [])
         self.assertEqual(parse_triples("X | equals | X"), [])   # self-loop dropped
 
+    def test_rejects_numeric_and_fragment_entities(self):
+        # Pure numbers / quantities must NOT become entities (they flooded the graph with junk).
+        self.assertEqual(parse_triples("Solomon | offered | 100000"), [])
+        self.assertEqual(parse_triples("reign | lasted | 16"), [])
+        # …but legitimate digit-led names (a word is present) are kept.
+        self.assertEqual(parse_triples("John | wrote | 1 John"), [("John", "wrote", "1 John")])
+
     def test_caps_at_twelve(self):
         reply = "\n".join(f"S{i} | rel | O{i}" for i in range(20))
         self.assertEqual(len(parse_triples(reply)), 12)
