@@ -35,6 +35,18 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(C.parse_facts("NONE"), [])
         self.assertEqual(C.parse_facts("Some prose, no bullets."), [])
 
+    def test_transient_facts_filtered(self):
+        # Self-referential facts about Loremaster's own operation must be dropped (they were
+        # polluting consolidation proposals with debug-session artifacts).
+        for junk in ["There are 408 orphan notes in the vault",
+                     "Episodes are archived when they are older than 30 days",
+                     "The vault:analytics command can identify orphan notes",
+                     "The episodes were not archived because consolidate was not run"]:
+            self.assertTrue(C._looks_transient(junk), junk)
+        for real in ["The user is studying the biblical book of 1 John",
+                     "Glenn has a background in embedded systems"]:
+            self.assertFalse(C._looks_transient(real), real)
+
     def test_existing_facts_strips_timestamp(self):
         with tempfile.TemporaryDirectory() as d:
             fp = Path(d) / C.FACTS_FILE

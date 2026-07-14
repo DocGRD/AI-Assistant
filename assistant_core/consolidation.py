@@ -40,8 +40,28 @@ EXTRACT_SYSTEM = (
     "only include things clearly true and worth remembering long-term. Output 0-6 bullet "
     "points, each a single self-contained sentence starting with '- '. Do NOT include "
     "transient chatter, questions, tool mechanics, or anything you are unsure about. If "
-    "nothing is worth keeping, output exactly 'NONE'."
+    "nothing is worth keeping, output exactly 'NONE'.\n"
+    "NEVER record facts about the assistant's OWN operation — no episodes, consolidation, "
+    "archival windows, orphan-note counts, vault: commands, provider routing, or anything "
+    "about a debugging/diagnostic session. Those are not durable user knowledge. Record only "
+    "what is true about the USER, their vault content, their study, and their decisions."
 )
+
+
+# Deterministic backstop to the prompt: reject self-referential / transient "facts" about
+# Loremaster's own machinery (episodes, consolidation, archival, orphan counts, commands) that
+# the model sometimes emits anyway — these are not durable knowledge about the user.
+_TRANSIENT_RE = re.compile(
+    r"(vault:|command:|\bepisodes?\b|\bconsolidat|\barchiv|\borphan\b|\bbriefing\b|"
+    r"\bwatermark\b|\bsubcommand\b|learned[- ]facts|provider[- ]registry|\breindex\b|"
+    r"the assistant\b|^\s*there (are|is|was|were)\s+\d+)",
+    re.IGNORECASE,
+)
+
+
+def _looks_transient(fact: str) -> bool:
+    """True for a candidate that's about Loremaster's own operation rather than the user."""
+    return bool(_TRANSIENT_RE.search(fact or ""))
 
 
 # ── watermark state ────────────────────────────────────────────────────────
@@ -110,7 +130,7 @@ def extract_candidate_facts(router, episode_text: str) -> list[str]:
         messages=msgs, system_prompt=EXTRACT_SYSTEM,
         private=True, allow_webui_on_private=False,
     )
-    return [normalize_exotic(f) for f in parse_facts(reply or "")]
+    return [normalize_exotic(f) for f in parse_facts(reply or "") if not _looks_transient(f)]
 
 
 def existing_facts(vault) -> list[str]:
