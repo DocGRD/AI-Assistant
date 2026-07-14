@@ -54,7 +54,8 @@ class OllamaEmbedderTests(unittest.TestCase):
         from assistant_core.rag.embedder import OllamaEmbedder
         emb = OllamaEmbedder({"ollama_embedding_model": "nomic-embed-text"})
         self.assertEqual(emb.name, "ollama:nomic-embed-text")
-        with self._fake_urlopen({"embeddings": [[3.0, 4.0, 0.0]]}):
+        # OpenAI-compatible /v1/embeddings response shape: {"data": [{"embedding": [...], "index": N}]}
+        with self._fake_urlopen({"data": [{"embedding": [3.0, 4.0, 0.0], "index": 0}]}):
             self.assertEqual(emb.dim, 3)                       # probed from the model
             v = emb.embed_one("hello")
         self.assertAlmostEqual(float(np.linalg.norm(v)), 1.0, places=5)   # L2-normalized

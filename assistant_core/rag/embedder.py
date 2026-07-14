@@ -188,7 +188,10 @@ class OllamaEmbedder:
         self._config = config
         self.model   = str(config.get("ollama_embedding_model") or DEFAULT_OLLAMA_EMBED_MODEL)
         base         = str(config.get("local_base_url") or "http://127.0.0.1:11434/v1").rstrip("/")
-        self._root   = base.rsplit("/v1", 1)[0]          # Ollama native API lives at the host root
+        # Use the OpenAI-compatible endpoint (…/v1/embeddings) rather than Ollama's native
+        # /api/embed: the native path stalled a full reindex on the box, while the OpenAI path
+        # (the same one the cloud providers use) is reliable there.
+        self._openai = base if base.endswith("/v1") else base + "/v1"
         self._dim    = None
         self._batch  = int(config.get("ollama_embedding_batch", 16) or 16)
 
@@ -208,20 +211,22 @@ class OllamaEmbedder:
         return self._dim
 
     def _embed_raw(self, texts: list[str], timeout: int = 60) -> list[list[float]]:
-        """Call Ollama's batch /api/embed. Empty/whitespace inputs are replaced with a single '.'
-        because an empty string in a batch makes Ollama's embed endpoint hang (a real, hard-to-
-        diagnose stall during a full reindex). Retries once on failure. Returns a list of vectors."""
+        """Embed a batch via the OpenAI-compatible /v1/embeddings endpoint. Empty/whitespace
+        inputs are replaced with a single '.' (an empty string in a batch can stall the embed
+        endpoint). Retries once on failure. Returns vectors in the input order."""
         import json, urllib.request
         safe = [(t if (t and t.strip()) else ".") for t in texts]
         body = json.dumps({"model": self.model, "input": safe}).encode("utf-8")
         last: Exception | None = None
         for attempt in range(2):
             try:
-                req = urllib.request.Request(f"{self._root}/api/embed", data=body,
+                req = urllib.request.Request(f"{self._openai}/embeddings", data=body,
                                              headers={"Content-Type": "application/json"})
                 with urllib.request.urlopen(req, timeout=timeout) as resp:   # noqa: S310 (localhost)
                     data = json.loads(resp.read().decode("utf-8"))
-                return data.get("embeddings") or []
+                rows = data.get("data") or []
+                rows.sort(key=lambda r: r.get("index", 0))   # OpenAI returns index; keep input order
+                return [r.get("embedding") for r in rows]
             except Exception as exc:
                 last = exc
                 logger.warning(f"[RAG] Ollama embed batch failed (attempt {attempt+1}): {exc}")
