@@ -41,8 +41,15 @@ class RagService:
     @property
     def embedder(self):
         if self._embedder is None:
-            from assistant_core.rag.embedder import LocalEmbedder
-            self._embedder = LocalEmbedder(self.config)
+            backend = str((self.config or {}).get("embedding_backend", "fastembed")).lower()
+            if backend == "ollama":
+                # Ollama embedding model — shares its lightweight GGML GPU runtime with the local
+                # LLM, so both fit on a small GPU (unlike onnxruntime-gpu's ~2 GB cuDNN context).
+                from assistant_core.rag.embedder import OllamaEmbedder
+                self._embedder = OllamaEmbedder(self.config)
+            else:
+                from assistant_core.rag.embedder import LocalEmbedder
+                self._embedder = LocalEmbedder(self.config)
         return self._embedder
 
     def close(self) -> None:

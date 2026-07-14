@@ -49,6 +49,8 @@
   "google_search_api_key": "",
   "google_cse_id": "",
   "embedding_device": "cpu",
+  "embedding_backend": "fastembed",
+  "ollama_embedding_model": "nomic-embed-text",
   "embedding_threads": 0,
   "embedding_gpu_mem_mb": 0,
   "local_model": "qwen2.5:3b",

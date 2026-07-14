@@ -164,3 +164,71 @@ class LocalEmbedder:
             gc.collect()
         except Exception:
             pass
+
+
+DEFAULT_OLLAMA_EMBED_MODEL = "nomic-embed-text"   # 768-dim, ~274 MB, strong RAG quality
+
+
+class OllamaEmbedder:
+    """Embeds via a local **Ollama** model instead of fastembed/onnxruntime.
+
+    Why: on a small shared GPU, onnxruntime-gpu's cuDNN context is ~2 GB even for a 130 MB
+    model, which starves a co-resident Ollama LLM. Ollama's embedding models run on its own
+    lightweight GGML runtime (a few hundred MB) and share the GPU with the chat model, so the
+    embedder AND the local LLM both fit. Same interface as LocalEmbedder (name/dim/embed/
+    embed_one/close) so it drops into RagService unchanged.
+
+    The embedding dimension differs per model (nomic-embed-text = 768 vs bge-small = 384), so
+    switching backends changes `name`+`dim`; VectorStore detects that and rebuilds the index.
+    """
+
+    def __init__(self, config: dict | None = None):
+        import json  # noqa: F401 (kept local so importing the module stays dependency-free)
+        config       = config or {}
+        self._config = config
+        self.model   = str(config.get("ollama_embedding_model") or DEFAULT_OLLAMA_EMBED_MODEL)
+        base         = str(config.get("local_base_url") or "http://127.0.0.1:11434/v1").rstrip("/")
+        self._root   = base.rsplit("/v1", 1)[0]          # Ollama native API lives at the host root
+        self._dim    = None
+        self._batch  = int(config.get("ollama_embedding_batch", 32) or 32)
+
+    @property
+    def name(self) -> str:
+        return f"ollama:{self.model}"
+
+    @property
+    def dim(self) -> int:
+        if self._dim is None:
+            vec = self._embed_raw(["dimension probe"])
+            self._dim = len(vec[0]) if vec and vec[0] else 0
+            if not self._dim:
+                raise RuntimeError(f"Ollama embedding model '{self.model}' returned no vector — "
+                                   f"is it pulled? (`ollama pull {self.model}`)")
+            logger.info(f"[RAG] Ollama embedder '{self.model}' ready — {self._dim} dims.")
+        return self._dim
+
+    def _embed_raw(self, texts: list[str]) -> list[list[float]]:
+        """Call Ollama's batch /api/embed. Returns a list of vectors (may raise on failure)."""
+        import json, urllib.request
+        body = json.dumps({"model": self.model, "input": texts}).encode("utf-8")
+        req = urllib.request.Request(f"{self._root}/api/embed", data=body,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=180) as resp:   # noqa: S310 (localhost)
+            data = json.loads(resp.read().decode("utf-8"))
+        return data.get("embeddings") or []
+
+    def embed(self, texts: list[str]) -> np.ndarray:
+        if not texts:
+            return np.zeros((0, self.dim), dtype=np.float32)
+        out: list[list[float]] = []
+        for i in range(0, len(texts), self._batch):     # batch so a huge reindex request never times out
+            out.extend(self._embed_raw(texts[i:i + self._batch]))
+        vecs = np.array(out, dtype=np.float32)
+        return normalize(vecs)
+
+    def embed_one(self, text: str) -> np.ndarray:
+        return self.embed([text])[0]
+
+    def close(self) -> None:
+        """No-op: Ollama owns the model's GPU memory in its own process; nothing to release here."""
+        return

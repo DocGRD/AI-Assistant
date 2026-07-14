@@ -40,6 +40,33 @@ class FakeEmbedder:
         return self.embed([text])[0]
 
 
+class OllamaEmbedderTests(unittest.TestCase):
+    def _fake_urlopen(self, payload):
+        from unittest import mock
+        resp = mock.MagicMock()
+        resp.read.return_value = __import__("json").dumps(payload).encode()
+        resp.__enter__ = lambda s: resp
+        resp.__exit__ = lambda *a: False
+        return mock.patch("urllib.request.urlopen", return_value=resp)
+
+    def test_name_dim_and_normalized_embed(self):
+        from unittest import mock
+        from assistant_core.rag.embedder import OllamaEmbedder
+        emb = OllamaEmbedder({"ollama_embedding_model": "nomic-embed-text"})
+        self.assertEqual(emb.name, "ollama:nomic-embed-text")
+        with self._fake_urlopen({"embeddings": [[3.0, 4.0, 0.0]]}):
+            self.assertEqual(emb.dim, 3)                       # probed from the model
+            v = emb.embed_one("hello")
+        self.assertAlmostEqual(float(np.linalg.norm(v)), 1.0, places=5)   # L2-normalized
+
+    def test_empty_returns_zero_rows(self):
+        from assistant_core.rag.embedder import OllamaEmbedder
+        emb = OllamaEmbedder({})
+        emb._dim = 768                                        # avoid a probe call
+        out = emb.embed([])
+        self.assertEqual(out.shape, (0, 768))
+
+
 class ChunkerTests(unittest.TestCase):
     def test_heading_aware_chunks(self):
         body = "# Title\n\nintro para\n\n## Alpha\n\naaa one\naaa two\n\n## Beta\n\nbbb\n"
