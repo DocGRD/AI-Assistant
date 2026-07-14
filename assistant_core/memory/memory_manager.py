@@ -24,7 +24,7 @@ _HELP_STAMP = re.compile(r"help-version:\s*(\d+)")
 # v1.9 — the System-Prompt is now packaged + version-stamped (assistant_core/seed/system/
 # System-Prompt.md, carrying `<!-- prompt-version: N -->`). seed_system_prompt() refreshes the
 # vault copy when it's missing or older, so the command list never drifts. Bump on prompt edits.
-PROMPT_VERSION = 5
+PROMPT_VERSION = 6
 _PROMPT_STAMP = re.compile(r"prompt-version:\s*(\d+)")
 
 logger = logging.getLogger("assistant")

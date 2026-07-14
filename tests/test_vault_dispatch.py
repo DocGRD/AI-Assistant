@@ -73,6 +73,28 @@ class RunExtendedTests(unittest.TestCase):
         self.assertTrue(res.terminal)
         self.assertIn("no new durable facts", res.output.lower())
 
+    def test_goal_in_extended_set(self):
+        self.assertIn("vault:goal", EXTENDED_COMMANDS)
+
+    def test_goal_control_verbs_are_user_only(self):
+        # The agent may PLAN a goal but must not approve/cancel one.
+        for verb in ["approve slug", "cancel slug", "pause slug", ""]:
+            res = run_extended("vault:goal", verb, _ctx(self.tmp))
+            self.assertFalse(res.success, verb)
+            self.assertTrue(res.terminal)
+
+    def test_goal_planning_stages_a_goal(self):
+        from unittest import mock
+        with mock.patch("assistant_core.goals.planner.plan_goal",
+                        return_value={"subtasks": ["step one", "step two"], "estimate": "~2 steps"}), \
+             mock.patch("assistant_core.goals.planner.detect_template", return_value=""):
+            res = run_extended("vault:goal", "go through all the AI conversations and extract ideas",
+                               _ctx(self.tmp))
+        self.assertTrue(res.success)
+        self.assertTrue(res.terminal)
+        self.assertIn("Planned goal", res.output)
+        self.assertIn("step one", res.output)
+
     def test_sources_command(self):
         (Path(self.tmp) / "Bio.md").write_text("photosynthesis chlorophyll sunlight", encoding="utf-8")
         res = run_extended("vault:sources", "photosynthesis chlorophyll sunlight", _ctx(self.tmp))

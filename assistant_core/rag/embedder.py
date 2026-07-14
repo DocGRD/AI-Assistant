@@ -129,7 +129,21 @@ class LocalEmbedder:
         if not texts:
             return np.zeros((0, self.dim), dtype=np.float32)
         self._load()
-        vecs = np.array(list(self._model.embed(texts)), dtype=np.float32)
+        try:
+            vecs = np.array(list(self._model.embed(texts)), dtype=np.float32)
+        except Exception as exc:
+            # A CUDA out-of-memory at inference time (e.g. a co-resident local LLM spiked VRAM on
+            # a small shared GPU) must NOT crash indexing. Rebuild on CPU once and retry, and stay
+            # on CPU for the rest of this process so it self-stabilizes instead of failing every run.
+            if self.device == "cuda":
+                logger.warning(f"[RAG] CUDA embedding failed ({exc}) — falling back to CPU embedding "
+                               f"for this process (the model is tiny; CPU is fine).")
+                self.close()
+                self.device = "cpu"
+                self._load()
+                vecs = np.array(list(self._model.embed(texts)), dtype=np.float32)
+            else:
+                raise
         return normalize(vecs)
 
     def embed_one(self, text: str) -> np.ndarray:

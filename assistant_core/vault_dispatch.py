@@ -26,6 +26,7 @@ EXTENDED_COMMANDS = {
     "vault:webresearch", "vault:ingest", "vault:ocr", "vault:analyze", "vault:graph",
     "vault:graph-merge", "vault:guide", "vault:query", "vault:sources", "vault:passage",
     "vault:transcribe", "vault:cards", "vault:review", "vault:logs", "vault:consolidate",
+    "vault:goal",
 }
 
 
@@ -94,6 +95,46 @@ def run_extended(prefix: str, arg: str, ctx) -> "ExtResult | None":
             # v1.9 — self-diagnosis: read the service's own logs (outside the vault).
             from assistant_core import logs_reader
             return ExtResult(logs_reader.format_reply(logs_reader.read_logs(arg)), terminal=True)
+
+        if prefix == "vault:goal":
+            # When the user explicitly asks to set/plan a goal, the agent emits `vault:goal <desc>`.
+            # PROPOSE-ONLY: this plans a multi-step goal and stages it for approval — it does NOT run
+            # until the user approves in the 🎯 Goals panel. Control verbs stay the user's, not the agent's.
+            verb = (arg.split(None, 1)[0].lower() if arg else "")
+            if not arg or verb in {"approve", "pause", "resume", "cancel", "replan", "list", "goals"}:
+                return ExtResult(
+                    "To create a goal, emit `vault:goal <description>` — it plans the goal and stages it "
+                    "for the user to approve in the 🎯 Goals panel (it does not run until approved). "
+                    "Approving, pausing, or cancelling a goal is the user's action, not yours.",
+                    success=False, terminal=True)
+            from assistant_core.goals.planner import plan_goal, plan_from_template, detect_template
+            from assistant_core.goals import store as gstore
+            tmpl = detect_template(arg) or ""
+            desc = arg
+            if tmpl:
+                parts = arg.split(None, 1)
+                desc = parts[1] if len(parts) > 1 else arg
+            try:
+                plan = plan_from_template(tmpl, desc) if tmpl else None
+                if plan is None:
+                    plan = plan_goal(arg, router, private=private)
+            except Exception as exc:
+                return ExtResult(f"Could not plan that goal: {exc}", success=False, terminal=True)
+            if not plan.get("subtasks"):
+                return ExtResult("Could not plan that goal — try rephrasing it.", success=False, terminal=True)
+            g = gstore.create_goal(arg, plan["subtasks"], plan.get("estimate", ""),
+                                   template=plan.get("template", ""))
+            try:
+                gstore.render_note(vault, g)
+            except Exception:
+                pass
+            _episode(ctx, "goal_planned", g.get("slug", ""))
+            steps = "\n".join(f"{i+1}. {s}" for i, s in enumerate(plan["subtasks"]))
+            return ExtResult(
+                f"**Planned goal** `{g['slug']}` — {plan.get('estimate', '')}\n\n{steps}\n\n"
+                f"Approve it to run in the background from the **🎯 Goals** panel "
+                f"(or `vault:goal approve {g['slug']}`).",
+                terminal=True)
 
         if prefix == "vault:consolidate":
             # M44 — on-demand memory consolidation ("dreaming"). PROPOSE-ONLY: extracts durable
