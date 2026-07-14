@@ -261,13 +261,19 @@ def main() -> None:
 
     if rag_service:
         if rag_service.enabled:
-            print("[Vault QA] Building/refreshing the index (this machine indexes)...")
-            try:
-                rep = rag_service.reindex()
-                print(f"[Vault QA] Index ready: {rep} | {rag_service.stats()}\n")
-            except Exception as exc:
-                logger.error(f"[Vault QA] Startup index failed: {exc}")
-                print(f"[Vault QA] Startup index failed: {exc}\n")
+            # Run the startup (re)index in a BACKGROUND thread. A from-scratch build — e.g. after
+            # switching embedding models (bge-small 384 → nomic 768), which resets the index — can
+            # be tens of thousands of chunks and take minutes; doing it inline blocks the server
+            # from accepting requests (it never finishes starting). The daemon thread lets the API
+            # come up immediately and QA fills in as the index builds.
+            def _startup_index() -> None:
+                try:
+                    rep = rag_service.reindex()
+                    logger.info(f"[Vault QA] Index ready: {rep} | {rag_service.stats()}")
+                except Exception as exc:
+                    logger.error(f"[Vault QA] Startup index failed: {exc}")
+            print("[Vault QA] Building/refreshing the index in the background (this machine indexes)...")
+            threading.Thread(target=_startup_index, name="startup-index", daemon=True).start()
         else:
             print(f"[Vault QA] Index: {rag_service.stats()} — indexing OFF on this machine "
                   f"(set index_on_startup: true on the indexing host)\n")
