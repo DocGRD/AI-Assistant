@@ -194,6 +194,10 @@ class OllamaEmbedder:
         self._openai = base if base.endswith("/v1") else base + "/v1"
         self._dim    = None
         self._batch  = int(config.get("ollama_embedding_batch", 16) or 16)
+        # GPU duty cap (0<d<=1): keep the GPU busy at most this fraction of the time so a shared
+        # display GPU isn't starved (a full reindex at 100% duty made the box's monitor blank).
+        # After each batch we idle for elapsed*(1-d)/d, so the display gets breathing gaps.
+        self._duty   = min(1.0, max(0.05, float(config.get("ollama_embedding_gpu_duty", 1.0) or 1.0)))
 
     @property
     def name(self) -> str:
@@ -235,9 +239,13 @@ class OllamaEmbedder:
     def embed(self, texts: list[str]) -> np.ndarray:
         if not texts:
             return np.zeros((0, self.dim), dtype=np.float32)
+        import time
         out: list[list[float]] = []
         for i in range(0, len(texts), self._batch):     # batch so a huge reindex request never times out
+            t0 = time.monotonic()
             out.extend(self._embed_raw(texts[i:i + self._batch]))
+            if self._duty < 1.0:                        # idle gap so a shared display GPU can breathe
+                time.sleep((time.monotonic() - t0) * (1.0 - self._duty) / self._duty)
         vecs = np.array(out, dtype=np.float32)
         return normalize(vecs)
 

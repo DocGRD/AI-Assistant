@@ -60,6 +60,23 @@ class OllamaEmbedderTests(unittest.TestCase):
             v = emb.embed_one("hello")
         self.assertAlmostEqual(float(np.linalg.norm(v)), 1.0, places=5)   # L2-normalized
 
+    def test_gpu_duty_parsed_and_clamped(self):
+        from assistant_core.rag.embedder import OllamaEmbedder
+        self.assertEqual(OllamaEmbedder({})._duty, 1.0)                       # default = full speed
+        self.assertEqual(OllamaEmbedder({"ollama_embedding_gpu_duty": 0.75})._duty, 0.75)
+        self.assertEqual(OllamaEmbedder({"ollama_embedding_gpu_duty": 5})._duty, 1.0)   # clamped ≤1
+        self.assertAlmostEqual(OllamaEmbedder({"ollama_embedding_gpu_duty": 0.1})._duty, 0.1)
+
+    def test_duty_throttle_adds_idle_gap(self):
+        from unittest import mock
+        from assistant_core.rag.embedder import OllamaEmbedder
+        emb = OllamaEmbedder({"ollama_embedding_gpu_duty": 0.5}); emb._dim = 2
+        slept = []
+        with self._fake_urlopen({"data": [{"embedding": [1.0, 0.0], "index": 0}]}), \
+             mock.patch("time.sleep", side_effect=lambda s: slept.append(s)):
+            emb.embed(["a"])
+        self.assertTrue(slept and slept[0] >= 0)     # a throttle gap was inserted (duty<1)
+
     def test_empty_returns_zero_rows(self):
         from assistant_core.rag.embedder import OllamaEmbedder
         emb = OllamaEmbedder({})
