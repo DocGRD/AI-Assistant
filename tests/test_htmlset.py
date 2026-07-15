@@ -16,8 +16,20 @@ class TestHtmlToMarkdown(unittest.TestCase):
             '<p>See <a href="MHC1002.HTM#v2">Gen 2</a>.</p>',
             resolve_link=lambda h: "AI/Library/mh/mhc1002" if "MHC1002" in h else None,
         )
-        self.assertIn("[[AI/Library/mh/mhc1002|Gen 2]]", md)
+        # A #fragment is preserved as an Obsidian block-ref so the link lands on the exact anchor.
+        self.assertIn("[[AI/Library/mh/mhc1002#^v2|Gen 2]]", md)
         self.assertNotIn(".HTM", md)
+
+    def test_element_id_becomes_block_anchor(self):
+        # A verse's id -> an Obsidian block anchor at the block end, so cross-references land on it.
+        md = html_to_markdown('<p><sup id="v14">14</sup> Behold, the virgin.</p>')
+        self.assertRegex(md, r"Behold, the virgin\.\s*\^v14")
+
+    def test_fragment_link_and_anchor_roundtrip(self):
+        # source links to #v14; target has id=v14 -> link resolves to the target's block anchor.
+        src = html_to_markdown('<p>as in <a href="tgt.html#v14">Isa 7:14</a></p>',
+                               resolve_link=lambda h: "AI/Library/b/tgt" if "tgt" in h else None)
+        self.assertIn("[[AI/Library/b/tgt#^v14|Isa 7:14]]", src)
 
     def test_external_link_kept_unresolved_local_dropped(self):
         md = html_to_markdown(
@@ -52,7 +64,7 @@ class TestZipIngest(unittest.TestCase):
         self.assertEqual(rep["files"], 2)
         n1 = (self.vault / "AI/Library/matthew-henry/mhc1001.md").read_text(encoding="utf-8")
         n2 = (self.vault / "AI/Library/matthew-henry/mhc1002.md").read_text(encoding="utf-8")
-        self.assertIn("[[AI/Library/matthew-henry/mhc1002|Genesis 2]]", n1)
+        self.assertIn("[[AI/Library/matthew-henry/mhc1002#^v2|Genesis 2]]", n1)  # #fragment preserved
         self.assertIn("[[AI/Library/matthew-henry/mhc1001|Genesis 1]]", n2)
         self.assertNotIn(".HTM", n1)
 

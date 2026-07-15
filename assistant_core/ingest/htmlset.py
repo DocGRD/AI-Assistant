@@ -64,12 +64,31 @@ def html_to_markdown(raw: str, resolve_link=None) -> str:
         href, inner = m.group(1).strip(), _clean_inline(m.group(2))
         target = resolve_link(href) if resolve_link else None
         if target:
+            # Preserve a #fragment (e.g. a verse cross-reference to `chapter.html#v14`) as an
+            # Obsidian block-ref so the link lands on the exact verse, not just the note top.
+            frag = re.sub(r"[^A-Za-z0-9_-]", "", href.split("#", 1)[1]) if "#" in href else ""
+            if frag:
+                target = f"{target}#^{frag}"
             return f"[[{target}|{inner}]]" if inner else f"[[{target}]]"
         if href.lower().startswith(("http://", "https://")):
             return f"[{inner or href}]({href})"
         return inner  # unresolved local link → keep the text only
 
     body = _A.sub(_a_sub, body)
+
+    # Turn an element `id` inside a block (e.g. a verse's `<sup id="v14">`) into an Obsidian
+    # block anchor at the END of that block, so intra-collection links carrying that #fragment
+    # (verse cross-references) actually resolve to the verse.
+    def _block_anchor(m: re.Match) -> str:
+        inner = m.group(1)
+        ids = re.findall(r'id\s*=\s*["\']([^"\']+)["\']', m.group(0))
+        tail = ""
+        if ids:
+            a = re.sub(r"[^A-Za-z0-9_-]", "", ids[0])
+            if a:
+                tail = f" ^{a}"
+        return "\n\n" + inner + tail + "\n\n"
+    body = re.sub(r"<p\b[^>]*>(.*?)</p>", _block_anchor, body, flags=re.I | re.S)
     body = re.sub(r"<h([1-6])[^>]*>(.*?)</h\1>",
                   lambda m: "\n\n" + "#" * int(m.group(1)) + " " + _clean_inline(m.group(2)) + "\n\n",
                   body, flags=re.I | re.S)
