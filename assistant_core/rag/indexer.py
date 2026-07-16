@@ -20,9 +20,13 @@ from assistant_core.media.excalidraw import is_excalidraw, extract_excalidraw_te
 logger = logging.getLogger("assistant")
 
 # Folders not worth indexing: system files, episode logs, transient consolidation
-# proposals, the derived entity graph, and the plugin handshake notes.
+# proposals, the derived entity graph, the plugin handshake notes, and large reference
+# corpora (the Bible reader + imported commentary) — those are read via the plugin's
+# study overlays, not personal-notes semantic search, and would otherwise flood Vault QA
+# and swamp the embedder. (Dedicated scripture/commentary search is a separate feature.)
 DEFAULT_EXCLUDES = ("AI/System", "AI/Memory/Episodes", "AI/Memory/proposed",
-                    "AI/Graph", "AI/Chat")
+                    "AI/Graph", "AI/Chat",
+                    "bible", "AI/Library/matthew-henry", "AI/bible-crossrefs")
 
 
 def _truthy(v) -> bool:
