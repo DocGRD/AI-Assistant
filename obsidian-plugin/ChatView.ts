@@ -41,6 +41,7 @@ class GraphViewerModal extends Modal {
     private inputEl!: HTMLInputElement;
     private svgWrap!: HTMLElement;
     private entitiesEl!: HTMLElement;
+    private depth = 1;   // how many layers of neighbours to show
 
     constructor(app: App, host: string, port: number, token: string, startNode: string) {
         super(app);
@@ -63,6 +64,13 @@ class GraphViewerModal extends Modal {
         this.inputEl.addEventListener("keydown", (e) => {
             if (e.key === "Enter") { this.node = this.inputEl.value.trim(); void this.load(); }
         });
+        // Depth selector — show more than one layer of neighbours.
+        const depthLbl = bar.createEl("span", { text: "Layers:" });
+        depthLbl.style.cssText = "font-size:12px;color:var(--text-muted);align-self:center;";
+        const depthSel = bar.createEl("select");
+        for (const d of [1, 2, 3]) depthSel.createEl("option", { text: `${d}`, value: `${d}` });
+        depthSel.value = `${this.depth}`;
+        depthSel.addEventListener("change", () => { this.depth = parseInt(depthSel.value, 10) || 1; if (this.node) void this.load(); });
         this.svgWrap = contentEl.createDiv();
         this.entitiesEl = contentEl.createDiv();
         void this.load();
@@ -77,7 +85,7 @@ class GraphViewerModal extends Modal {
         this.entitiesEl.empty();
         if (!this.node) { await this.loadEntities(); return; }   // no node → browse the list
         try {
-            const url = `http://${this.host}:${this.port}/graph?node=${encodeURIComponent(this.node)}&depth=1`;
+            const url = `http://${this.host}:${this.port}/graph?node=${encodeURIComponent(this.node)}&depth=${this.depth}`;
             const resp = await fetch(url, { headers: this.headers(), signal: AbortSignal.timeout(4000) });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json() as { nodes: GraphNode[]; edges: GraphEdge[] };
@@ -127,41 +135,69 @@ class GraphViewerModal extends Modal {
             this.svgWrap.setText(`No graph node named "${this.node}". Build it with vault:graph <note>.`);
             return;
         }
-        const W = 520, H = 380, cx = W / 2, cy = H / 2, R = 130;
+        const W = 520, H = 380, cx = W / 2, cy = H / 2;
         const NS = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(NS, "svg");
         svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
         svg.setAttribute("width", "100%"); svg.setAttribute("height", `${H}`);
+        svg.style.cssText = "border:1px solid var(--background-modifier-border);border-radius:6px;touch-action:none;";
+        const vp = document.createElementNS(NS, "g");   // viewport: pan/zoom transform applies here
+        svg.appendChild(vp);
 
-        const others = data.nodes.filter(n => n.id !== this.node);
-        const pos: Record<string, { x: number; y: number }> = { [this.node]: { x: cx, y: cy } };
-        others.forEach((n, i) => {
-            const a = (2 * Math.PI * i) / Math.max(1, others.length);
-            pos[n.id] = { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
-        });
+        // Concentric layers by graph distance (BFS from the centre) → "more than one layer" reads clearly.
+        const dist: Record<string, number> = { [this.node]: 0 };
+        let frontier = [this.node], d = 0;
+        while (frontier.length) {
+            const next: string[] = []; d++;
+            for (const e of data.edges) {
+                if (dist[e.source] === d - 1 && dist[e.target] === undefined) { dist[e.target] = d; next.push(e.target); }
+                if (dist[e.target] === d - 1 && dist[e.source] === undefined) { dist[e.source] = d; next.push(e.source); }
+            }
+            frontier = next;
+        }
+        const byLayer: Record<number, GraphNode[]> = {};
+        for (const n of data.nodes) { const l = dist[n.id] ?? 1; (byLayer[l] ||= []).push(n); }
+        const pos: Record<string, { x: number; y: number }> = {};
+        for (const [lStr, nodes] of Object.entries(byLayer)) {
+            const l = +lStr, R = l === 0 ? 0 : 90 * l;
+            nodes.forEach((n, i) => {
+                const ang = (2 * Math.PI * i) / Math.max(1, nodes.length);
+                pos[n.id] = l === 0 ? { x: cx, y: cy } : { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang) };
+            });
+        }
 
+        // edges (keep refs so node-drag can reposition them)
+        const edgesOf: Record<string, { el: SVGLineElement; lbl: SVGTextElement; s: string; t: string }[]> = {};
         for (const e of data.edges) {
-            const a = pos[e.source], b = pos[e.target];
-            if (!a || !b) continue;
+            const a = pos[e.source], b = pos[e.target]; if (!a || !b) continue;
             const line = document.createElementNS(NS, "line");
             line.setAttribute("x1", `${a.x}`); line.setAttribute("y1", `${a.y}`);
             line.setAttribute("x2", `${b.x}`); line.setAttribute("y2", `${b.y}`);
-            line.setAttribute("stroke", "var(--background-modifier-border)");
-            line.setAttribute("stroke-width", "1.5");
-            svg.appendChild(line);
+            line.setAttribute("stroke", "var(--background-modifier-border)"); line.setAttribute("stroke-width", "1.5");
+            vp.appendChild(line);
             const lbl = document.createElementNS(NS, "text");
             lbl.setAttribute("x", `${(a.x + b.x) / 2}`); lbl.setAttribute("y", `${(a.y + b.y) / 2 - 3}`);
-            lbl.setAttribute("font-size", "9"); lbl.setAttribute("text-anchor", "middle");
-            lbl.setAttribute("fill", "var(--text-muted)");
-            lbl.textContent = e.rel;
-            svg.appendChild(lbl);
+            lbl.setAttribute("font-size", "9"); lbl.setAttribute("text-anchor", "middle"); lbl.setAttribute("fill", "var(--text-muted)");
+            lbl.textContent = e.rel; vp.appendChild(lbl);
+            const rec = { el: line, lbl, s: e.source, t: e.target };
+            (edgesOf[e.source] ||= []).push(rec); (edgesOf[e.target] ||= []).push(rec);
         }
+        const repositionEdges = (id: string) => {
+            for (const r of edgesOf[id] || []) {
+                const a = pos[r.s], b = pos[r.t];
+                r.el.setAttribute("x1", `${a.x}`); r.el.setAttribute("y1", `${a.y}`);
+                r.el.setAttribute("x2", `${b.x}`); r.el.setAttribute("y2", `${b.y}`);
+                r.lbl.setAttribute("x", `${(a.x + b.x) / 2}`); r.lbl.setAttribute("y", `${(a.y + b.y) / 2 - 3}`);
+            }
+        };
 
+        // nodes (draggable)
+        let vtx = 0, vty = 0, vscale = 1;
+        const applyVp = () => vp.setAttribute("transform", `translate(${vtx} ${vty}) scale(${vscale})`);
         for (const n of data.nodes) {
             const p = pos[n.id]; if (!p) continue;
             const isCentre = n.id === this.node;
-            const g = document.createElementNS(NS, "g");
-            g.style.cursor = "pointer";
+            const g = document.createElementNS(NS, "g"); g.style.cursor = "grab";
             const c = document.createElementNS(NS, "circle");
             c.setAttribute("cx", `${p.x}`); c.setAttribute("cy", `${p.y}`);
             c.setAttribute("r", isCentre ? "9" : "6");
@@ -170,23 +206,53 @@ class GraphViewerModal extends Modal {
             const t = document.createElementNS(NS, "text");
             t.setAttribute("x", `${p.x + 11}`); t.setAttribute("y", `${p.y + 4}`);
             t.setAttribute("font-size", "11"); t.setAttribute("fill", "var(--text-normal)");
-            t.textContent = n.id;
-            g.appendChild(t);
-            g.addEventListener("click", () => {
-                if (isCentre && n.sources.length) {
-                    this.app.workspace.openLinkText(n.sources[0], "", false);
-                    this.close();
-                } else {
-                    this.node = n.id; this.inputEl.value = n.id; void this.load();   // recentre
-                }
+            t.textContent = n.id; g.appendChild(t);
+            let moved = false, dragging = false, sx = 0, sy = 0;
+            g.addEventListener("pointerdown", (ev) => {
+                ev.stopPropagation(); dragging = true; moved = false; sx = ev.clientX; sy = ev.clientY;
+                g.setPointerCapture(ev.pointerId); g.style.cursor = "grabbing";
             });
-            svg.appendChild(g);
+            g.addEventListener("pointermove", (ev) => {
+                if (!dragging) return;
+                const dx = (ev.clientX - sx) / vscale, dy = (ev.clientY - sy) / vscale;
+                if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 3) moved = true;
+                sx = ev.clientX; sy = ev.clientY; pos[n.id].x += dx; pos[n.id].y += dy;
+                c.setAttribute("cx", `${pos[n.id].x}`); c.setAttribute("cy", `${pos[n.id].y}`);
+                t.setAttribute("x", `${pos[n.id].x + 11}`); t.setAttribute("y", `${pos[n.id].y + 4}`);
+                repositionEdges(n.id);
+            });
+            g.addEventListener("pointerup", (ev) => {
+                dragging = false; g.style.cursor = "grab";
+                if (moved) return;   // a drag, not a click
+                if (isCentre && n.sources.length) { this.app.workspace.openLinkText(n.sources[0], "", false); this.close(); }
+                else { this.node = n.id; this.inputEl.value = n.id; void this.load(); }   // recentre
+            });
+            vp.appendChild(g);
         }
-        this.svgWrap.appendChild(svg);
-        const hint = this.svgWrap.createEl("div", {
-            text: "Click a neighbour to recentre; click the centre node to open its source note.",
+
+        // pan (drag background) + zoom (wheel)
+        let panning = false, px = 0, py = 0;
+        svg.addEventListener("pointerdown", (ev) => { panning = true; px = ev.clientX; py = ev.clientY; });
+        svg.addEventListener("pointermove", (ev) => {
+            if (!panning) return; vtx += ev.clientX - px; vty += ev.clientY - py; px = ev.clientX; py = ev.clientY; applyVp();
         });
-        hint.style.fontSize = "11px"; hint.style.color = "var(--text-muted)"; hint.style.marginTop = "6px";
+        svg.addEventListener("pointerup", () => { panning = false; });
+        svg.addEventListener("pointerleave", () => { panning = false; });
+        svg.addEventListener("wheel", (ev) => {
+            ev.preventDefault();
+            const f = ev.deltaY < 0 ? 1.15 : 1 / 1.15, ns = Math.min(5, Math.max(0.3, vscale * f));
+            const r = svg.getBoundingClientRect(), mx = (ev.clientX - r.left) / r.width * W, my = (ev.clientY - r.top) / r.height * H;
+            vtx = mx - (mx - vtx) * (ns / vscale); vty = my - (my - vty) * (ns / vscale); vscale = ns; applyVp();
+        }, { passive: false });
+
+        this.svgWrap.appendChild(svg);
+        const ctl = this.svgWrap.createDiv(); ctl.style.cssText = "display:flex;gap:6px;margin-top:6px;align-items:center;";
+        const zin = ctl.createEl("button", { text: "＋" }), zout = ctl.createEl("button", { text: "－" }), zreset = ctl.createEl("button", { text: "Reset" });
+        zin.addEventListener("click", () => { vscale = Math.min(5, vscale * 1.2); applyVp(); });
+        zout.addEventListener("click", () => { vscale = Math.max(0.3, vscale / 1.2); applyVp(); });
+        zreset.addEventListener("click", () => { vtx = 0; vty = 0; vscale = 1; applyVp(); });
+        const hint = ctl.createEl("span", { text: "Scroll = zoom · drag background = pan · drag a node to move it · click to recentre." });
+        hint.style.cssText = "font-size:11px;color:var(--text-muted);";
     }
 
     onClose(): void { this.contentEl.empty(); }

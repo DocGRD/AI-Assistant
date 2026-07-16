@@ -43,6 +43,15 @@ export default class AIAssistantPlugin extends Plugin {
         registerBibleCrossrefs(this);
         // Bible reading layout (verse-by-verse vs flowing) — plugin-owned, no CSS snippet needed.
         applyBibleLayout(this.settings.bibleLayout);
+        // Auto-open Bible chapter notes in Reading view (the cross-ref overlay + hidden ^v anchors
+        // + layout are all reading-view features). Only flips a note that opened in edit mode.
+        this.registerEvent(this.app.workspace.on("file-open", (file) => {
+            if (!file || !file.path.startsWith("bible/")) return;
+            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (view && view.file === file && view.getMode() !== "preview") {
+                view.setState({ ...view.getState(), mode: "preview" }, { history: false });
+            }
+        }));
 
         // Register the sidebar chat view + the Approvals/Goals side panel (v1.7 — non-blocking)
         this.registerView(CHAT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ChatView(leaf, this));

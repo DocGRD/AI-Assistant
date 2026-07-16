@@ -1,10 +1,58 @@
-<!-- help-version: 29 -->
+<!-- help-version: 30 -->
 ---
 tags: [help, user-guide]
 ---
 # Features — by task
 
 Part of [[How-To-Use]]. See [[Commands]] for the exact syntax.
+
+## Read the Bible (study reader)
+
+The public-domain **World English Bible (WEB)** ships as notes under `bible/`, one folder per book in
+canonical order (`bible/40-matthew/…`), one note per chapter (`bible/40-matthew/web/matthew-001.md`).
+Open one in **Reading view** (chapters auto-open there) and you get:
+
+- **Cross-references** as small superscript markers after each verse. Hover a marker to see the
+  reference and the full linked verse; click it to open that verse (Ctrl/Cmd-click opens a new tab).
+  The references are stored once in `AI/bible-crossrefs/` and drawn on by the plugin, so they are the
+  same for every translation.
+- **Verse-by-verse or flowing paragraphs** — run the command *"Bible: toggle reading layout"*.
+- **Poetry** (Psalms, Proverbs) laid out as indented poetry; **prose** grouped into paragraphs.
+
+### Add a chapter from another translation
+
+The WEB is included; you can add a chapter of any translation **you have legal access to** by pasting
+it into a note in the standard format (the cross-references then appear automatically — you never add
+them by hand). Create the note at:
+
+```
+bible/{NN}-{book-slug}/{version}/{book-slug}-{CCC}.md
+```
+
+e.g. `bible/43-john/esv/john-003.md` for ESV John 3 (NN = book number 01–66, CCC = zero-padded
+chapter). Give it this frontmatter and body:
+
+```markdown
+---
+cssclasses:
+  - bible
+bible-version: esv
+bible-book: john
+bible-booknum: 43
+bible-chapter: 3
+bible-parastarts: 1,16,22
+---
+# John 3
+
+**1** Now there was a man of the Pharisees named Nicodemus… ^v1
+**2** This man came to Jesus by night… ^v2
+```
+
+Rules: each verse is `**{number}** {text} ^v{number}` (the `^v#` anchor is what cross-references land
+on); `bible-parastarts` lists the verses that begin a new paragraph; for poetry, indent second lines
+with an em-space. **Copyright:** only add translations you're licensed to store (WEB is public domain;
+ESV/NASB/NKJV are copyrighted — use them only within their terms). An automated "paste a chapter and
+LoreMaster formats it" tool is planned.
 
 ## What's new in v1.6 (quick map)
 - **📥 Approvals inbox** (sidebar badge-button → modal) — every background proposal in one place:

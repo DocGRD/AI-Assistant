@@ -1,10 +1,26 @@
-<!-- help-version: 29 -->
+<!-- help-version: 30 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
-# What's New in Loremaster
+# What's New in LoreMaster
 
-*A capability overview so you can learn everything Loremaster can do. Current through **v1.10.15**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.31**.*
+
+## A study Bible inside Obsidian (v1.10.31)
+- **The whole Bible, read in Obsidian.** The public-domain World English Bible (WEB) ships as
+  folder-ordered notes — `bible/40-matthew/web/matthew-001.md` — sourced from USFM, so poetry
+  (Psalms) is laid out as poetry, prose reads as paragraphs, and each chapter has prev/next nav.
+- **Cross-references as a shared overlay.** Every verse's cross-references (from OpenBible) are stored
+  **once** and drawn onto the page by the plugin as small superscript markers. Hover one → the
+  reference + the full linked verse; click → open that verse (Ctrl/Cmd-click = new tab). Because the
+  references live once and are version-independent, **adding another translation repeats no
+  cross-reference work.**
+- **Two reading layouts.** Command *"Bible: toggle reading layout"* flips between verse-by-verse and
+  flowing paragraphs (paragraphs break at the translation's natural boundaries).
+- **Reads in Reading view.** Bible chapters auto-open in Reading view (that's where the overlay,
+  hidden verse anchors, and layouts render). Ask *"how do I add a chapter from another translation?"*
+  and LoreMaster will walk you through the note format.
+- Commentary too: Matthew Henry's whole commentary can be imported as linked notes.
 
 ## Loremaster understands itself + robust handling of huge notes (v1.10.13–v1.10.15)
 - **Everyday replies are much faster (v1.10.15).** A routing bug tiered every Gemini model as

@@ -66,19 +66,21 @@ async function readVerseText(plugin: Plugin, linkpath: string, block: string | n
     if (!(file instanceof TFile)) return "";
     if (!block) return "";
     const content = await plugin.app.vault.cachedRead(file);
-    const anchor = ` ^${block}`;                 // block anchors sit at the end of the verse line
-    let line = "";
-    for (const raw of content.split(/\r?\n/)) {  // split by line — robust to CRLF (`.` skips \r)
-        const trimmed = raw.replace(/\s+$/, "");
-        if (trimmed.endsWith(anchor)) { line = trimmed.slice(0, -anchor.length); break; }
-    }
-    if (!line) return "";
-    return line
+    const anchor = ` ^${block}`;                 // block anchors sit at the end of the verse's last line
+    const lines = content.split(/\r?\n/).map(l => l.replace(/\s+$/, ""));  // CRLF-safe
+    const end = lines.findIndex(l => l.endsWith(anchor));
+    if (end < 0) return "";
+    // A verse may span several lines (poetry stichs); walk back to its **number** so the card shows
+    // the WHOLE verse, not just the last stich.
+    let start = end;
+    while (start > 0 && !/^\*\*\d+\*\*/.test(lines[start])) start--;
+    return lines.slice(start, end + 1).join(" ")
+        .replace(/\s*\^v\d+/g, "")                  // drop the block anchor (safe — prose has no ^vN)
         .replace(/^\*\*\d+\*\*\s*/, "")             // drop the leading **verse-number**
+        .replace(/ /g, "")                     // drop poetry em-space indents
         .replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g, "")  // drop cross-ref wikilinks (markers only)
         .replace(/\[\[[^\]]*\]\]/g, "")
-        // drop leftover superscript marker glyphs (the exact set we emit — safe, prose never uses them)
-        .replace(/[ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹]/g, "")
+        .replace(/[ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹]/g, "")   // leftover superscript markers
         .replace(/\s{2,}/g, " ")
         .trim();
 }
