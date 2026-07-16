@@ -23,7 +23,6 @@ const BOOK_NUM: Record<string, number> = {
     "1-peter":60,"2-peter":61,"1-john":62,"2-john":63,"3-john":64,"jude":65,"revelation":66,
 };
 const SUP_LETTERS = "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻ";
-const XREF_SHOWN = 5;   // cross-references shown inline per verse (top by votes)
 
 export type BibleLayout = "verses" | "flow";
 
@@ -145,6 +144,45 @@ export function registerBibleHovercards(plugin: Plugin): void {
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
+/** book-slug → display name ("1-corinthians" → "1 Corinthians"). */
+function bookLabel(slug: string): string {
+    return slug.split("-")
+        .map(w => (w.length <= 2 && /^\d/.test(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+}
+
+/** Click a verse number → a panel listing ALL cross-references for that verse (each opens the verse). */
+let allXrefPanel: HTMLElement | null = null;
+function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string, targets: any[],
+                      hrefFor: (t: any) => string, open: (h: string, e: MouseEvent) => void): void {
+    allXrefPanel?.remove();
+    const panel = document.body.createDiv("loremaster-bible-allxref");
+    allXrefPanel = panel;
+    panel.createDiv("loremaster-bible-allxref-head").setText(`${label} — cross-references (${targets.length})`);
+    const list = panel.createDiv("loremaster-bible-allxref-list");
+    for (const t of targets) {
+        const href = hrefFor(t);
+        list.createEl("a", { text: t.n, cls: "loremaster-bible-allxref-item", attr: { href } })
+            .addEventListener("click", (ev) => { open(href, ev as MouseEvent); close(); });
+    }
+    const r = anchor.getBoundingClientRect();
+    panel.style.top = `${window.scrollY + r.bottom + 4}px`;
+    panel.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 260)}px`;
+    const close = () => {
+        panel.remove(); if (allXrefPanel === panel) allXrefPanel = null;
+        document.removeEventListener("mousedown", dismiss, true);
+        document.removeEventListener("keydown", dismiss, true);
+    };
+    const dismiss = (ev: Event) => {
+        if (ev instanceof KeyboardEvent) { if (ev.key === "Escape") close(); return; }
+        if (!panel.contains(ev.target as Node)) close();
+    };
+    setTimeout(() => {
+        document.addEventListener("mousedown", dismiss, true);
+        document.addEventListener("keydown", dismiss, true);
+    }, 0);
+}
+
 /** Register the cross-reference OVERLAY: cross-refs are stored once (bible/.crossrefs/{book}.json,
  *  version-independent) and injected by the renderer, so every version shares them and adding a
  *  version repeats no cross-reference work. Runs on `cssclasses:[bible]` chapter notes. */
@@ -186,29 +224,37 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         const paraStarts = new Set(String(fm?.["bible-parastarts"] ?? "").split(",").filter(Boolean));
         const data = await loadBook(book);
 
+        const shown = Math.max(1, Math.min(20, (plugin as any).settings?.bibleXrefCount ?? 4));
+        const hrefFor = (t: any) => {
+            const num = BOOK_NUM[t.b];
+            return num ? `bible/${pad2(num)}-${t.b}/${version}/${t.b}-${pad3(t.c)}#^v${t.v}` : "";
+        };
+        const open = (href: string, ev: MouseEvent) => {
+            ev.preventDefault();
+            plugin.app.workspace.openLinkText(href, ctx.sourcePath, ev.ctrlKey || ev.metaKey);
+        };
         for (const p of verses) {
             p.setAttribute("data-lm-xref", "1");
-            const vnum = (p.firstElementChild!.textContent || "").trim();
+            const num = p.firstElementChild as HTMLElement;
+            const vnum = (num.textContent || "").trim();
             if (paraStarts.has(vnum)) (p.closest(".el-p") || p).addClass("lm-para-start");
-            const targets = data[`${book}.${chapter}.${vnum}`];
-            if (!targets || !targets.length) continue;
-            for (let i = 0; i < Math.min(targets.length, XREF_SHOWN); i++) {
-                const t = targets[i];
-                const num = BOOK_NUM[t.b];
-                if (!num) continue;
-                const href = `bible/${pad2(num)}-${t.b}/${version}/${t.b}-${pad3(t.c)}#^v${t.v}`;
+            const targets = (data[`${book}.${chapter}.${vnum}`] || []).filter((t: any) => BOOK_NUM[t.b]);
+            if (!targets.length) continue;
+            for (let i = 0; i < Math.min(targets.length, shown); i++) {
+                const t = targets[i], href = hrefFor(t);
                 const sup = p.createEl("sup");
                 sup.appendText(" ");
-                const a = sup.createEl("a", {
-                    text: SUP_LETTERS[i] || "*",
-                    cls: "lm-xref",   // NOT internal-link → no duplicate native page-preview popup
-                    attr: { "data-href": href, href, "aria-label": t.n },
-                });
-                a.addEventListener("click", (ev) => {
-                    ev.preventDefault();
-                    plugin.app.workspace.openLinkText(href, ctx.sourcePath, ev.ctrlKey || ev.metaKey);
-                });
+                sup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-xref",
+                    attr: { "data-href": href, href, "aria-label": t.n } })
+                    .addEventListener("click", (ev) => open(href, ev));
             }
+            // Click the verse number to see ALL cross-references for the verse at once.
+            num.addClass("lm-verse-num");
+            num.setAttribute("aria-label", `All ${targets.length} cross-references`);
+            num.addEventListener("click", (ev) => {
+                ev.preventDefault(); ev.stopPropagation();
+                showAllXrefs(plugin, num, `${bookLabel(book)} ${chapter}:${vnum}`, targets, hrefFor, open);
+            });
         }
     });
 }

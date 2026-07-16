@@ -14,6 +14,7 @@ export interface AIAssistantSettings {
     handshakeDir: string;  // vault folder for vault-mode chat notes
     reader: ReaderSettings; // v1.7 — read-aloud speed + voice
     bibleLayout: BibleLayout; // Phase 2 — verse-by-verse vs flowing paragraph reading
+    bibleXrefCount: number; // how many cross-reference markers to show inline per verse (1–20)
 }
 
 const DEFAULT_SETTINGS: AIAssistantSettings = {
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: AIAssistantSettings = {
     handshakeDir: "AI/Chat",
     reader: { speed: 1, voiceName: "" },
     bibleLayout: "verses",
+    bibleXrefCount: 4,
 };
 
 // ---------------------------------------------------------------------------
@@ -458,6 +460,22 @@ class AIAssistantSettingTab extends PluginSettingTab {
                     .setValue(this.plugin.settings.handshakeDir)
                     .onChange(async (value) => {
                         this.plugin.settings.handshakeDir = value.trim() || "AI/Chat";
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        // Bible reader
+        containerEl.createEl("h3", { text: "Bible reader" });
+        new Setting(containerEl)
+            .setName("Cross-references per verse")
+            .setDesc("How many cross-reference markers to show inline after each verse. " +
+                     "Click a verse number to see all of them.")
+            .addSlider((s) =>
+                s.setLimits(1, 12, 1)
+                    .setValue(this.plugin.settings.bibleXrefCount)
+                    .setDynamicTooltip()
+                    .onChange(async (v) => {
+                        this.plugin.settings.bibleXrefCount = v;
                         await this.plugin.saveSettings();
                     })
             );

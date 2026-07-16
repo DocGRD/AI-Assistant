@@ -1021,6 +1021,25 @@
   margin-right: 0.15em;
 }
 
+/* Verse number is clickable → "see all cross-references" panel. */
+.markdown-preview-view.bible p > strong.lm-verse-num { cursor: pointer; }
+.markdown-preview-view.bible p > strong.lm-verse-num:hover { text-decoration: underline; }
+.loremaster-bible-allxref {
+  position: absolute; z-index: var(--layer-menu, 100); max-width: 260px; max-height: 320px;
+  overflow-y: auto; padding: 6px; background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border-hover, var(--background-modifier-border));
+  border-radius: 8px; box-shadow: var(--shadow-s); font-size: 13px;
+}
+.loremaster-bible-allxref-head {
+  font-weight: 600; color: var(--text-accent); padding: 2px 4px 6px;
+  border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 4px;
+}
+.loremaster-bible-allxref-item {
+  display: block; padding: 3px 4px; border-radius: 4px; color: var(--text-normal);
+  text-decoration: none; cursor: pointer;
+}
+.loremaster-bible-allxref-item:hover { background: var(--background-modifier-hover); color: var(--text-accent); }
+
 /* Hide the frontmatter/properties panel on Bible notes (keep the reading page clean). */
 .markdown-preview-view.bible .metadata-container,
 .markdown-reading-view.bible .metadata-container,
