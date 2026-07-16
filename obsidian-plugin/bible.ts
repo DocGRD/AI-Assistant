@@ -51,11 +51,11 @@ export function parseBibleRef(target: string): BibleRef | null {
     const book = m[1].split("-")
         .map(w => (w.length <= 2 && /^\d/.test(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1))
         .join(" ");
-    let label = `${book} ${m[2]}`;
+    let label = `${book} ${parseInt(m[2], 10)}`;   // strip leading zeros ("021" → "21")
     let block: string | null = null;
     if (frag) {
         const vm = frag.match(/\^?v(\d+)/i);
-        if (vm) { label += `:${vm[1]}`; block = `v${vm[1]}`; }
+        if (vm) { label += `:${parseInt(vm[1], 10)}`; block = `v${parseInt(vm[1], 10)}`; }
     }
     return { label, linkpath: rawPath, block };
 }
@@ -105,7 +105,7 @@ export function registerBibleHovercards(plugin: Plugin): void {
     plugin.registerDomEvent(document, "mouseover", async (evt: MouseEvent) => {
         const t = evt.target as HTMLElement | null;
         if (!t || !(t instanceof HTMLElement)) return;
-        const a = t.closest("a.internal-link") as HTMLElement | null;
+        const a = t.closest("a.lm-xref") as HTMLElement | null;   // cross-ref markers only (not nav links)
         if (!a) return;
         if (!a.closest(".markdown-preview-view.bible, .markdown-reading-view.bible")) return;
         if (a === activeAnchor && card) return;   // already showing this one
@@ -179,11 +179,15 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                 && !p.hasAttribute("data-lm-xref");
         });
         if (!verses.length) return;
+        // Paragraph starts (from the USFM \p boundaries) — mark them so flow layout can break there.
+        const fm = plugin.app.metadataCache.getCache(ctx.sourcePath)?.frontmatter;
+        const paraStarts = new Set(String(fm?.["bible-parastarts"] ?? "").split(",").filter(Boolean));
         const data = await loadBook(book);
 
         for (const p of verses) {
             p.setAttribute("data-lm-xref", "1");
             const vnum = (p.firstElementChild!.textContent || "").trim();
+            if (paraStarts.has(vnum)) (p.closest(".el-p") || p).addClass("lm-para-start");
             const targets = data[`${book}.${chapter}.${vnum}`];
             if (!targets || !targets.length) continue;
             for (let i = 0; i < Math.min(targets.length, XREF_SHOWN); i++) {
@@ -195,7 +199,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                 sup.appendText(" ");
                 const a = sup.createEl("a", {
                     text: SUP_LETTERS[i] || "*",
-                    cls: "internal-link lm-xref",
+                    cls: "lm-xref",   // NOT internal-link → no duplicate native page-preview popup
                     attr: { "data-href": href, href, "aria-label": t.n },
                 });
                 a.addEventListener("click", (ev) => {

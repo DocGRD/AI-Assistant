@@ -1021,14 +1021,20 @@
   margin-right: 0.15em;
 }
 
+/* Hide the frontmatter/properties panel on Bible notes (keep the reading page clean). */
+.markdown-preview-view.bible .metadata-container,
+.markdown-reading-view.bible .metadata-container,
+.markdown-source-view.bible .metadata-container { display: none; }
+
 /* Link layers — three visually distinct kinds of study link. */
-/* 1. Cross-reference (public-domain): every inline internal link in a Bible note today. Quiet. */
-.markdown-preview-view.bible a.internal-link {
+/* 1. Cross-reference (public-domain): the overlay superscript markers (class lm-xref). Quiet. */
+.markdown-preview-view.bible a.lm-xref {
   text-decoration: none;
   color: var(--text-accent);
   opacity: 0.85;
+  cursor: pointer;
 }
-.markdown-preview-view.bible a.internal-link:hover { text-decoration: underline; opacity: 1; }
+.markdown-preview-view.bible a.lm-xref:hover { text-decoration: underline; opacity: 1; }
 /* 2. Graph relation (LoreMaster graph) — injected in Phase 4; stronger accent, dotted underline. */
 .markdown-preview-view.bible a.lm-graph-link {
   color: var(--color-purple, var(--text-accent));
@@ -1041,15 +1047,23 @@
   text-decoration: underline dashed;
 }
 
-/* Flowing-paragraph layout (body.lm-bible-flow). Verses flow as prose; numbers become superscript.
+/* Flowing-paragraph layout (body.lm-bible-flow). Verses flow as continuous prose grouped into real
+   paragraphs at the USFM \p boundaries (verses tagged .lm-para-start). Obsidian wraps each block in a
+   div.el-p, so we inline THOSE (inlining <p> alone leaves the wrappers stacked = verse-per-line).
    Verse blocks stay separate underneath, so ^v anchors / jump targets remain intact. */
-body.lm-bible-flow .markdown-preview-view.bible p { display: inline; }
-body.lm-bible-flow .markdown-preview-view.bible p::after { content: " "; white-space: pre; }
+body.lm-bible-flow .markdown-preview-view.bible .el-p { display: inline; }
+body.lm-bible-flow .markdown-preview-view.bible .el-p p { display: inline; }
+body.lm-bible-flow .markdown-preview-view.bible .el-p::after { content: " "; white-space: pre; }
+/* A paragraph-start verse breaks to a new line (its ::before is block), then following verses flow in. */
+body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-para-start::before {
+  content: ""; display: block; margin-top: 0.7em;
+}
 body.lm-bible-flow .markdown-preview-view.bible p > strong:first-child {
   vertical-align: super;
   font-size: 0.68em;
   margin: 0 0.15em 0 0.2em;
 }
-body.lm-bible-flow .markdown-preview-view.bible h1,
-body.lm-bible-flow .markdown-preview-view.bible blockquote,
-body.lm-bible-flow .markdown-preview-view.bible hr { display: block; }
+/* Headings, Psalm titles, poetry verses stay on their own lines even in flow mode. */
+body.lm-bible-flow .markdown-preview-view.bible .el-h1,
+body.lm-bible-flow .markdown-preview-view.bible .el-h2,
+body.lm-bible-flow .markdown-preview-view.bible .el-em { display: block; }
