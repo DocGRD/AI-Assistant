@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, MarkdownRenderer, MarkdownView, Menu, Modal, Notice, TFile, FuzzySuggestModal } from "obsidian";
+import { ItemView, WorkspaceLeaf, MarkdownRenderer, MarkdownView, Menu, Modal, Notice, Platform, TFile, FuzzySuggestModal } from "obsidian";
 import type { App, Editor, EditorPosition } from "obsidian";
 import type AIAssistantPlugin from "./main";
 
@@ -2111,6 +2111,10 @@ export class ChatView extends ItemView {
 
     /** BUG-005: central focus method — always safe to call */
     private focusInput(): void {
+        // On mobile, auto-focusing the input pops the on-screen keyboard and scrolls the input
+        // into view — which hides LoreMaster's reply the moment it finishes. Never steal focus on
+        // mobile; the user taps the input when they're ready to type.
+        if (Platform.isMobile) return;
         // Use requestAnimationFrame so the DOM has settled after rendering
         requestAnimationFrame(() => {
             if (this.inputEl && !this.isLoading) {

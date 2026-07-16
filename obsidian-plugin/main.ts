@@ -2,6 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
+import { registerBibleHovercards, applyBibleLayout, BibleLayout } from "./bible";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -12,6 +13,7 @@ export interface AIAssistantSettings {
     apiToken: string;      // X-API-Key for LAN access (must match the service's api_token)
     handshakeDir: string;  // vault folder for vault-mode chat notes
     reader: ReaderSettings; // v1.7 — read-aloud speed + voice
+    bibleLayout: BibleLayout; // Phase 2 — verse-by-verse vs flowing paragraph reading
 }
 
 const DEFAULT_SETTINGS: AIAssistantSettings = {
@@ -20,6 +22,7 @@ const DEFAULT_SETTINGS: AIAssistantSettings = {
     apiToken: "",
     handshakeDir: "AI/Chat",
     reader: { speed: 1, voiceName: "" },
+    bibleLayout: "verses",
 };
 
 // ---------------------------------------------------------------------------
@@ -33,6 +36,11 @@ export default class AIAssistantPlugin extends Plugin {
         await this.loadSettings();
         this.reader = new Reader(this.settings.reader, () => void this.saveSettings(),
                                  (text) => this.fetchTts(text));
+
+        // Bible cross-reference hovercards — "Book ch:v" + verse text on hover (Bible notes).
+        registerBibleHovercards(this);
+        // Bible reading layout (verse-by-verse vs flowing) — plugin-owned, no CSS snippet needed.
+        applyBibleLayout(this.settings.bibleLayout);
 
         // Register the sidebar chat view + the Approvals/Goals side panel (v1.7 — non-blocking)
         this.registerView(CHAT_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ChatView(leaf, this));
@@ -48,6 +56,16 @@ export default class AIAssistantPlugin extends Plugin {
             id: "open-ai-assistant",
             name: "Open chat sidebar",
             callback: () => this.activateChatView(),
+        });
+        this.addCommand({
+            id: "toggle-bible-layout",
+            name: "Bible: toggle reading layout (verse-by-verse ⟷ flowing)",
+            callback: async () => {
+                this.settings.bibleLayout = this.settings.bibleLayout === "flow" ? "verses" : "flow";
+                applyBibleLayout(this.settings.bibleLayout);
+                await this.saveSettings();
+                new Notice(`Bible layout: ${this.settings.bibleLayout === "flow" ? "flowing paragraphs" : "verse-by-verse"}`);
+            },
         });
         this.addCommand({
             id: "ai-summarize-note",

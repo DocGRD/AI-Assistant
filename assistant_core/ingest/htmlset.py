@@ -54,19 +54,34 @@ def extract_title(raw: str, fallback: str = "") -> str:
     return _clean_inline(m.group(1)) if m and _clean_inline(m.group(1)) else fallback
 
 
-def html_to_markdown(raw: str, resolve_link=None) -> str:
+def html_to_markdown(raw: str, resolve_link=None, footnote_xrefs: bool = False) -> str:
     """Convert raw HTML to readable Markdown (dependency-free). `resolve_link(href)` returns a
     path-qualified wikilink target (no `.md`) for intra-set links, or None to keep the link as
-    an external Markdown link (http/https) or plain text (unresolved local link)."""
+    an external Markdown link (http/https) or plain text (unresolved local link).
+
+    `footnote_xrefs`: render resolved links that carry a #fragment (i.e. verse-level
+    cross-references) as Obsidian **footnotes** — a superscript marker inline, and a definition
+    at the note's end holding the wikilink. In Obsidian this reads like a study-Bible: hovering
+    the superscript shows the reference, and the reference is a link that opens the exact verse
+    (Ctrl/Cmd-click = new tab). Chapter-level links (no fragment) stay inline."""
     body = _DROP.sub(" ", raw or "")
+    footnotes: list[str] = []          # collected "[^id]: [[target|text]]" definitions
 
     def _a_sub(m: re.Match) -> str:
         href, inner = m.group(1).strip(), _clean_inline(m.group(2))
         target = resolve_link(href) if resolve_link else None
+        # Preserve a #fragment (e.g. a verse cross-reference to `chapter.html#v14`) as an
+        # Obsidian block-ref so the link lands on the exact verse, not just the note top.
+        frag = re.sub(r"[^A-Za-z0-9_-]", "", href.split("#", 1)[1]) if "#" in href else ""
+        if footnote_xrefs and frag:
+            # A verse-level cross-reference → hoverable superscript footnote, keeping the verse
+            # body clean. Resolved target links to the exact verse; an as-yet-unimported book
+            # still shows the reference on hover (the link fills in once that book is ingested).
+            fid = f"xref{len(footnotes) + 1}"
+            defn = f"[[{target}#^{frag}|{inner or target}]]" if target else (inner or href)
+            footnotes.append(f"[^{fid}]: {defn}")
+            return f"[^{fid}]"
         if target:
-            # Preserve a #fragment (e.g. a verse cross-reference to `chapter.html#v14`) as an
-            # Obsidian block-ref so the link lands on the exact verse, not just the note top.
-            frag = re.sub(r"[^A-Za-z0-9_-]", "", href.split("#", 1)[1]) if "#" in href else ""
             if frag:
                 target = f"{target}#^{frag}"
             return f"[[{target}|{inner}]]" if inner else f"[[{target}]]"
@@ -93,8 +108,10 @@ def html_to_markdown(raw: str, resolve_link=None) -> str:
                   lambda m: "\n\n" + "#" * int(m.group(1)) + " " + _clean_inline(m.group(2)) + "\n\n",
                   body, flags=re.I | re.S)
     body = re.sub(r"<li[^>]*>(.*?)</li>", lambda m: "\n- " + _clean_inline(m.group(1)), body, flags=re.I | re.S)
-    body = re.sub(r"<(b|strong)[^>]*>(.*?)</\1>", lambda m: "**" + _clean_inline(m.group(2)) + "**", body, flags=re.I | re.S)
-    body = re.sub(r"<(i|em)[^>]*>(.*?)</\1>", lambda m: "*" + _clean_inline(m.group(2)) + "*", body, flags=re.I | re.S)
+    # \b after the tag name so `<body>` isn't read as `<b>` (nor `<img>` as `<i>`), which would
+    # otherwise pair with a later </b>/</i> and swallow everything between into one span.
+    body = re.sub(r"<(b|strong)\b[^>]*>(.*?)</\1>", lambda m: "**" + _clean_inline(m.group(2)) + "**", body, flags=re.I | re.S)
+    body = re.sub(r"<(i|em)\b[^>]*>(.*?)</\1>", lambda m: "*" + _clean_inline(m.group(2)) + "*", body, flags=re.I | re.S)
     body = re.sub(r"<br\s*/?>", "\n", body, flags=re.I)
     body = re.sub(r"</(p|div|tr|table|ul|ol|blockquote)>", "\n\n", body, flags=re.I)
     body = _TAG.sub("", body)
@@ -102,7 +119,10 @@ def html_to_markdown(raw: str, resolve_link=None) -> str:
     body = re.sub(r"[ \t]+\n", "\n", body)
     body = re.sub(r"[ \t]{2,}", " ", body)
     body = re.sub(r"\n{3,}", "\n\n", body)
-    return body.strip()
+    body = body.strip()
+    if footnotes:                       # cross-reference footnote definitions, at the note's end
+        body += "\n\n---\n\n" + "\n".join(footnotes)
+    return body
 
 
 def _iter_html(root: Path):
@@ -111,15 +131,20 @@ def _iter_html(root: Path):
             yield p
 
 
-def _build_note(title: str, body_md: str, source: str, collection: str, date: str) -> str:
-    return "\n".join([
-        "---", "ai-derived: ingested-html", f"source: {source}",
-        f"collection: {collection}", f"ingested: {date}", "---", "",
-        f"# {title}", "",
-        f"> Ingested from `{source}` (collection **{collection}**) on {date}. "
-        "Intra-collection links point at the imported vault notes.", "",
-        body_md, "",
-    ])
+def _build_note(title: str, body_md: str, source: str, collection: str, date: str,
+                cssclasses: list[str] | None = None, omit_blockquote: bool = False) -> str:
+    fm = ["---", "ai-derived: ingested-html", f"source: {source}",
+          f"collection: {collection}", f"ingested: {date}"]
+    if cssclasses:
+        fm.append("cssclasses:")
+        fm += [f"  - {c}" for c in cssclasses]   # let CSS snippets target these notes (e.g. layouts)
+    fm.append("---")
+    parts = fm + ["", f"# {title}", ""]
+    if not omit_blockquote:                      # provenance still lives in the frontmatter above
+        parts += [f"> Ingested from `{source}` (collection **{collection}**) on {date}. "
+                  "Intra-collection links point at the imported vault notes.", ""]
+    parts += [body_md, ""]
+    return "\n".join(parts)
 
 
 def ingest_html_collection(vault, src_path, config: dict | None = None, rag=None) -> dict:
@@ -203,15 +228,21 @@ def ingest_html_collection(vault, src_path, config: dict | None = None, rag=None
             return _resolve
 
         # Pass 2 — convert + write each note with links rewritten (per-file resolver).
+        fn_xrefs = bool((config or {}).get("htmlset_footnote_xrefs", False))
+        omit_bq = bool((config or {}).get("htmlset_omit_note_blockquote", False))
+        cssclasses = (config or {}).get("htmlset_cssclasses") or None
+        if isinstance(cssclasses, str):
+            cssclasses = [c.strip() for c in cssclasses.split(",") if c.strip()]
         date = datetime.now().strftime("%Y-%m-%d")
         for f in files:
             name, rel = target_of[f]
             raw = f.read_text(encoding="utf-8", errors="replace")
             title = extract_title(raw, f.stem)
-            body_md = html_to_markdown(raw, _make_resolver(f))
+            body_md = html_to_markdown(raw, _make_resolver(f), footnote_xrefs=fn_xrefs)
             if not body_md:
                 continue
-            note = _build_note(title, body_md, str(src), collection, date)
+            note = _build_note(title, body_md, str(src), collection, date,
+                               cssclasses=cssclasses, omit_blockquote=omit_bq)
             (Path(vault) / rel).write_text(note, encoding="utf-8")
             report["notes"].append(rel)
             report["chars"] += len(body_md)

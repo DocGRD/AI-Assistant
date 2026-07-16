@@ -45,6 +45,15 @@ class TestHtmlToMarkdown(unittest.TestCase):
         self.assertIn("## Title", md)
         self.assertNotIn("bad()", md)
 
+    def test_body_tag_not_read_as_bold(self):
+        # regression: `<body>` starts with "b", so a bold regex without a word boundary read it as
+        # `<b>` and paired it with a later </b>, swallowing the heading + verse number into one span.
+        md = html_to_markdown('<html><head><title>T</title></head><body>'
+                              '<h1>Matthew 1</h1><p><b>1</b> Book.</p></body></html>')
+        self.assertIn("# Matthew 1", md)
+        self.assertIn("**1** Book.", md)
+        self.assertNotIn("**# Matthew 1", md)   # heading must not be captured inside the bold span
+
 
 class TestZipIngest(unittest.TestCase):
     def setUp(self):
@@ -78,6 +87,22 @@ class TestZipIngest(unittest.TestCase):
         self.assertEqual(rep["files"], 2)
         na = (self.vault / "AI/Library/htmlfolder/a.md").read_text(encoding="utf-8")
         self.assertIn("[[AI/Library/htmlfolder/b|to B]]", na)
+
+    def test_cssclasses_and_omit_blockquote_config(self):
+        # Bible ingests tag notes with `cssclasses: [bible]` (so layout CSS can target them) and
+        # drop the "> Ingested from…" provenance blockquote (it still lives in the frontmatter).
+        d = self.vault.parent / "biblefolder"
+        d.mkdir(exist_ok=True)
+        (d / "gen-1.html").write_text('<title>Genesis 1</title><h1>Genesis 1</h1>'
+                                      '<p><b>1</b> In the beginning.</p>', encoding="utf-8")
+        rep = ingest_html_collection(str(self.vault), str(d),
+              {"htmlset_cssclasses": ["bible"], "htmlset_omit_note_blockquote": True})
+        self.assertIsNone(rep.get("error"))
+        note = (self.vault / "AI/Library/biblefolder/gen-1.md").read_text(encoding="utf-8")
+        self.assertIn("cssclasses:\n  - bible", note)      # tag present for layout targeting
+        self.assertNotIn("> Ingested from", note)          # provenance blockquote omitted
+        self.assertIn("source:", note)                     # provenance still in frontmatter
+        self.assertIn("**1** In the beginning.", note)
 
     def test_missing_zip_reports_error(self):
         rep = ingest_file(str(self.vault), "no-such-file.zip", {})
