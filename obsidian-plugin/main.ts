@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, applyBibleLayout, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, applyBibleLayout, BibleLayout } from "./bible";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -39,6 +39,8 @@ export default class AIAssistantPlugin extends Plugin {
 
         // Bible cross-reference hovercards — "Book ch:v" + verse text on hover (Bible notes).
         registerBibleHovercards(this);
+        // Bible cross-reference overlay — injects the shared, version-independent cross-refs.
+        registerBibleCrossrefs(this);
         // Bible reading layout (verse-by-verse vs flowing) — plugin-owned, no CSS snippet needed.
         applyBibleLayout(this.settings.bibleLayout);
 

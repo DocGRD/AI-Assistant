@@ -8,7 +8,22 @@
 // The `parseBibleRef` target→label parser and the hovercard are deliberately standalone so the
 // Phase 2 custom renderer can reuse them.
 
-import { Plugin, TFile } from "obsidian";
+import { Plugin, TFile, MarkdownPostProcessorContext } from "obsidian";
+
+// Book slug -> canonical number, for building cross-reference target paths (bible/{NN}-{slug}/...).
+const BOOK_NUM: Record<string, number> = {
+    "genesis":1,"exodus":2,"leviticus":3,"numbers":4,"deuteronomy":5,"joshua":6,"judges":7,"ruth":8,
+    "1-samuel":9,"2-samuel":10,"1-kings":11,"2-kings":12,"1-chronicles":13,"2-chronicles":14,"ezra":15,
+    "nehemiah":16,"esther":17,"job":18,"psalms":19,"proverbs":20,"ecclesiastes":21,"song-of-solomon":22,
+    "isaiah":23,"jeremiah":24,"lamentations":25,"ezekiel":26,"daniel":27,"hosea":28,"joel":29,"amos":30,
+    "obadiah":31,"jonah":32,"micah":33,"nahum":34,"habakkuk":35,"zephaniah":36,"haggai":37,"zechariah":38,
+    "malachi":39,"matthew":40,"mark":41,"luke":42,"john":43,"acts":44,"romans":45,"1-corinthians":46,
+    "2-corinthians":47,"galatians":48,"ephesians":49,"philippians":50,"colossians":51,"1-thessalonians":52,
+    "2-thessalonians":53,"1-timothy":54,"2-timothy":55,"titus":56,"philemon":57,"hebrews":58,"james":59,
+    "1-peter":60,"2-peter":61,"1-john":62,"2-john":63,"3-john":64,"jude":65,"revelation":66,
+};
+const SUP_LETTERS = "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻ";
+const XREF_SHOWN = 5;   // cross-references shown inline per verse (top by votes)
 
 export type BibleLayout = "verses" | "flow";
 
@@ -122,5 +137,72 @@ export function registerBibleHovercards(plugin: Plugin): void {
         card.addEventListener("mouseenter", () => { overCard = true; });
         card.addEventListener("mouseleave", () => { overCard = false; scheduleHide(); });
         a.addEventListener("mouseleave", scheduleHide, { once: true });
+    });
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const pad3 = (n: number) => String(n).padStart(3, "0");
+
+/** Register the cross-reference OVERLAY: cross-refs are stored once (bible/.crossrefs/{book}.json,
+ *  version-independent) and injected by the renderer, so every version shares them and adding a
+ *  version repeats no cross-reference work. Runs on `cssclasses:[bible]` chapter notes. */
+export function registerBibleCrossrefs(plugin: Plugin): void {
+    const cache = new Map<string, Promise<Record<string, any[]>>>();
+    const loadBook = (book: string): Promise<Record<string, any[]>> => {
+        let p = cache.get(book);
+        if (!p) {
+            p = plugin.app.vault.adapter.read(`AI/bible-crossrefs/${book}.json`)
+                .then(s => JSON.parse(s)).catch(() => ({}));
+            cache.set(book, p);
+        }
+        return p;
+    };
+
+    plugin.registerMarkdownPostProcessor(async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+        // Derive book/chapter/version from the note PATH (robust — no dependency on frontmatter
+        // being cached yet): bible/{NN}-{slug}/{version}/{slug}-{CCC}.md
+        const path = ctx.sourcePath || "";
+        if (!path.startsWith("bible/")) return;
+        const parts = path.split("/");
+        if (parts.length < 4) return;
+        const book = parts[parts.length - 3].replace(/^\d+-/, "");
+        const version = parts[parts.length - 2];
+        const chapter = parseInt((parts[parts.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
+        if (!book || !version || !chapter) return;
+
+        // Obsidian may hand us the container OR a bare <p>; collect both so we never miss a verse.
+        const paras = Array.from(el.querySelectorAll("p")) as HTMLParagraphElement[];
+        if (el.tagName === "P") paras.push(el as HTMLParagraphElement);
+        const verses = paras.filter(p => {
+            const s = p.firstElementChild;
+            return s && s.tagName === "STRONG" && /^\d+$/.test((s.textContent || "").trim())
+                && !p.hasAttribute("data-lm-xref");
+        });
+        if (!verses.length) return;
+        const data = await loadBook(book);
+
+        for (const p of verses) {
+            p.setAttribute("data-lm-xref", "1");
+            const vnum = (p.firstElementChild!.textContent || "").trim();
+            const targets = data[`${book}.${chapter}.${vnum}`];
+            if (!targets || !targets.length) continue;
+            for (let i = 0; i < Math.min(targets.length, XREF_SHOWN); i++) {
+                const t = targets[i];
+                const num = BOOK_NUM[t.b];
+                if (!num) continue;
+                const href = `bible/${pad2(num)}-${t.b}/${version}/${t.b}-${pad3(t.c)}#^v${t.v}`;
+                const sup = p.createEl("sup");
+                sup.appendText(" ");
+                const a = sup.createEl("a", {
+                    text: SUP_LETTERS[i] || "*",
+                    cls: "internal-link lm-xref",
+                    attr: { "data-href": href, href, "aria-label": t.n },
+                });
+                a.addEventListener("click", (ev) => {
+                    ev.preventDefault();
+                    plugin.app.workspace.openLinkText(href, ctx.sourcePath, ev.ctrlKey || ev.metaKey);
+                });
+            }
+        }
     });
 }
