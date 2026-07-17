@@ -1007,18 +1007,35 @@
 /* Applies to notes carrying `cssclasses: [bible]`. Replaces the earlier user CSS snippets — the
    layout is toggled by the "Bible: toggle reading layout" command (adds body.lm-bible-flow). */
 
+/* Classic study-Bible reading style: serif body, comfortable measure + leading, a large chapter
+   heading, spaced section headings, small superscript verse numbers, italic descriptive titles. */
 .markdown-preview-view.bible {
-  --file-line-width: 40rem;
-  line-height: 1.7;
+  --file-line-width: 38rem;
+  font-family: var(--font-text-override, Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif);
+  line-height: 1.85;
+  font-size: 1.05em;
 }
-.markdown-preview-view.bible h1 { font-size: 1.5em; border: none; margin-bottom: 0.6em; }
+.markdown-preview-view.bible h1 {   /* chapter heading */
+  font-size: 1.9em; font-weight: 600; border: none;
+  text-align: center; margin: 0.2em 0 0.8em; letter-spacing: 0.01em;
+}
+.markdown-preview-view.bible h2 {   /* section heading (from USFM \s) */
+  font-size: 1.05em; font-weight: 600; border: none;
+  margin: 1.3em 0 0.3em; color: var(--text-normal);
+}
+.markdown-preview-view.bible em:only-child,        /* Psalm / descriptive titles (\d) on their own line */
+.markdown-preview-view.bible p > em:only-child {
+  display: block; text-align: center; color: var(--text-muted); margin: 0.2em 0 0.6em;
+}
 
-/* Verse numbers — the leading **bold** of each verse line. */
+/* Verse numbers — small superscript, quiet, like a printed Bible (verse-by-verse layout). */
 .markdown-preview-view.bible p > strong:first-child {
   color: var(--text-accent);
-  font-weight: 700;
-  font-size: 0.82em;
-  margin-right: 0.15em;
+  font-weight: 600;
+  font-size: 0.7em;
+  vertical-align: super;
+  margin-right: 0.2em;
+  opacity: 0.9;
 }
 
 /* Verse number is clickable → "see all cross-references" panel. */
