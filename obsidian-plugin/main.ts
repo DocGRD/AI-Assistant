@@ -3,6 +3,8 @@ import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_T
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
 import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBibleVersions, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
+import { registerBibleStrongs } from "./bible-strongs";
+import { registerBibleCommentary } from "./bible-commentary";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -52,6 +54,10 @@ export default class AIAssistantPlugin extends Plugin {
         // Fetch a chapter from a licensed online version (ESV / NASB / NKJV) via the backend proxy,
         // cache it in the vault, and open it. Keys live server-side; cached notes are reused.
         registerBibleVersions(this);
+        // Strong's study tools — per-chapter interlinear + concordance (KJV+Strong's sidecar data).
+        registerBibleStrongs(this);
+        // Personal commentary — your own verse-attached notes, marked + listed in the reader.
+        registerBibleCommentary(this);
         // Bible reading layout (verse-by-verse vs flowing) — plugin-owned, no CSS snippet needed.
         applyBibleLayout(this.settings.bibleLayout);
         // Bible reader text size (user-adjustable, independent of Obsidian's global font size).

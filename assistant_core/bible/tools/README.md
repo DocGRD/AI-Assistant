@@ -30,3 +30,23 @@ Strong's-strip / red-letter (`\wj…\wj*`) handling.
 The plugin renders richness at read time (`obsidian-plugin/bible.ts` + `styles.css` `.bible`);
 the notes themselves remain portable, RAG-indexable markdown. The verse-level embedding index is
 built separately by `assistant_core/bible/verse_index.py` from these notes.
+
+## Strong's study data — `gen_strongs.py`
+Builds the interlinear + concordance + lexicon sidecars under `AI/bible-strongs/` (machine JSON,
+excluded from the RAG index). The reading text stays WEB; this powers the reader's interlinear panel
+and concordance. **The WEB USFM's own Strong's tags are corrupt** (Elohim H430 is never tagged, etc.),
+so the tagging comes from an accurate public-domain source instead:
+- **KJV + Strong's** — kaiserlik/kjv per-book JSON (each verse `en` field is KJV text with inline
+  `[Hnnnn]` codes). Download the 66 book files into `BIBLE_SRC/kjv/` (some source files concatenate a
+  second book and have malformed non-English fields — the parser reads only `en` via regex and locks
+  to the file's own book, so both are handled). This is the canonical basis of Strong's Concordance.
+- **openscriptures Strong's dictionaries** — `strongs-hebrew.js` + `strongs-greek.js` in `BIBLE_SRC`
+  (lemma + transliteration + definition). Public domain.
+
+Run: `BIBLE_VAULT=/path/to/vault python gen_strongs.py`. Output: per-book interlinear `{book}.json`,
+`_concordance-H/G.json` (strong → refs), `_words.json` (English → strongs), `_lexicon-H/G.json`.
+
+## Personal commentary
+User-authored, not generated: notes with frontmatter `commentary-ref: <book>.<ch>.<v>` (or a range
+`…v-v2`, or a whole chapter `<book>.<ch>`). The plugin (`bible-commentary.ts`) indexes them and marks
+annotated verses with a ✎ in the reader.

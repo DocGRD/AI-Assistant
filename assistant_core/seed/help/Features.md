@@ -1,4 +1,4 @@
-<!-- help-version: 32 -->
+<!-- help-version: 33 -->
 ---
 tags: [help, user-guide]
 ---
@@ -23,6 +23,25 @@ Open one in **Reading view** (chapters auto-open there) and you get:
   per-verse `≈` marker; both deduplicated against the cross-references.
 - **Text size** — Settings → Loremaster → Bible reader → **Text size** (80–160%), reader-only.
 - **On mobile**, tap a superscript marker to open its read-card (with **Open**) rather than jumping away.
+
+### Interlinear & concordance (Strong's)
+
+- **Interlinear** — command *"Bible: interlinear (this chapter)"* opens the open chapter word-by-word,
+  each word tagged with its **Strong's number**. Tap a number for its Hebrew/Greek word,
+  transliteration, meaning, and a link into the concordance.
+- **Concordance** — command *"Bible: concordance (Strong's number or word)"*. Enter a Strong's number
+  (`H430`, `G26`) or an English word (`love`) and get every verse that uses it, each a link.
+- Accuracy note: the WEB's own word-tags are unreliable, so the Strong's data is built from the
+  public-domain **KJV + Strong's** (the basis of Strong's Concordance) plus the openscriptures
+  lexicon. It lives in `AI/bible-strongs/`; the WEB stays your reading text.
+
+### Your own commentary
+
+Write your own notes on scripture and see them in the reader. Command *"Bible: write a note on this
+verse"* (from an open chapter) creates a note under `bible-commentary/` carrying `commentary-ref:
+<book>.<ch>.<v>` (a single verse, a range `…v-v2`, or a whole chapter `<book>.<ch>`). Verses you've
+written on get a **✎** marker (tap to open your note), and your notes are listed under the chapter.
+Write freely — it's your growing study library.
 
 ### Get a chapter from a licensed online version (ESV / NASB / NKJV)
 

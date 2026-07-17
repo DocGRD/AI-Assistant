@@ -1,10 +1,20 @@
-<!-- help-version: 32 -->
+<!-- help-version: 33 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.39**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.40**.*
+
+## Bible: interlinear, concordance, your own commentary (v1.10.40)
+- **Interlinear + concordance (Strong's).** *"Bible: interlinear (this chapter)"* shows the chapter
+  word-by-word with Strong's numbers (tap one for the Hebrew/Greek word, meaning, and every verse that
+  uses it). *"Bible: concordance (Strong's number or word)"* finds every verse using a number or word.
+  Built from the public-domain **KJV+Strong's** (the WEB's own tags are corrupt) + the openscriptures
+  lexicon.
+- **Your own commentary.** *"Bible: write a note on this verse"* creates a note tied to a verse/passage
+  (`commentary-ref`); annotated verses get a **✎** you can tap, and your notes are listed under the
+  chapter. A study library you build over time.
 
 ## Bible: red-letter, online versions, text size, phone fixes (v1.10.38–v1.10.39)
 - **Red-letter (words of Christ).** In the Gospels, Acts and Revelation, the words of Jesus render

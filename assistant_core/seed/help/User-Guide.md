@@ -1,4 +1,4 @@
-<!-- help-version: 32 -->
+<!-- help-version: 33 -->
 # Loremaster — User Guide
 
 *Current through **v1.9** (Milestones 1–40 + the v1.7–v1.9 UI/knowledge layer). Last updated: 2026-07-09.*

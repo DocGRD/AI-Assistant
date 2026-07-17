@@ -17,7 +17,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
  *  that fails), so a fetch's option object can't blow up the caller synchronously. This matters:
  *  the Bible cross-ref post-processor `await`s a backend fetch, and a synchronous throw here used
  *  to abort the whole processor → NO cross-reference markers rendered on the phone. */
-function timeoutSignal(ms: number): AbortSignal | undefined {
+export function timeoutSignal(ms: number): AbortSignal | undefined {
     try {
         const anyAS = AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal };
         if (typeof AbortSignal !== "undefined" && typeof anyAS.timeout === "function") return anyAS.timeout(ms);
@@ -28,7 +28,7 @@ function timeoutSignal(ms: number): AbortSignal | undefined {
 }
 
 // Book slug -> canonical number, for building cross-reference target paths (bible/{NN}-{slug}/...).
-const BOOK_NUM: Record<string, number> = {
+export const BOOK_NUM: Record<string, number> = {
     "genesis":1,"exodus":2,"leviticus":3,"numbers":4,"deuteronomy":5,"joshua":6,"judges":7,"ruth":8,
     "1-samuel":9,"2-samuel":10,"1-kings":11,"2-kings":12,"1-chronicles":13,"2-chronicles":14,"ezra":15,
     "nehemiah":16,"esther":17,"job":18,"psalms":19,"proverbs":20,"ecclesiastes":21,"song-of-solomon":22,
@@ -195,11 +195,11 @@ export function registerBibleHovercards(plugin: Plugin): void {
     });
 }
 
-const pad2 = (n: number) => String(n).padStart(2, "0");
-const pad3 = (n: number) => String(n).padStart(3, "0");
+export const pad2 = (n: number) => String(n).padStart(2, "0");
+export const pad3 = (n: number) => String(n).padStart(3, "0");
 
 /** book-slug → display name ("1-corinthians" → "1 Corinthians"). */
-function bookLabel(slug: string): string {
+export function bookLabel(slug: string): string {
     return slug.split("-")
         .map(w => (w.length <= 2 && /^\d/.test(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1))
         .join(" ");
