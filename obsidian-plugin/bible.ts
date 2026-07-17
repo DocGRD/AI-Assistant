@@ -8,7 +8,7 @@
 // The `parseBibleRef` target→label parser and the hovercard are deliberately standalone so the
 // Phase 2 custom renderer can reuse them.
 
-import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext } from "obsidian";
+import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice } from "obsidian";
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -364,4 +364,85 @@ export function registerBibleEmbeddingLinks(plugin: Plugin): void {
     };
 
     plugin.registerEvent(plugin.app.workspace.on("file-open", (file) => { if (file) void inject(file); }));
+}
+
+// ── Paste-to-format: user pastes a chapter of a translation they're licensed to use; we reorganise
+//    their text into the standard note format (we never supply the text). Self-contained + offline. ──
+function cleanPaste(raw: string): string {
+    return raw.replace(/ /g, " ").replace(/\[[a-z0-9]{1,3}\]/gi, "")
+        .replace(/\(\s*\d+\s*\)/g, "").replace(/[ \t]+/g, " ").trim();
+}
+function splitVerses(raw: string): Map<number, string> {
+    const flat = cleanPaste(raw).replace(/\s+/g, " ");
+    const out = new Map<number, string>();
+    if (!flat) return out;
+    const m1 = flat.match(/(?<![\d.])1\b/);
+    if (!m1 || m1.index === undefined) return out;
+    let cur = 1, start = m1.index + m1[0].length;
+    while (true) {
+        const nxt = cur + 1, rest = flat.slice(start);
+        const strong = rest.match(new RegExp(`(?<![\\d.])\\b${nxt}\\b(?=\\s*[“"'A-Z])`));
+        const loose = strong || rest.match(new RegExp(`(?<![\\d.])\\b${nxt}\\b`));
+        if (loose && loose.index !== undefined) {
+            out.set(cur, flat.slice(start, start + loose.index).replace(/^[ .]+|[ .]+$/g, ""));
+            cur = nxt; start = start + loose.index + loose[0].length;
+        } else { out.set(cur, rest.replace(/^[ .]+|[ .]+$/g, "")); break; }
+        if (nxt > 250) break;
+    }
+    for (const [k, v] of out) if (!v.trim()) out.delete(k);
+    return out;
+}
+function formatPastedChapter(raw: string, bookSlug: string, chapter: number, version: string) {
+    bookSlug = bookSlug.toLowerCase().trim();
+    const num = BOOK_NUM[bookSlug];
+    if (!num) return { error: `Unknown book slug "${bookSlug}" (use e.g. john, 1-corinthians, psalms).` };
+    if (!chapter) return { error: "Enter a chapter number." };
+    if (!version) return { error: "Enter a version (e.g. esv, nasb, nkjv)." };
+    const verses = splitVerses(raw);
+    if (!verses.size) return { error: "Couldn't find verse numbers in the pasted text." };
+    const fm = ["---", "cssclasses:", "  - bible", `bible-version: ${version}`,
+        `bible-book: ${bookSlug}`, `bible-booknum: ${num}`, `bible-chapter: ${chapter}`,
+        "bible-parastarts: 1", "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, ""];
+    const body = [...verses.keys()].sort((a, b) => a - b).map(n => `**${n}** ${verses.get(n)} ^v${n}`);
+    return { path: `bible/${pad2(num)}-${bookSlug}/${version}/${bookSlug}-${pad3(chapter)}.md`,
+             note: fm.concat(body).join("\n") + "\n", verses: verses.size };
+}
+
+class BiblePasteModal extends Modal {
+    constructor(private plugin: Plugin) { super(plugin.app); }
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Paste a Bible chapter" });
+        contentEl.createEl("p", { cls: "setting-item-description",
+            text: "Paste a chapter from a translation you're licensed to use. It's saved in the standard " +
+                  "format so cross-references and related-by-meaning appear automatically." });
+        let book = "", version = "", chapter = "";
+        new Setting(contentEl).setName("Book").setDesc("slug — e.g. john, 1-corinthians, psalms")
+            .addText(t => t.onChange(v => book = v));
+        new Setting(contentEl).setName("Chapter").addText(t => { t.inputEl.type = "number"; t.onChange(v => chapter = v); });
+        new Setting(contentEl).setName("Version").setDesc("e.g. esv, nasb, nkjv").addText(t => t.onChange(v => version = v));
+        const ta = contentEl.createEl("textarea", { attr: { rows: "12", placeholder: "Paste the chapter text here…" } });
+        ta.style.cssText = "width:100%;font-family:var(--font-monospace);";
+        new Setting(contentEl).addButton(b => b.setButtonText("Format & save").setCta().onClick(async () => {
+            const r = formatPastedChapter(ta.value, book, parseInt(chapter, 10), version.toLowerCase().trim());
+            if ("error" in r) { new Notice(r.error!); return; }
+            if (this.plugin.app.vault.getAbstractFileByPath(r.path)) { new Notice(`Already exists: ${r.path}`); return; }
+            const folder = r.path.split("/").slice(0, -1).join("/");
+            try { await this.plugin.app.vault.createFolder(folder); } catch { /* exists */ }
+            await this.plugin.app.vault.create(r.path, r.note);
+            new Notice(`Saved ${r.verses} verses → ${r.path}`);
+            this.close();
+            this.plugin.app.workspace.openLinkText(r.path, "", false);
+        }));
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+/** Register the "paste a chapter from another translation" command. */
+export function registerBiblePaste(plugin: Plugin): void {
+    plugin.addCommand({
+        id: "bible-paste-chapter",
+        name: "Bible: paste a chapter (new translation)",
+        callback: () => new BiblePasteModal(plugin).open(),
+    });
 }

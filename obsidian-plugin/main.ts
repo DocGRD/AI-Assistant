@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, applyBibleLayout, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, applyBibleLayout, BibleLayout } from "./bible";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -45,6 +45,8 @@ export default class AIAssistantPlugin extends Plugin {
         registerBibleCrossrefs(this);
         // Bible embedding-similarity overlay — "Related by meaning" (distinct from cross-refs).
         registerBibleEmbeddingLinks(this);
+        // "Paste a chapter from another translation" command.
+        registerBiblePaste(this);
         // Bible reading layout (verse-by-verse vs flowing) — plugin-owned, no CSS snippet needed.
         applyBibleLayout(this.settings.bibleLayout);
         // Auto-open Bible chapter notes in Reading view (the cross-ref overlay + hidden ^v anchors
