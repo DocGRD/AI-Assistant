@@ -58,6 +58,18 @@ delete); you commit it in the plugin. Nothing consequential runs autonomously.
 folder/tag-scoped QA ("project mode"). Embeddings are local (fastembed / `bge-small`) and **GPU-accelerated**
 on a CUDA box, CPU everywhere else.
 
+**Bible study reader.** The public-domain **World English Bible** ships as folder-ordered notes
+(`bible/{NN}-{book}/{version}/…`, sourced from USFM so poetry, paragraphs, and section headings are
+preserved), read in a classic serif study-Bible layout. The plugin renders three distinct link layers over
+scripture: **cross-references** (public-domain OpenBible, stored once and version-independent, injected as
+quiet superscript markers — hover for the verse, click to open it, click a verse number for *all* of them)
+and **"Related by meaning"** (embedding-similarity passages, dashed links, deduplicated against the
+cross-references). Verse-by-verse ⟷ flowing-paragraph layouts, auto-Reading-view, and a configurable
+cross-reference count. Scripture and imported commentary (e.g. Matthew Henry) are in the semantic index, so
+`vault:ask` searches God's word. Adding another translation is a paste into the standard note format — the
+cross-references and related links then appear automatically. (Copyrighted translations like ESV/NASB/NKJV
+are used only within their terms; WEB is the bundled public-domain base.)
+
 **Research round-trip.** `vault:research` generates a prompt for a web AI; when you paste the answer back,
 the assistant saves it **verbatim** to `AI/Research/`, gives it a short LLM-generated title, produces a
 2-3 sentence summary, and links **real** related notes from the index — no fabricated links, no loop.

@@ -1,10 +1,22 @@
-<!-- help-version: 30 -->
+<!-- help-version: 31 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.31**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.35**.*
+
+## Bible study: related-by-meaning, "see all", classic typography (v1.10.32–v1.10.35)
+- **"Related by meaning."** Below each chapter, a distinct dashed-link section shows passages the
+  **embeddings** judge most similar — separate from the public-domain cross-references, and
+  deduplicated against them (if a passage is already a cross-reference, it isn't repeated here).
+- **See every cross-reference.** Click a **verse number** to open a panel listing *all* of that
+  verse's cross-references (up to 20), each opening the exact verse.
+- **How many cross-refs to show** is now a setting (Settings → Loremaster → Bible reader), default 4.
+- **Classic study-Bible look** — serif text, centered chapter heading, italic Psalm titles, small
+  superscript verse numbers, comfortable spacing.
+- **Scripture is searchable.** The Bible and imported commentary are in the semantic index, so
+  `vault:ask "what does scripture say about …"` finds and cites God's word.
 
 ## A study Bible inside Obsidian (v1.10.31)
 - **The whole Bible, read in Obsidian.** The public-domain World English Bible (WEB) ships as
