@@ -1040,6 +1040,31 @@
 }
 .loremaster-bible-allxref-item:hover { background: var(--background-modifier-hover); color: var(--text-accent); }
 
+/* Embedding-similarity overlay — "Related by meaning" section, visually distinct from cross-refs
+   (which are quiet superscript letters). Dashed, teal-ish links so the two kinds never read alike. */
+.markdown-preview-view.bible .lm-embed-section {
+  margin: 1.6em 0 0.5em;
+  padding-top: 0.7em;
+  border-top: 1px dashed var(--background-modifier-border);
+}
+.lm-embed-head {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.lm-embed-list { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.lm-embed-link {
+  font-size: 13px;
+  text-decoration: underline dashed;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.lm-embed-link.lm-embed-scripture { color: var(--color-cyan, var(--text-accent)); }
+.lm-embed-link.lm-embed-commentary { color: var(--text-muted); font-style: italic; }
+.lm-embed-link:hover { text-decoration-style: solid; }
+
 /* Hide the frontmatter/properties panel on Bible notes (keep the reading page clean). */
 .markdown-preview-view.bible .metadata-container,
 .markdown-reading-view.bible .metadata-container,

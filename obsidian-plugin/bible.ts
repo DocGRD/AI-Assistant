@@ -8,7 +8,9 @@
 // The `parseBibleRef` target→label parser and the hovercard are deliberately standalone so the
 // Phase 2 custom renderer can reuse them.
 
-import { Plugin, TFile, MarkdownPostProcessorContext } from "obsidian";
+import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext } from "obsidian";
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // Book slug -> canonical number, for building cross-reference target paths (bible/{NN}-{slug}/...).
 const BOOK_NUM: Record<string, number> = {
@@ -257,4 +259,78 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             });
         }
     });
+}
+
+/** Register the EMBEDDING-similarity overlay: a "Related by meaning" section appended to a Bible
+ *  chapter, distinct from the public-domain cross-references. Sourced live from the backend's
+ *  `/relevant` (vector index), deduplicated against this chapter's cross-reference targets. */
+export function registerBibleEmbeddingLinks(plugin: Plugin): void {
+    const xrefCache = new Map<string, Promise<Record<string, any[]>>>();
+    const loadBook = (book: string) => {
+        let p = xrefCache.get(book);
+        if (!p) { p = plugin.app.vault.adapter.read(`AI/bible-crossrefs/${book}.json`).then(s => JSON.parse(s)).catch(() => ({})); xrefCache.set(book, p); }
+        return p;
+    };
+    const bibleRef = (path: string) => {
+        const pp = path.split("/"); if (pp.length < 4) return null;
+        const b = pp[pp.length - 3].replace(/^\d+-/, "");
+        const c = parseInt((pp[pp.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
+        return c ? { b, c } : null;
+    };
+
+    const inject = async (file: TFile) => {
+        if (!file || !file.path.startsWith("bible/")) return;
+        const self = bibleRef(file.path); if (!self) return;
+        const book = self.b, chapter = self.c;
+        // Retry until the reading view has rendered (a full app reload can take a couple seconds).
+        let sizer: HTMLElement | null = null;
+        for (let i = 0; i < 10; i++) {
+            await sleep(400);
+            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view || view.file !== file) continue;
+            const c = view.contentEl.querySelector(
+                ".markdown-preview-view.bible .markdown-preview-sizer, .markdown-reading-view.bible .markdown-preview-sizer") as HTMLElement | null;
+            if (c && c.querySelector("p")) { sizer = c; break; }   // rendered content present
+        }
+        if (!sizer || sizer.querySelector(".lm-embed-section")) return;
+
+        const s = (plugin as any).settings;
+        let notes: { path: string }[] = [];
+        try {
+            const resp = await fetch(`http://${s.host}:${s.port}/relevant?path=${encodeURIComponent(file.path)}&k=12`,
+                { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: AbortSignal.timeout(5000) });
+            if (resp.ok) notes = (await resp.json()).notes ?? [];
+        } catch { return; }
+        if (!notes.length) return;
+
+        // dedup: collect the (book.chapter) already reachable via this chapter's cross-references
+        const data = await loadBook(book);
+        const xrefCh = new Set<string>();
+        for (const k in data) if (k.startsWith(`${book}.${chapter}.`)) for (const t of data[k]) xrefCh.add(`${t.b}.${t.c}`);
+
+        const items: { path: string; label: string; kind: string }[] = [];
+        for (const n of notes) {
+            if (n.path === file.path) continue;
+            if (n.path.startsWith("bible/")) {
+                const r = bibleRef(n.path); if (!r) continue;
+                if (r.b === book && r.c === chapter) continue;
+                if (xrefCh.has(`${r.b}.${r.c}`)) continue;                 // already a cross-reference → skip
+                items.push({ path: n.path, label: `${bookLabel(r.b)} ${r.c}`, kind: "scripture" });
+            } else if (n.path.startsWith("AI/Library/")) {
+                items.push({ path: n.path, label: (n.path.split("/").pop() || "").replace(/\.md$/, ""), kind: "commentary" });
+            }
+            if (items.length >= 6) break;
+        }
+        if (!items.length) return;
+
+        const sec = sizer.createDiv("lm-embed-section");
+        sec.createDiv("lm-embed-head").setText("Related by meaning");
+        const list = sec.createDiv("lm-embed-list");
+        for (const it of items) {
+            list.createEl("a", { text: it.label, cls: `lm-embed-link lm-embed-${it.kind}`, attr: { href: it.path } })
+                .addEventListener("click", (ev) => { ev.preventDefault(); plugin.app.workspace.openLinkText(it.path, file.path, ev.ctrlKey || ev.metaKey); });
+        }
+    };
+
+    plugin.registerEvent(plugin.app.workspace.on("file-open", (file) => { if (file) void inject(file); }));
 }
