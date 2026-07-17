@@ -139,6 +139,7 @@ class AssistantServer:
         self._memory         = memory
         self._registry       = registry
         self._rag            = rag
+        self._verse_idx      = None   # Bible verse-level embedding index (lazy)
         self._history        = history
         self._history_lock   = history_lock
         self._config         = config
@@ -161,6 +162,18 @@ class AssistantServer:
             return
 
         self._app = self._build_app()
+
+    def _verse_index(self, build: bool = False):
+        """Lazy Bible verse-level embedding index (separate from the personal RAG)."""
+        from assistant_core.bible.verse_index import VerseIndex
+        from assistant_core.paths import DATA_DIR
+        if self._verse_idx is None and self._rag:
+            self._verse_idx = VerseIndex(DATA_DIR / "bible_verse_index", self._rag.embedder)
+            self._verse_idx.load()
+        if build and self._verse_idx:
+            vault = self._config.get("vault_path", "")
+            return self._verse_idx.build(vault)
+        return self._verse_idx
 
     def start(self) -> None:
         if not _fastapi_available:
@@ -1093,6 +1106,18 @@ class AssistantServer:
                 return HandoffResponse(status="ok", reply=reply, provider_used="system",
                                        actual_provider="system", timestamp=ts)
 
+            # Build the Bible verse-level embedding index (per-verse "Related by meaning").
+            if _first == "vault:bible-verse-index":
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                try:
+                    rep = self._verse_index(build=True) or {"error": "no index available"}
+                    reply = (f"Built the Bible verse index: {rep['verses']} verses embedded."
+                             if rep.get("verses") else f"Verse index build failed: {rep.get('error')}")
+                except Exception as exc:
+                    reply = f"Verse index build failed: {exc}"
+                return HandoffResponse(status="ok", reply=reply, provider_used="system",
+                                       actual_provider="system", timestamp=ts)
+
             # v1.9 — vault:logs [N|errors|today]: read the service's own logs (outside the vault)
             # for self-diagnosis. Read-only; stays on this machine.
             if _first == "vault:logs":
@@ -1840,6 +1865,19 @@ class AssistantServer:
             except Exception as exc:
                 logger.warning(f"[Server] /relevant failed for {path}: {exc}")
                 return {"notes": []}
+
+        # ── GET /bible/chapter-similar — per-verse embedding neighbours for a chapter ──
+        @app.get("/bible/chapter-similar")
+        async def bible_chapter_similar(book: str, chapter: int, k: int = 4):
+            """{verse: [similar verse refs]} for a chapter, from the verse-level embedding index."""
+            try:
+                vi = self._verse_index()
+                if not vi or not vi.ready():
+                    return {"verses": {}, "ready": False}
+                return {"verses": vi.chapter_similar(book, int(chapter), k=k), "ready": True}
+            except Exception as exc:
+                logger.warning(f"[Server] /bible/chapter-similar failed: {exc}")
+                return {"verses": {}, "ready": False}
 
         # ── GET /history ────────────────────────────────────────────────────
         @app.get("/history", response_model=HistoryResponse)
