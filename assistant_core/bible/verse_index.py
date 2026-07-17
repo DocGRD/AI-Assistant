@@ -46,6 +46,7 @@ _EMSPACE = " "
 def _clean_verse(raw: str) -> str:
     """Text of a verse line `**N** words  \\n words ^vN` → plain words (drop number, anchor, markup)."""
     t = raw.replace(_EMSPACE, " ")
+    t = re.sub(r"</?span[^>]*>", "", t)           # red-letter spans
     t = re.sub(r"\^v\d+", "", t)                  # block anchor
     t = re.sub(r"^\*\*\d+\*\*\s*", "", t)         # leading **verse-number**
     t = re.sub(r"\[\[[^\]|]*\|([^\]]*)\]\]", r"\1", t)   # any wikilinks -> alias

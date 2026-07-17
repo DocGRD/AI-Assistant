@@ -78,6 +78,7 @@ async function readVerseText(plugin: Plugin, linkpath: string, block: string | n
     return lines.slice(start, end + 1).join(" ")
         .replace(/\s*\^v\d+/g, "")                  // drop the block anchor (safe — prose has no ^vN)
         .replace(/^\*\*\d+\*\*\s*/, "")             // drop the leading **verse-number**
+        .replace(/<\/?span[^>]*>/g, "")             // drop red-letter spans
         .replace(/ /g, "")                     // drop poetry em-space indents
         .replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g, "")  // drop cross-ref wikilinks (markers only)
         .replace(/\[\[[^\]]*\]\]/g, "")
