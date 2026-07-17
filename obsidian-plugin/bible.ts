@@ -108,7 +108,7 @@ export function registerBibleHovercards(plugin: Plugin): void {
     plugin.registerDomEvent(document, "mouseover", async (evt: MouseEvent) => {
         const t = evt.target as HTMLElement | null;
         if (!t || !(t instanceof HTMLElement)) return;
-        const a = t.closest("a.lm-xref") as HTMLElement | null;   // cross-ref markers only (not nav links)
+        const a = t.closest("a.lm-xref, a.lm-embed-vlink") as HTMLElement | null;   // cross-ref + embedding markers (not nav links)
         if (!a) return;
         if (!a.closest(".markdown-preview-view.bible, .markdown-reading-view.bible")) return;
         if (a === activeAnchor && card) return;   // already showing this one
@@ -199,6 +199,20 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         }
         return p;
     };
+    // Per-verse embedding neighbours for a chapter (from the backend verse index), cached per chapter.
+    const simCache = new Map<string, Promise<Record<string, any[]>>>();
+    const loadSimilar = (book: string, chapter: number): Promise<Record<string, any[]>> => {
+        const key = `${book}.${chapter}`;
+        let p = simCache.get(key);
+        if (!p) {
+            const s = (plugin as any).settings;
+            p = fetch(`http://${s.host}:${s.port}/bible/chapter-similar?book=${book}&chapter=${chapter}&k=3`,
+                { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: AbortSignal.timeout(5000) })
+                .then(r => r.ok ? r.json() : { verses: {} }).then(d => d.verses || {}).catch(() => ({}));
+            simCache.set(key, p);
+        }
+        return p;
+    };
 
     plugin.registerMarkdownPostProcessor(async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
         // Derive book/chapter/version from the note PATH (robust — no dependency on frontmatter
@@ -225,6 +239,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         const fm = plugin.app.metadataCache.getCache(ctx.sourcePath)?.frontmatter;
         const paraStarts = new Set(String(fm?.["bible-parastarts"] ?? "").split(",").filter(Boolean));
         const data = await loadBook(book);
+        const sim = await loadSimilar(book, chapter);   // per-verse embedding neighbours
 
         const shown = Math.max(1, Math.min(20, (plugin as any).settings?.bibleXrefCount ?? 4));
         const hrefFor = (t: any) => {
@@ -241,7 +256,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             const vnum = (num.textContent || "").trim();
             if (paraStarts.has(vnum)) (p.closest(".el-p") || p).addClass("lm-para-start");
             const targets = (data[`${book}.${chapter}.${vnum}`] || []).filter((t: any) => BOOK_NUM[t.b]);
-            if (!targets.length) continue;
+            // Cross-reference markers (public-domain), quiet superscript letters.
             for (let i = 0; i < Math.min(targets.length, shown); i++) {
                 const t = targets[i], href = hrefFor(t);
                 const sup = p.createEl("sup");
@@ -250,13 +265,29 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                     attr: { "data-href": href, href, "aria-label": t.n } })
                     .addEventListener("click", (ev) => open(href, ev));
             }
+            // Embedding-similarity markers (verse index), distinct "≈" group, deduped against the
+            // cross-references so a passage already cross-referenced isn't shown twice.
+            const xset = new Set(targets.map((t: any) => `${t.b}.${t.c}.${t.v}`));
+            const sims = (sim[vnum] || []).filter((t: any) => BOOK_NUM[t.b] && !xset.has(`${t.b}.${t.c}.${t.v}`));
+            if (sims.length) {
+                const esup = p.createEl("sup", { cls: "lm-embed-group" });
+                esup.appendText(" ≈");
+                for (let i = 0; i < Math.min(sims.length, 2); i++) {
+                    const t = sims[i], href = hrefFor(t);
+                    esup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-embed-vlink",
+                        attr: { "data-href": href, href, "aria-label": `≈ ${t.n}` } })
+                        .addEventListener("click", (ev) => open(href, ev));
+                }
+            }
             // Click the verse number to see ALL cross-references for the verse at once.
-            num.addClass("lm-verse-num");
-            num.setAttribute("aria-label", `All ${targets.length} cross-references`);
-            num.addEventListener("click", (ev) => {
-                ev.preventDefault(); ev.stopPropagation();
-                showAllXrefs(plugin, num, `${bookLabel(book)} ${chapter}:${vnum}`, targets, hrefFor, open);
-            });
+            if (targets.length) {
+                num.addClass("lm-verse-num");
+                num.setAttribute("aria-label", `All ${targets.length} cross-references`);
+                num.addEventListener("click", (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    showAllXrefs(plugin, num, `${bookLabel(book)} ${chapter}:${vnum}`, targets, hrefFor, open);
+                });
+            }
         }
     });
 }

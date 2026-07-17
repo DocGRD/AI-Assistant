@@ -1096,6 +1096,16 @@
   cursor: pointer;
 }
 .markdown-preview-view.bible a.lm-xref:hover { text-decoration: underline; opacity: 1; }
+/* Embedding-similarity markers — a distinct "≈" group in teal with a dotted underline, so they
+   never read like the quiet cross-reference letters. */
+.markdown-preview-view.bible .lm-embed-group { color: var(--color-cyan, var(--text-muted)); opacity: 0.7; }
+.markdown-preview-view.bible a.lm-embed-vlink {
+  color: var(--color-cyan, var(--text-accent));
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  opacity: 0.9;
+}
+.markdown-preview-view.bible a.lm-embed-vlink:hover { text-decoration-style: solid; opacity: 1; }
 /* 2. Graph relation (LoreMaster graph) — injected in Phase 4; stronger accent, dotted underline. */
 .markdown-preview-view.bible a.lm-graph-link {
   color: var(--color-purple, var(--text-accent));
