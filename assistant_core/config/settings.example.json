@@ -83,5 +83,10 @@
   "background_hourly_budget": 60,
 
   "goals_enabled": true,
-  "goal_tick_seconds": 60
+  "goal_tick_seconds": 60,
+
+  "esv_api_key": "",
+  "apibible_api_key": "",
+  "apibible_nasb_id": "",
+  "apibible_nkjv_id": ""
 }

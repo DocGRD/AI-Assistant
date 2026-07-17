@@ -8,9 +8,24 @@
 // The `parseBibleRef` target→label parser and the hovercard are deliberately standalone so the
 // Phase 2 custom renderer can reuse them.
 
-import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice } from "obsidian";
+import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice, Platform } from "obsidian";
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+/** An AbortSignal that fires after `ms`. `AbortSignal.timeout` is missing on some mobile WebViews —
+ *  calling it there throws, so fall back to a controller. Never throws (returns undefined if even
+ *  that fails), so a fetch's option object can't blow up the caller synchronously. This matters:
+ *  the Bible cross-ref post-processor `await`s a backend fetch, and a synchronous throw here used
+ *  to abort the whole processor → NO cross-reference markers rendered on the phone. */
+function timeoutSignal(ms: number): AbortSignal | undefined {
+    try {
+        const anyAS = AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal };
+        if (typeof AbortSignal !== "undefined" && typeof anyAS.timeout === "function") return anyAS.timeout(ms);
+        const c = new AbortController();
+        setTimeout(() => c.abort(), ms);
+        return c.signal;
+    } catch { return undefined; }
+}
 
 // Book slug -> canonical number, for building cross-reference target paths (bible/{NN}-{slug}/...).
 const BOOK_NUM: Record<string, number> = {
@@ -32,6 +47,13 @@ export type BibleLayout = "verses" | "flow";
  *  shipped stylesheet keys on, so all `cssclasses:[bible]` notes render verse-by-verse or flowing. */
 export function applyBibleLayout(mode: BibleLayout): void {
     document.body.toggleClass("lm-bible-flow", mode === "flow");
+}
+
+/** Reader text size. Sets a CSS variable the `.bible` stylesheet multiplies its font-size by, so the
+ *  user can scale Bible reading text (80–160%) without touching Obsidian's global font size. */
+export function applyBibleFontScale(percent: number): void {
+    const clamped = Math.max(80, Math.min(200, Math.round(percent || 100)));
+    document.body.style.setProperty("--lm-bible-font-scale", String(clamped / 100));
 }
 
 export interface BibleRef {
@@ -87,60 +109,89 @@ async function readVerseText(plugin: Plugin, linkpath: string, block: string | n
         .trim();
 }
 
-/** Register the Bible cross-reference hovercard (reading view). Safe to call once from onload. */
+// ── Shared cross-ref / embedding hovercard ──────────────────────────────────
+// One card at a time. Used by BOTH desktop hover (mouseover) and mobile tap (a marker's click
+// handler), so on the phone a tap opens the card to READ — with an Open button — instead of
+// immediately navigating away.
+let hcCard: HTMLElement | null = null;
+let hcOverCard = false;
+let hcHideTimer: number | null = null;
+let hcActiveAnchor: HTMLElement | null = null;
+
+function hcDestroy(): void {
+    if (hcHideTimer) { window.clearTimeout(hcHideTimer); hcHideTimer = null; }
+    hcCard?.remove();
+    hcCard = null;
+    hcActiveAnchor = null;
+    hcOverCard = false;
+}
+function hcScheduleHide(): void {
+    if (hcHideTimer) window.clearTimeout(hcHideTimer);
+    hcHideTimer = window.setTimeout(() => { if (!hcOverCard) hcDestroy(); }, 180);
+}
+
+/** Build + position the hovercard for a marker anchor. `target` is the verse link (data-href). */
+async function showBibleHovercard(plugin: Plugin, anchor: HTMLElement, target: string): Promise<void> {
+    const ref = parseBibleRef(target);
+    if (!ref) return;
+    if (anchor === hcActiveAnchor && hcCard) return;   // already showing this one
+
+    hcDestroy();
+    hcActiveAnchor = anchor;
+    const text = await readVerseText(plugin, ref.linkpath, ref.block);
+    if (anchor !== hcActiveAnchor) return;             // moved off before the read finished
+
+    const card = document.body.createDiv("loremaster-bible-hovercard");
+    hcCard = card;
+    card.createDiv("loremaster-bible-hovercard-ref").setText(ref.label);
+    if (text) card.createDiv("loremaster-bible-hovercard-text").setText(text);
+    const actions = card.createDiv("loremaster-bible-hovercard-actions");
+    const openIn = (newLeaf: boolean) => plugin.app.workspace.openLinkText(target, "", newLeaf);
+    actions.createEl("button", { text: "Open" })
+        .addEventListener("click", () => { openIn(false); hcDestroy(); });
+    actions.createEl("button", { text: "Open in new tab" })
+        .addEventListener("click", () => { openIn(true); hcDestroy(); });
+
+    const r = anchor.getBoundingClientRect();
+    card.style.top = `${window.scrollY + r.bottom + 6}px`;
+    card.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 320)}px`;
+
+    card.addEventListener("mouseenter", () => { hcOverCard = true; });
+    card.addEventListener("mouseleave", () => { hcOverCard = false; hcScheduleHide(); });
+    // Mobile has no mouseleave — dismiss by tapping anywhere outside the card (or the anchor).
+    if (Platform.isMobile) {
+        setTimeout(() => {
+            const dismiss = (ev: Event) => {
+                const n = ev.target as Node;
+                if (hcCard && hcCard.contains(n)) return;
+                if (anchor.contains(n)) return;
+                hcDestroy();
+                document.removeEventListener("touchstart", dismiss, true);
+                document.removeEventListener("click", dismiss, true);
+            };
+            document.addEventListener("touchstart", dismiss, true);
+            document.addEventListener("click", dismiss, true);
+        }, 0);
+    }
+}
+
+/** True when a marker tap should OPEN THE CARD rather than navigate (mobile — so you can read the
+ *  verse and press Open). On desktop, hover shows the card and click navigates as before. */
+function markerTapOpensCard(): boolean {
+    return Platform.isMobile;
+}
+
+/** Register the Bible cross-reference hovercard (reading view, desktop hover). */
 export function registerBibleHovercards(plugin: Plugin): void {
-    let card: HTMLElement | null = null;
-    let overCard = false;
-    let hideTimer: number | null = null;
-    let activeAnchor: HTMLElement | null = null;
-
-    const destroy = () => {
-        if (hideTimer) { window.clearTimeout(hideTimer); hideTimer = null; }
-        card?.remove();
-        card = null;
-        activeAnchor = null;
-        overCard = false;
-    };
-    const scheduleHide = () => {
-        if (hideTimer) window.clearTimeout(hideTimer);
-        hideTimer = window.setTimeout(() => { if (!overCard) destroy(); }, 180);
-    };
-
     plugin.registerDomEvent(document, "mouseover", async (evt: MouseEvent) => {
         const t = evt.target as HTMLElement | null;
         if (!t || !(t instanceof HTMLElement)) return;
         const a = t.closest("a.lm-xref, a.lm-embed-vlink") as HTMLElement | null;   // cross-ref + embedding markers (not nav links)
         if (!a) return;
         if (!a.closest(".markdown-preview-view.bible, .markdown-reading-view.bible")) return;
-        if (a === activeAnchor && card) return;   // already showing this one
-
         const target = a.getAttribute("data-href") || a.getAttribute("href") || "";
-        const ref = parseBibleRef(target);
-        if (!ref) return;
-
-        destroy();
-        activeAnchor = a;
-        const text = await readVerseText(plugin, ref.linkpath, ref.block);
-        if (a !== activeAnchor) return;           // moved off before the read finished
-
-        card = document.body.createDiv("loremaster-bible-hovercard");
-        card.createDiv("loremaster-bible-hovercard-ref").setText(ref.label);
-        if (text) card.createDiv("loremaster-bible-hovercard-text").setText(text);
-        const actions = card.createDiv("loremaster-bible-hovercard-actions");
-        const openIn = (newLeaf: boolean) =>
-            plugin.app.workspace.openLinkText(target, "", newLeaf);
-        actions.createEl("button", { text: "Open" })
-            .addEventListener("click", () => { openIn(false); destroy(); });
-        actions.createEl("button", { text: "Open in new tab" })
-            .addEventListener("click", () => { openIn(true); destroy(); });
-
-        const r = a.getBoundingClientRect();
-        card.style.top = `${window.scrollY + r.bottom + 6}px`;
-        card.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 320)}px`;
-
-        card.addEventListener("mouseenter", () => { overCard = true; });
-        card.addEventListener("mouseleave", () => { overCard = false; scheduleHide(); });
-        a.addEventListener("mouseleave", scheduleHide, { once: true });
+        await showBibleHovercard(plugin, a, target);
+        a.addEventListener("mouseleave", hcScheduleHide, { once: true });
     });
 }
 
@@ -206,10 +257,17 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         const key = `${book}.${chapter}`;
         let p = simCache.get(key);
         if (!p) {
-            const s = (plugin as any).settings;
-            p = fetch(`http://${s.host}:${s.port}/bible/chapter-similar?book=${book}&chapter=${chapter}&k=3`,
-                { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: AbortSignal.timeout(5000) })
-                .then(r => r.ok ? r.json() : { verses: {} }).then(d => d.verses || {}).catch(() => ({}));
+            // Build defensively: nothing here may THROW synchronously, or it would abort the
+            // post-processor before cross-ref markers are injected (the phone bug — see timeoutSignal).
+            p = (async () => {
+                try {
+                    const s = (plugin as any).settings;
+                    const r = await fetch(`http://${s.host}:${s.port}/bible/chapter-similar?book=${book}&chapter=${chapter}&k=3`,
+                        { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: timeoutSignal(5000) });
+                    if (!r.ok) return {};
+                    return (await r.json()).verses || {};
+                } catch { return {}; }
+            })();
             simCache.set(key, p);
         }
         return p;
@@ -251,6 +309,16 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             ev.preventDefault();
             plugin.app.workspace.openLinkText(href, ctx.sourcePath, ev.ctrlKey || ev.metaKey);
         };
+        // A marker tap: on mobile, open the read-card (with an Open button) instead of jumping away
+        // — previously a phone tap both popped the card AND navigated. Desktop click still navigates.
+        const onMarkerClick = (anchorEl: HTMLElement, href: string) => (ev: MouseEvent) => {
+            if (markerTapOpensCard()) {
+                ev.preventDefault(); ev.stopPropagation();
+                void showBibleHovercard(plugin, anchorEl, href);
+            } else {
+                open(href, ev);
+            }
+        };
         for (const p of verses) {
             p.setAttribute("data-lm-xref", "1");
             const num = p.firstElementChild as HTMLElement;
@@ -262,9 +330,9 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                 const t = targets[i], href = hrefFor(t);
                 const sup = p.createEl("sup");
                 sup.appendText(" ");
-                sup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-xref",
-                    attr: { "data-href": href, href, "aria-label": t.n } })
-                    .addEventListener("click", (ev) => open(href, ev));
+                const a = sup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-xref",
+                    attr: { "data-href": href, href, "aria-label": t.n } });
+                a.addEventListener("click", onMarkerClick(a, href));
             }
             // Embedding-similarity markers (verse index), distinct "≈" group, deduped against the
             // cross-references so a passage already cross-referenced isn't shown twice.
@@ -275,9 +343,10 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                 esup.appendText(" ≈");
                 for (let i = 0; i < Math.min(sims.length, 2); i++) {
                     const t = sims[i], href = hrefFor(t);
-                    esup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-embed-vlink",
-                        attr: { "data-href": href, href, "aria-label": `≈ ${t.n}` } })
-                        .addEventListener("click", (ev) => open(href, ev));
+                    esup.appendText(" ");   // space the ≈ markers apart (they used to run together)
+                    const a = esup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-embed-vlink",
+                        attr: { "data-href": href, href, "aria-label": `≈ ${t.n}` } });
+                    a.addEventListener("click", onMarkerClick(a, href));
                 }
             }
             // Click the verse number to see ALL cross-references for the verse at once.
@@ -330,7 +399,7 @@ export function registerBibleEmbeddingLinks(plugin: Plugin): void {
         let notes: { path: string }[] = [];
         try {
             const resp = await fetch(`http://${s.host}:${s.port}/relevant?path=${encodeURIComponent(file.path)}&k=12`,
-                { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: AbortSignal.timeout(5000) });
+                { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: timeoutSignal(5000) });
             if (resp.ok) notes = (await resp.json()).notes ?? [];
         } catch { return; }
         if (!notes.length) return;
@@ -445,5 +514,121 @@ export function registerBiblePaste(plugin: Plugin): void {
         id: "bible-paste-chapter",
         name: "Bible: paste a chapter (new translation)",
         callback: () => new BiblePasteModal(plugin).open(),
+    });
+}
+
+// ── Licensed online versions (ESV / NASB / NKJV) — fetched via the backend proxy, cached in the
+//    vault as normal bible notes so they're only ever fetched once and get the full reader treatment.
+const VERSION_LABELS: Record<string, string> = { esv: "ESV", nasb: "NASB", nkjv: "NKJV" };
+
+function versionCachePath(bookSlug: string, chapter: number, version: string): string | null {
+    const num = BOOK_NUM[bookSlug];
+    if (!num) return null;
+    return `bible/${pad2(num)}-${bookSlug}/${version}/${bookSlug}-${pad3(chapter)}.md`;
+}
+
+/** Build a standard bible note from fetched verses (+ a visible copyright footer, which the
+ *  licenses require). Paragraph metadata isn't available from the text APIs, so the whole chapter
+ *  is one paragraph (flow layout still works; cross-refs/red-letter come from the reader). */
+function formatVersionChapter(verses: Record<string, string>, bookSlug: string, chapter: number,
+                              version: string, copyright: string): { path: string; note: string; verses: number } | { error: string } {
+    const num = BOOK_NUM[bookSlug];
+    if (!num) return { error: `Unknown book slug "${bookSlug}".` };
+    const nums = Object.keys(verses).map(n => parseInt(n, 10)).filter(n => n > 0).sort((a, b) => a - b);
+    if (!nums.length) return { error: "No verses returned." };
+    const fm = ["---", "cssclasses:", "  - bible", `bible-version: ${version}`,
+        `bible-book: ${bookSlug}`, `bible-booknum: ${num}`, `bible-chapter: ${chapter}`,
+        "bible-parastarts: 1"];
+    if (copyright) fm.push(`bible-copyright: ${JSON.stringify(copyright)}`);
+    fm.push("---", "", `# ${bookLabel(bookSlug)} ${chapter}`, "");
+    const body = nums.map(n => `**${n}** ${verses[String(n)]} ^v${n}`);
+    const footer = copyright ? ["", "---", "", `*${copyright}*`] : [];
+    return { path: versionCachePath(bookSlug, chapter, version)!,
+             note: fm.concat(body, footer).join("\n") + "\n", verses: nums.length };
+}
+
+/** ESV's API terms cap cached verses at 500. Before adding an ESV chapter, trash the oldest cached
+ *  ESV chapter notes (vault-local trash, recoverable) until the new one fits. */
+async function enforceEsvCap(plugin: Plugin, adding: number): Promise<number> {
+    const CAP = 500;
+    const files = plugin.app.vault.getFiles().filter(f =>
+        f.path.startsWith("bible/") && f.path.includes("/esv/")
+        && f.path.endsWith(".md") && !f.path.endsWith("/esv.md"));
+    const infos: { f: TFile; n: number; mtime: number }[] = [];
+    let total = 0;
+    for (const f of files) {
+        const c = await plugin.app.vault.cachedRead(f);
+        const n = (c.match(/\^v\d+/g) || []).length;
+        infos.push({ f, n, mtime: f.stat.mtime });
+        total += n;
+    }
+    infos.sort((a, b) => a.mtime - b.mtime);   // oldest first
+    let evicted = 0, i = 0;
+    while (total + adding > CAP && i < infos.length) {
+        try { await plugin.app.vault.trash(infos[i].f, false); total -= infos[i].n; evicted++; } catch { /* skip */ }
+        i++;
+    }
+    return evicted;
+}
+
+class BibleVersionModal extends Modal {
+    constructor(private plugin: Plugin) { super(plugin.app); }
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Get a Bible chapter (online version)" });
+        contentEl.createEl("p", { cls: "setting-item-description",
+            text: "Fetches from a licensed version via your local service and saves it in the vault, " +
+                  "so it's only fetched once. Requires the version's API key in the service settings." });
+        let book = "", version = "esv", chapter = "";
+        new Setting(contentEl).setName("Version")
+            .addDropdown(d => d.addOption("esv", "ESV").addOption("nasb", "NASB").addOption("nkjv", "NKJV")
+                .setValue("esv").onChange(v => version = v));
+        new Setting(contentEl).setName("Book").setDesc("slug — e.g. john, 1-corinthians, psalms")
+            .addText(t => t.onChange(v => book = v));
+        new Setting(contentEl).setName("Chapter")
+            .addText(t => { t.inputEl.type = "number"; t.onChange(v => chapter = v); });
+        const status = contentEl.createEl("p", { cls: "setting-item-description" });
+        new Setting(contentEl).addButton(b => b.setButtonText("Get & open").setCta().onClick(async () => {
+            const slug = book.toLowerCase().trim(), ch = parseInt(chapter, 10), ver = version.toLowerCase().trim();
+            const path = versionCachePath(slug, ch, ver);
+            if (!path) { status.setText(`Unknown book slug "${slug}".`); return; }
+            // Already cached → just open it (no fetch).
+            if (this.plugin.app.vault.getAbstractFileByPath(path)) {
+                this.close();
+                this.plugin.app.workspace.openLinkText(path, "", false);
+                return;
+            }
+            status.setText(`Fetching ${VERSION_LABELS[ver] || ver} ${bookLabel(slug)} ${ch}…`);
+            const s = (this.plugin as any).settings;
+            let data: any;
+            try {
+                const r = await fetch(`http://${s.host}:${s.port}/bible/passage?version=${ver}&book=${slug}&chapter=${ch}`,
+                    { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: timeoutSignal(20000) });
+                data = await r.json();
+            } catch (e) { status.setText(`Service unreachable: ${e}`); return; }
+            if (!data || data.error || !data.ok) { status.setText(data?.error || "Fetch failed."); return; }
+            const built = formatVersionChapter(data.verses || {}, slug, ch, ver, data.copyright || "");
+            if ("error" in built) { status.setText(built.error); return; }
+            if (ver === "esv") {
+                const evicted = await enforceEsvCap(this.plugin, built.verses);
+                if (evicted) new Notice(`Removed ${evicted} older ESV chapter(s) to stay within the 500-verse cache limit.`);
+            }
+            const folder = built.path.split("/").slice(0, -1).join("/");
+            try { await this.plugin.app.vault.createFolder(folder); } catch { /* exists */ }
+            await this.plugin.app.vault.create(built.path, built.note);
+            new Notice(`Saved ${built.verses} verses → ${built.path}`);
+            this.close();
+            this.plugin.app.workspace.openLinkText(built.path, "", false);
+        }));
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+/** Register the "get a chapter from a licensed online version (ESV/NASB/NKJV)" command. */
+export function registerBibleVersions(plugin: Plugin): void {
+    plugin.addCommand({
+        id: "bible-get-version-chapter",
+        name: "Bible: get a chapter (ESV / NASB / NKJV)",
+        callback: () => new BibleVersionModal(plugin).open(),
     });
 }

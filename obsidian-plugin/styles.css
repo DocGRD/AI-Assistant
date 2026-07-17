@@ -1013,7 +1013,8 @@
   --file-line-width: 38rem;
   font-family: var(--font-text-override, Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif);
   line-height: 1.85;
-  font-size: 1.05em;
+  /* Base reader size × the user's Text-size setting (--lm-bible-font-scale, default 1). */
+  font-size: calc(1.05em * var(--lm-bible-font-scale, 1));
 }
 .markdown-preview-view.bible h1 {   /* chapter heading */
   font-size: 1.9em; font-weight: 600; border: none;

@@ -1879,6 +1879,18 @@ class AssistantServer:
                 logger.warning(f"[Server] /bible/chapter-similar failed: {exc}")
                 return {"verses": {}, "ready": False}
 
+        # ── GET /bible/passage — fetch a chapter of a licensed version (ESV/NASB/NKJV) ──
+        @app.get("/bible/passage")
+        async def bible_passage(version: str, book: str, chapter: int):
+            """Proxy the licensed provider (keys stay server-side) → {ok, verses, copyright}. The
+            plugin caches the result as a vault note, so each chapter is fetched at most once."""
+            try:
+                from assistant_core.bible import versions
+                return versions.fetch_chapter(version, book, int(chapter), self._config)
+            except Exception as exc:
+                logger.warning(f"[Server] /bible/passage failed: {exc}")
+                return {"error": f"passage fetch failed: {exc}"}
+
         # ── GET /history ────────────────────────────────────────────────────
         @app.get("/history", response_model=HistoryResponse)
         async def history():

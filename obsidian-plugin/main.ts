@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, applyBibleLayout, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBibleVersions, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -15,6 +15,7 @@ export interface AIAssistantSettings {
     reader: ReaderSettings; // v1.7 — read-aloud speed + voice
     bibleLayout: BibleLayout; // Phase 2 — verse-by-verse vs flowing paragraph reading
     bibleXrefCount: number; // how many cross-reference markers to show inline per verse (1–20)
+    bibleFontScale: number; // Bible reader text size, percent of normal (80–160)
 }
 
 const DEFAULT_SETTINGS: AIAssistantSettings = {
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS: AIAssistantSettings = {
     reader: { speed: 1, voiceName: "" },
     bibleLayout: "verses",
     bibleXrefCount: 4,
+    bibleFontScale: 100,
 };
 
 // ---------------------------------------------------------------------------
@@ -47,8 +49,13 @@ export default class AIAssistantPlugin extends Plugin {
         registerBibleEmbeddingLinks(this);
         // "Paste a chapter from another translation" command.
         registerBiblePaste(this);
+        // Fetch a chapter from a licensed online version (ESV / NASB / NKJV) via the backend proxy,
+        // cache it in the vault, and open it. Keys live server-side; cached notes are reused.
+        registerBibleVersions(this);
         // Bible reading layout (verse-by-verse vs flowing) — plugin-owned, no CSS snippet needed.
         applyBibleLayout(this.settings.bibleLayout);
+        // Bible reader text size (user-adjustable, independent of Obsidian's global font size).
+        applyBibleFontScale(this.settings.bibleFontScale);
         // Auto-open Bible chapter notes in Reading view (the cross-ref overlay + hidden ^v anchors
         // + layout are all reading-view features). Only flips a note that opened in edit mode.
         this.registerEvent(this.app.workspace.on("file-open", (file) => {
@@ -480,6 +487,20 @@ class AIAssistantSettingTab extends PluginSettingTab {
                     .setDynamicTooltip()
                     .onChange(async (v) => {
                         this.plugin.settings.bibleXrefCount = v;
+                        await this.plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName("Text size")
+            .setDesc("Reading text size in Bible notes, as a percent of normal (applies to the reader only).")
+            .addSlider((s) =>
+                s.setLimits(80, 160, 5)
+                    .setValue(this.plugin.settings.bibleFontScale)
+                    .setDynamicTooltip()
+                    .onChange(async (v) => {
+                        this.plugin.settings.bibleFontScale = v;
+                        applyBibleFontScale(v);
                         await this.plugin.saveSettings();
                     })
             );
