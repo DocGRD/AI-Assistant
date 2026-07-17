@@ -1,4 +1,4 @@
-<!-- help-version: 31 -->
+<!-- help-version: 32 -->
 ---
 tags: [help, user-guide]
 ---
@@ -18,8 +18,21 @@ Open one in **Reading view** (chapters auto-open there) and you get:
   same for every translation.
 - **Verse-by-verse or flowing paragraphs** — run the command *"Bible: toggle reading layout"*.
 - **Poetry** (Psalms, Proverbs) laid out as indented poetry; **prose** grouped into paragraphs.
+- **Red-letter** — the words of Christ (Gospels, Acts, Revelation) render in red.
+- **"Related by meaning"** — a distinct section per chapter with embedding-similar passages, plus a
+  per-verse `≈` marker; both deduplicated against the cross-references.
+- **Text size** — Settings → Loremaster → Bible reader → **Text size** (80–160%), reader-only.
+- **On mobile**, tap a superscript marker to open its read-card (with **Open**) rather than jumping away.
 
-### Add a chapter from another translation
+### Get a chapter from a licensed online version (ESV / NASB / NKJV)
+
+The fastest way to add another translation: run the command **"Bible: get a chapter (ESV / NASB / NKJV)"**,
+pick the version, book slug and chapter. LoreMaster fetches it through your local service (your API keys
+stay on the service — set them under *Privacy & Settings → Bible version keys*), **saves it in the vault**,
+and opens it — so it's only ever fetched once and gets the full reader treatment. ESV automatically honours
+its 500-verse caching cap.
+
+### Add a chapter from another translation (by hand / paste)
 
 The WEB is included; you can add a chapter of any translation **you have legal access to** by pasting
 it into a note in the standard format (the cross-references then appear automatically — you never add
@@ -51,8 +64,9 @@ bible-parastarts: 1,16,22
 Rules: each verse is `**{number}** {text} ^v{number}` (the `^v#` anchor is what cross-references land
 on); `bible-parastarts` lists the verses that begin a new paragraph; for poetry, indent second lines
 with an em-space. **Copyright:** only add translations you're licensed to store (WEB is public domain;
-ESV/NASB/NKJV are copyrighted — use them only within their terms). An automated "paste a chapter and
-LoreMaster formats it" tool is planned.
+ESV/NASB/NKJV are copyrighted — use them only within their terms). Prefer the command
+*"Bible: paste a chapter (new translation)"* — paste the raw text and LoreMaster splits it into the
+standard verse format for you.
 
 ## What's new in v1.6 (quick map)
 - **📥 Approvals inbox** (sidebar badge-button → modal) — every background proposal in one place:

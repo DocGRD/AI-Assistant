@@ -1,10 +1,24 @@
-<!-- help-version: 31 -->
+<!-- help-version: 32 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.35**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.39**.*
+
+## Bible: red-letter, online versions, text size, phone fixes (v1.10.38–v1.10.39)
+- **Red-letter (words of Christ).** In the Gospels, Acts and Revelation, the words of Jesus render
+  in red — automatically, from the source text.
+- **Online versions (ESV / NASB / NKJV).** Command *"Bible: get a chapter (ESV / NASB / NKJV)"*
+  fetches a chapter from a licensed version through your local service and **saves it in the vault**,
+  so it's only ever fetched once and gets the full reader treatment (cross-references, hovercards,
+  layout). Keys live in the service settings — see *Privacy & Settings*. ESV honours its 500-verse
+  caching cap automatically.
+- **Text size.** Settings → Loremaster → Bible reader → **Text size** scales the reader's text
+  (80–160%) without changing Obsidian's global font size.
+- **Phone fixes.** Cross-references now render on mobile (a compatibility bug hid them), and tapping
+  a superscript marker on the phone now opens the read-card (with an **Open** button) instead of
+  jumping straight to the verse — so you can read it first, then choose to open it.
 
 ## Bible study: related-by-meaning, "see all", classic typography (v1.10.32–v1.10.35)
 - **"Related by meaning."** Below each chapter, a distinct dashed-link section shows passages the
