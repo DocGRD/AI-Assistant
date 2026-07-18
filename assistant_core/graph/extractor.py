@@ -23,11 +23,10 @@ EXTRACT_SYSTEM = (
     "You build a knowledge graph. From the note, list the key entities (people, places, concepts, "
     "books, works, projects, events) and how they relate — one relationship per line, in exactly "
     "the form:  Subject | relation | Object\n"
-    "Rules: canonical Title-Case entity names; a 1-3 word lowercase relation (e.g. 'is a', 'wrote', "
-    "'uses', 'part of', 'refers to'); include only relationships the note actually states or clearly "
-    f"implies — do NOT invent facts; at most {_MAX_TRIPLES}. Extract every clear one you can find. "
-    "Output ONLY the triple lines — no headings, no commentary. Only if there is truly nothing, "
-    "output exactly NONE."
+    "Use canonical Title-Case entity names and a 1-3 word lowercase relation (e.g. 'is a', 'wrote', "
+    "'uses', 'part of', 'refers to'). Extract every clear relationship the note supports, up to "
+    f"{_MAX_TRIPLES}. Output ONLY the triple lines — no headings, no commentary. Only if there is "
+    "truly nothing, output exactly NONE."
 )
 
 # A safe entity name: letters/digits/spaces/hyphen, trimmed, not absurdly long.
