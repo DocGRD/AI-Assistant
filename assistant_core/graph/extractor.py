@@ -45,8 +45,22 @@ def _clean_entity(name: str) -> str:
     return name
 
 
+def _clean_for_extraction(text: str) -> str:
+    """Strip markdown/provenance clutter to plain prose — small local models extract far better from
+    clean text than from raw notes full of headings, `> Ingested from …` blockquotes, wikilinks,
+    verse markers and HTML spans."""
+    text = re.sub(r"<[^>]+>", " ", text)                          # HTML / Strong's spans
+    text = re.sub(r"\[\[[^\]|]*\|([^\]]*)\]\]", r"\1", text)       # [[target|alias]] -> alias
+    text = re.sub(r"\[\[([^\]]*)\]\]", r"\1", text)               # [[wikilink]] -> text
+    text = re.sub(r"^\s*>.*$", "", text, flags=re.MULTILINE)       # blockquotes (provenance etc.)
+    text = re.sub(r"\^v\d+", " ", text)                          # verse anchors
+    text = re.sub(r"[#*`_|]", " ", text)                          # markdown emphasis/headings/table pipes
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def parse_triples(reply: str) -> list[tuple[str, str, str]]:
     """Parse `Subject | relation | Object` lines. Skips blanks/malformed; '' on NONE."""
+    reply = re.sub(r"^```[a-z]*\s*|\s*```$", "", reply.strip())   # unwrap a ```code fence``` (small models add one)
     if reply.strip().upper().startswith("NONE"):
         return []
     out: list[tuple[str, str, str]] = []
@@ -77,9 +91,12 @@ def extract_triples(router, note_text: str, private: bool = True) -> list[tuple[
     override = str((router.config or {}).get("graph_extraction_provider", "ollama") or "").lower()
     if override and override not in router.available_models:
         override = None
+    clean = _clean_for_extraction(note_text)
+    if len(clean) < 40:
+        return []                                   # nothing substantive to extract
     try:
         reply, used = router.generate(
-            messages=[Message(role="user", content=note_text[:8000])],
+            messages=[Message(role="user", content=clean[:8000])],
             system_prompt=EXTRACT_SYSTEM, max_tokens=400, temperature=0.2,
             private=True, allow_webui_on_private=False,
             provider_override=override or None,
