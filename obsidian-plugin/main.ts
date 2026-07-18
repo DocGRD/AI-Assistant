@@ -3,7 +3,7 @@ import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_T
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
 import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBibleVersions, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
-import { registerBibleStrongs } from "./bible-strongs";
+import { registerBibleStrongs, registerBibleStrongsHover } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
 
 // ---------------------------------------------------------------------------
@@ -18,6 +18,8 @@ export interface AIAssistantSettings {
     bibleLayout: BibleLayout; // Phase 2 — verse-by-verse vs flowing paragraph reading
     bibleXrefCount: number; // how many cross-reference markers to show inline per verse (1–20)
     bibleFontScale: number; // Bible reader text size, percent of normal (80–160)
+    bibleShowXrefs: boolean;  // show inline cross-reference markers
+    bibleShowEmbeds: boolean; // show inline related-by-meaning (≈) markers
 }
 
 const DEFAULT_SETTINGS: AIAssistantSettings = {
@@ -29,6 +31,8 @@ const DEFAULT_SETTINGS: AIAssistantSettings = {
     bibleLayout: "verses",
     bibleXrefCount: 4,
     bibleFontScale: 100,
+    bibleShowXrefs: true,
+    bibleShowEmbeds: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -56,6 +60,9 @@ export default class AIAssistantPlugin extends Plugin {
         registerBibleVersions(this);
         // Strong's study tools — per-chapter interlinear + concordance (KJV+Strong's sidecar data).
         registerBibleStrongs(this);
+        // Word-level Strong's popup on KJV notes — hover (desktop) / tap (mobile) a word → original
+        // Hebrew/Greek word + number + gloss, with a link to the full Strong's entry.
+        registerBibleStrongsHover(this);
         // Personal commentary — your own verse-attached notes, marked + listed in the reader.
         registerBibleCommentary(this);
         // Bible reading layout (verse-by-verse vs flowing) — plugin-owned, no CSS snippet needed.
@@ -509,6 +516,27 @@ class AIAssistantSettingTab extends PluginSettingTab {
                         applyBibleFontScale(v);
                         await this.plugin.saveSettings();
                     })
+            );
+
+        new Setting(containerEl)
+            .setName("Show cross-reference markers")
+            .setDesc("The small superscript letters after each verse. Turn off to hide them (the verse " +
+                     "number still opens the full list). Re-open a chapter to apply.")
+            .addToggle((t) =>
+                t.setValue(this.plugin.settings.bibleShowXrefs).onChange(async (v) => {
+                    this.plugin.settings.bibleShowXrefs = v;
+                    await this.plugin.saveSettings();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName("Show related-by-meaning markers")
+            .setDesc("The ≈ links from embeddings. Turn off to hide them. Re-open a chapter to apply.")
+            .addToggle((t) =>
+                t.setValue(this.plugin.settings.bibleShowEmbeds).onChange(async (v) => {
+                    this.plugin.settings.bibleShowEmbeds = v;
+                    await this.plugin.saveSettings();
+                })
             );
 
         // Status check

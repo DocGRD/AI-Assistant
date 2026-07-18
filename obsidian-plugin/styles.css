@@ -1187,3 +1187,43 @@ body.lm-bible-flow .markdown-preview-view.bible .el-em { display: block; }
 .lm-comm-list { display: flex; flex-direction: column; gap: 3px; }
 .lm-comm-link { color: var(--color-purple, var(--text-accent)); text-decoration: none; cursor: pointer; }
 .lm-comm-link:hover { text-decoration: underline; }
+
+/* ── Word-level Strong's (KJV notes): tagged words + hover/tap popup ── */
+.markdown-preview-view.bible span.lm-s { cursor: help; }
+.markdown-preview-view.bible span.lm-s:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--text-accent);
+}
+.lm-strongs-pop {
+  position: absolute; z-index: var(--layer-menu, 100); max-width: 320px;
+  padding: 8px 10px; background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border-hover, var(--background-modifier-border));
+  border-radius: 8px; box-shadow: var(--shadow-s); font-size: 13px; line-height: 1.4;
+}
+.lm-strongs-pop-row { margin-bottom: 6px; }
+.lm-strongs-pop-row:last-of-type { margin-bottom: 4px; }
+.lm-strongs-pop-head .lm-strongs-lemma { font-size: 1.3em; }
+.lm-strongs-pop-head .lm-strongs-translit { color: var(--text-muted); font-style: italic; }
+.lm-strongs-pop-head .lm-strongs-num { color: var(--text-accent); text-decoration: none; font-weight: 600; }
+.lm-strongs-pop-head .lm-strongs-num:hover { text-decoration: underline; }
+.lm-strongs-pop .lm-strongs-gloss { color: var(--text-normal); margin-top: 2px; font-size: 0.92em; }
+.lm-strongs-pop-open { display: inline-block; margin-top: 4px; color: var(--text-accent); text-decoration: none; font-size: 0.9em; }
+.lm-strongs-pop-open:hover { text-decoration: underline; }
+
+/* Hide the filename (inline title) in reading mode for Bible chapters — the note has its own
+   centered "# Book N" heading, so the "john-003" filename above it is redundant. */
+.markdown-preview-view.bible .inline-title,
+.markdown-reading-view.bible .inline-title { display: none; }
+
+/* "See all" verse-number panel — close button + section subheadings. */
+.loremaster-bible-allxref-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.loremaster-bible-allxref-close {
+  border: none; background: transparent; color: var(--text-muted); cursor: pointer;
+  font-size: 18px; line-height: 1; padding: 0 2px;
+}
+.loremaster-bible-allxref-close:hover { color: var(--text-normal); }
+.loremaster-bible-allxref-sub {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-muted); margin: 6px 4px 3px;
+}

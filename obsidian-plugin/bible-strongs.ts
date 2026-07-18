@@ -8,7 +8,7 @@
 //   _words.json          KJV head-word -> [strongs]   (word-based concordance search)
 //   _lexicon-H/G.json    {strong: {l: lemma, t: translit, g: gloss}}
 
-import { Plugin, TFile, MarkdownView, Modal, Setting } from "obsidian";
+import { Plugin, TFile, MarkdownView, Modal, Setting, Platform } from "obsidian";
 import { BOOK_NUM, pad2, pad3, bookLabel } from "./bible";
 
 type Interlinear = Record<string, [string, string[]][]>;
@@ -157,6 +157,80 @@ class ConcordanceModal extends Modal {
         }
     }
     onClose(): void { this.contentEl.empty(); }
+}
+
+// ── Word-level Strong's popup ────────────────────────────────────────────────
+// KJV notes carry per-word `<span class="lm-s" data-s="H430">…</span>`. On hover (desktop) or tap
+// (mobile) of a tagged word, show its original Hebrew/Greek word + transliteration + number + gloss,
+// with a link to open the full Strong's entry (the concordance modal).
+export function registerBibleStrongsHover(plugin: Plugin): void {
+    const data = new StrongsData(plugin);
+    let card: HTMLElement | null = null;
+    let overCard = false;
+    let dwell: number | null = null;
+    let hideT: number | null = null;
+    let activeSpan: HTMLElement | null = null;
+
+    const destroy = () => {
+        if (dwell) { window.clearTimeout(dwell); dwell = null; }
+        if (hideT) { window.clearTimeout(hideT); hideT = null; }
+        card?.remove(); card = null; activeSpan = null; overCard = false;
+    };
+    const scheduleHide = () => {
+        if (hideT) window.clearTimeout(hideT);
+        hideT = window.setTimeout(() => { if (!overCard) destroy(); }, 200);
+    };
+
+    const build = async (span: HTMLElement) => {
+        const codes = (span.getAttribute("data-s") || "").split(/\s+/).filter(Boolean);
+        if (!codes.length) return;
+        destroy();
+        activeSpan = span;
+        const c = document.body.createDiv("lm-strongs-pop");
+        card = c;
+        for (const s of codes) {
+            const lex = (await data.lexicon(s))[s];
+            if (span !== activeSpan) return;                 // moved away before load
+            const row = c.createDiv("lm-strongs-pop-row");
+            const head = row.createDiv("lm-strongs-pop-head");
+            if (lex?.l) head.createSpan({ cls: "lm-strongs-lemma", text: lex.l });
+            if (lex?.t) head.createSpan({ cls: "lm-strongs-translit", text: ` ${lex.t}` });
+            head.createEl("a", { text: ` ${s}`, cls: "lm-strongs-num", href: "#" })
+                .addEventListener("click", (e) => { e.preventDefault(); destroy(); new ConcordanceModal(plugin, data, s).open(); });
+            if (lex?.g) row.createDiv({ cls: "lm-strongs-gloss", text: lex.g.length > 160 ? lex.g.slice(0, 160) + "…" : lex.g });
+        }
+        c.createEl("a", { text: "Open Strong's entry →", cls: "lm-strongs-pop-open", href: "#" })
+            .addEventListener("click", (e) => { e.preventDefault(); const s = codes[0]; destroy(); new ConcordanceModal(plugin, data, s).open(); });
+        const r = span.getBoundingClientRect();
+        c.style.top = `${window.scrollY + r.bottom + 4}px`;
+        c.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 320)}px`;
+        c.addEventListener("mouseenter", () => { overCard = true; });
+        c.addEventListener("mouseleave", () => { overCard = false; scheduleHide(); });
+    };
+
+    const spanAt = (t: EventTarget | null): HTMLElement | null => {
+        const el = t as HTMLElement | null;
+        if (!el || !(el instanceof HTMLElement)) return null;
+        const s = el.closest("span.lm-s") as HTMLElement | null;
+        if (!s || !s.closest(".markdown-preview-view.bible, .markdown-reading-view.bible")) return null;
+        return s;
+    };
+
+    // Register BOTH — hover for desktop, tap/click for phone (and desktop click as a bonus). We don't
+    // gate on Platform.isMobile because it's unreliable across environments; a touch device simply
+    // never fires mouseover, and a desktop gets both. Tapping away dismisses.
+    plugin.registerDomEvent(document, "click", (evt: MouseEvent) => {
+        const s = spanAt(evt.target);
+        if (s) { evt.preventDefault(); evt.stopPropagation(); void build(s); return; }
+        if (card && !card.contains(evt.target as Node)) destroy();
+    });
+    plugin.registerDomEvent(document, "mouseover", (evt: MouseEvent) => {
+        const s = spanAt(evt.target);
+        if (!s || s === activeSpan) return;
+        if (dwell) window.clearTimeout(dwell);
+        dwell = window.setTimeout(() => void build(s), 220);
+        s.addEventListener("mouseleave", () => { if (dwell) { window.clearTimeout(dwell); dwell = null; } scheduleHide(); }, { once: true });
+    });
 }
 
 /** Register the interlinear + concordance commands. */

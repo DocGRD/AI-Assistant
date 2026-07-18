@@ -84,7 +84,7 @@ export function parseBibleRef(target: string): BibleRef | null {
 }
 
 /** Pull a single verse's clean reading text out of a chapter note by its block anchor. */
-async function readVerseText(plugin: Plugin, linkpath: string, block: string | null): Promise<string> {
+export async function readVerseText(plugin: Plugin, linkpath: string, block: string | null): Promise<string> {
     const file = plugin.app.metadataCache.getFirstLinkpathDest(linkpath, "");
     if (!(file instanceof TFile)) return "";
     if (!block) return "";
@@ -205,34 +205,56 @@ export function bookLabel(slug: string): string {
         .join(" ");
 }
 
-/** Click a verse number → a panel listing ALL cross-references for that verse (each opens the verse). */
+/** Click/tap a verse number → a panel listing ALL cross-references AND all related-by-meaning links
+ *  for that verse. Tapping a listed reference opens the same read-card as the inline markers. Has a
+ *  close (×) button and dismisses on Escape or a tap/click outside (touch-friendly). */
 let allXrefPanel: HTMLElement | null = null;
-function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string, targets: any[],
-                      hrefFor: (t: any) => string, open: (h: string, e: MouseEvent) => void): void {
+function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
+                      xrefs: any[], embeds: any[], hrefFor: (t: any) => string): void {
     allXrefPanel?.remove();
     const panel = document.body.createDiv("loremaster-bible-allxref");
     allXrefPanel = panel;
-    panel.createDiv("loremaster-bible-allxref-head").setText(`${label} — cross-references (${targets.length})`);
-    const list = panel.createDiv("loremaster-bible-allxref-list");
-    for (const t of targets) {
-        const href = hrefFor(t);
-        list.createEl("a", { text: t.n, cls: "loremaster-bible-allxref-item", attr: { href } })
-            .addEventListener("click", (ev) => { open(href, ev as MouseEvent); close(); });
-    }
+    const head = panel.createDiv("loremaster-bible-allxref-head");
+    head.createSpan({ text: label });
+    head.createEl("button", { text: "×", cls: "loremaster-bible-allxref-close", attr: { "aria-label": "Close" } })
+        .addEventListener("click", (e) => { e.stopPropagation(); close(); });
+
+    const section = (title: string, items: any[]) => {
+        if (!items.length) return;
+        panel.createDiv("loremaster-bible-allxref-sub").setText(title);
+        const list = panel.createDiv("loremaster-bible-allxref-list");
+        for (const t of items) {
+            const href = hrefFor(t);
+            const a = list.createEl("a", { text: t.n, cls: "loremaster-bible-allxref-item", attr: { href } });
+            // Tap a listed reference → the same read-card (verse text + Open) as the inline markers.
+            a.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); void showBibleHovercard(plugin, a, href); });
+        }
+    };
+    section(`Cross-references (${xrefs.length})`, xrefs);
+    section(`Related by meaning (${embeds.length})`, embeds);
+    if (!xrefs.length && !embeds.length) panel.createDiv("loremaster-bible-allxref-sub").setText("No links for this verse.");
+
     const r = anchor.getBoundingClientRect();
     panel.style.top = `${window.scrollY + r.bottom + 4}px`;
     panel.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 260)}px`;
     const close = () => {
         panel.remove(); if (allXrefPanel === panel) allXrefPanel = null;
-        document.removeEventListener("mousedown", dismiss, true);
+        document.removeEventListener("pointerdown", dismiss, true);
+        document.removeEventListener("click", dismiss, true);
         document.removeEventListener("keydown", dismiss, true);
     };
     const dismiss = (ev: Event) => {
         if (ev instanceof KeyboardEvent) { if (ev.key === "Escape") close(); return; }
-        if (!panel.contains(ev.target as Node)) close();
+        // ignore taps inside the panel or on the read-card the panel spawned
+        const n = ev.target as Node;
+        if (panel.contains(n) || (hcCard && hcCard.contains(n))) return;
+        close();
     };
+    // pointerdown covers touch + mouse; click as a backup (some mobile webviews). Delay so the
+    // opening tap doesn't immediately dismiss it.
     setTimeout(() => {
-        document.addEventListener("mousedown", dismiss, true);
+        document.addEventListener("pointerdown", dismiss, true);
+        document.addEventListener("click", dismiss, true);
         document.addEventListener("keydown", dismiss, true);
     }, 0);
 }
@@ -262,7 +284,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             p = (async () => {
                 try {
                     const s = (plugin as any).settings;
-                    const r = await fetch(`http://${s.host}:${s.port}/bible/chapter-similar?book=${book}&chapter=${chapter}&k=3`,
+                    const r = await fetch(`http://${s.host}:${s.port}/bible/chapter-similar?book=${book}&chapter=${chapter}&k=8`,
                         { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: timeoutSignal(5000) });
                     if (!r.ok) return {};
                     return (await r.json()).verses || {};
@@ -301,6 +323,9 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         const sim = await loadSimilar(book, chapter);   // per-verse embedding neighbours
 
         const shown = Math.max(1, Math.min(20, (plugin as any).settings?.bibleXrefCount ?? 4));
+        const S = (plugin as any).settings ?? {};
+        const showXrefs = S.bibleShowXrefs !== false;    // default on
+        const showEmbeds = S.bibleShowEmbeds !== false;  // default on
         const hrefFor = (t: any) => {
             const num = BOOK_NUM[t.b];
             return num ? `bible/${pad2(num)}-${t.b}/${version}/${t.b}-${pad3(t.c)}#^v${t.v}` : "";
@@ -325,8 +350,8 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             const vnum = (num.textContent || "").trim();
             if (paraStarts.has(vnum)) (p.closest(".el-p") || p).addClass("lm-para-start");
             const targets = (data[`${book}.${chapter}.${vnum}`] || []).filter((t: any) => BOOK_NUM[t.b]);
-            // Cross-reference markers (public-domain), quiet superscript letters.
-            for (let i = 0; i < Math.min(targets.length, shown); i++) {
+            // Cross-reference markers (public-domain), quiet superscript letters. (Toggle: settings.)
+            if (showXrefs) for (let i = 0; i < Math.min(targets.length, shown); i++) {
                 const t = targets[i], href = hrefFor(t);
                 const sup = p.createEl("sup");
                 sup.appendText(" ");
@@ -335,10 +360,10 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                 a.addEventListener("click", onMarkerClick(a, href));
             }
             // Embedding-similarity markers (verse index), distinct "≈" group, deduped against the
-            // cross-references so a passage already cross-referenced isn't shown twice.
+            // cross-references so a passage already cross-referenced isn't shown twice. (Toggle: settings.)
             const xset = new Set(targets.map((t: any) => `${t.b}.${t.c}.${t.v}`));
             const sims = (sim[vnum] || []).filter((t: any) => BOOK_NUM[t.b] && !xset.has(`${t.b}.${t.c}.${t.v}`));
-            if (sims.length) {
+            if (showEmbeds && sims.length) {
                 const esup = p.createEl("sup", { cls: "lm-embed-group" });
                 esup.appendText(" ≈");
                 for (let i = 0; i < Math.min(sims.length, 2); i++) {
@@ -349,13 +374,14 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                     a.addEventListener("click", onMarkerClick(a, href));
                 }
             }
-            // Click the verse number to see ALL cross-references for the verse at once.
-            if (targets.length) {
+            // Tap the verse number → panel of ALL cross-references + all related-by-meaning links.
+            // Available whenever the verse has either kind (even if inline markers are toggled off).
+            if (targets.length || sims.length) {
                 num.addClass("lm-verse-num");
-                num.setAttribute("aria-label", `All ${targets.length} cross-references`);
+                num.setAttribute("aria-label", `${targets.length} cross-references, ${sims.length} related`);
                 num.addEventListener("click", (ev) => {
                     ev.preventDefault(); ev.stopPropagation();
-                    showAllXrefs(plugin, num, `${bookLabel(book)} ${chapter}:${vnum}`, targets, hrefFor, open);
+                    showAllXrefs(plugin, num, `${bookLabel(book)} ${chapter}:${vnum}`, targets, sims, hrefFor);
                 });
             }
         }

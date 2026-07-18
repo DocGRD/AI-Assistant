@@ -7,7 +7,7 @@
 // anywhere; the "write a note" command puts them in bible-commentary/{book}/.
 
 import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice, Menu } from "obsidian";
-import { BOOK_NUM, pad3, bookLabel } from "./bible";
+import { BOOK_NUM, pad2, pad3, bookLabel, readVerseText } from "./bible";
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -32,13 +32,16 @@ class CommentaryIndex {
     byVerse = new Map<string, TFile[]>();
     byChapter = new Map<string, TFile[]>();
     private timer: number | null = null;
-    private built = false;
+    private dirty = true;   // needs a (re)build — set whenever a note's metadata changes
     constructor(private plugin: Plugin) {}
 
-    ensureBuilt(): void { if (!this.built) this.build(); }
+    markDirty(): void { this.dirty = true; }
+    /** Rebuild only if something changed since the last build — so the NEXT reader render always
+     *  reflects a just-created/edited commentary note (fixes the stale-index race across versions). */
+    ensureBuilt(): void { if (this.dirty) this.build(); }
 
     build(): void {
-        this.built = true;
+        this.dirty = false;
         this.byVerse.clear(); this.byChapter.clear();
         for (const f of this.plugin.app.vault.getMarkdownFiles()) {
             const fm = this.plugin.app.metadataCache.getFileCache(f)?.frontmatter;
@@ -144,7 +147,8 @@ export function registerCommentarySection(plugin: Plugin, index: CommentaryIndex
 
 /** Modal: create/open a commentary note for a verse (or passage) of the active chapter. */
 class WriteCommentaryModal extends Modal {
-    constructor(private plugin: Plugin, private book: string, private chapter: number) { super(plugin.app); }
+    constructor(private plugin: Plugin, private book: string, private chapter: number,
+                private version: string = "web") { super(plugin.app); }
     onOpen(): void {
         const { contentEl } = this;
         contentEl.createEl("h3", { text: `Write a note — ${bookLabel(this.book)} ${this.chapter}` });
@@ -165,7 +169,17 @@ class WriteCommentaryModal extends Modal {
                 const folder = `bible-commentary/${this.book}`;
                 try { await this.plugin.app.vault.createFolder(folder); } catch { /* exists */ }
                 const title = `${bookLabel(this.book)} ${this.chapter}:${suffix}`;
-                const body = `---\ncommentary-ref: ${ref}\ntags: [bible-commentary]\n---\n# ${title}\n\n`;
+                // Quote the verse text (from the version you're reading) so the note is self-contained,
+                // then just a "Commentary" heading for YOU to write under. No AI-generated content.
+                const num = BOOK_NUM[this.book];
+                const linkpath = num ? `bible/${pad2(num)}-${this.book}/${this.version}/${this.book}-${pad3(this.chapter)}` : "";
+                const quoted: string[] = [];
+                for (let v = a; v <= (b2 && b2 > a ? b2 : a) && v < a + 200; v++) {
+                    const txt = linkpath ? await readVerseText(this.plugin, linkpath, `v${v}`) : "";
+                    if (txt) quoted.push(`> **${v}** ${txt}`);
+                }
+                const verseBlock = quoted.length ? quoted.join("\n> \n") + `\n> — ${title} (${this.version.toUpperCase()})\n\n` : "";
+                const body = `---\ncommentary-ref: ${ref}\ntags: [bible-commentary]\n---\n# ${title}\n\n${verseBlock}## Commentary\n\n`;
                 file = await this.plugin.app.vault.create(path, body);
             }
             this.close();
@@ -179,8 +193,9 @@ class WriteCommentaryModal extends Modal {
 export function registerBibleCommentary(plugin: Plugin): void {
     const index = new CommentaryIndex(plugin);
     plugin.app.workspace.onLayoutReady(() => index.build());
-    plugin.registerEvent(plugin.app.metadataCache.on("resolved", () => index.schedule()));
-    plugin.registerEvent(plugin.app.metadataCache.on("changed", () => index.schedule()));
+    // Mark dirty immediately (so the next reader render rebuilds) AND schedule a debounced rebuild.
+    plugin.registerEvent(plugin.app.metadataCache.on("resolved", () => { index.markDirty(); index.schedule(); }));
+    plugin.registerEvent(plugin.app.metadataCache.on("changed", () => { index.markDirty(); index.schedule(); }));
 
     registerCommentaryMarkers(plugin, index);
     registerCommentarySection(plugin, index);
@@ -193,9 +208,10 @@ export function registerBibleCommentary(plugin: Plugin): void {
             if (!file || !file.path.startsWith("bible/")) return false;
             const pp = file.path.split("/");
             const book = pp[pp.length - 3]?.replace(/^\d+-/, "");
+            const version = pp[pp.length - 2] || "web";
             const chapter = parseInt((pp[pp.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
             if (!book || !chapter || !BOOK_NUM[book]) return false;
-            if (!checking) new WriteCommentaryModal(plugin, book, chapter).open();
+            if (!checking) new WriteCommentaryModal(plugin, book, chapter, version).open();
             return true;
         },
     });
