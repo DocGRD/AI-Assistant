@@ -1486,6 +1486,18 @@ class AssistantServer:
 
                 reply, used_provider = run_agent_loop(ctx)
 
+                # Keep the injected BACKGROUND CONTEXT (active note / selection / mentions) OUT of the
+                # persisted conversation history — it was for THIS turn only. Otherwise a later
+                # "summarize my open note" sees a PRIOR turn's open-note text still in history and
+                # answers about the wrong note. The agent used the full context this turn; now rewrite
+                # the stored user message back to the clean text so future turns start fresh.
+                if effective_message != req.message:
+                    with self._history_lock:
+                        for _m in reversed(self._history):
+                            if _m.role == "user" and _m.content == effective_message:
+                                _m.content = req.message
+                                break
+
             except ProviderWebUIHandoff as handoff:
                 with self._history_lock:
                     if self._history and self._history[-1].role == "user":

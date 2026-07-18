@@ -290,6 +290,13 @@ class ProviderRouter:
                 last_error = exc
                 continue
 
+        if last_error is None:
+            # No provider was even attempted — route_order returned nothing (every active model was
+            # filtered out: unhealthy, rate-limited, too small for the request, or privacy-excluded).
+            raise ProviderError(
+                "No providers available to try — all active models are currently unhealthy, "
+                "rate-limited, privacy-excluded, or too small for this request. Check provider "
+                "health/keys or wait for rate limits to reset (`vault:models` shows the state).")
         raise ProviderError(f"All providers failed. Last error: {last_error}")
 
     @staticmethod
