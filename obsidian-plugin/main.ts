@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBibleVersions, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBibleVersions, registerBibleAnnotations, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
 import { registerBibleStrongs, registerBibleStrongsHover } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
 
@@ -55,6 +55,9 @@ export default class AIAssistantPlugin extends Plugin {
         registerBibleEmbeddingLinks(this);
         // "Paste a chapter from another translation" command.
         registerBiblePaste(this);
+        // Right-click annotations on selected text in a Bible note: highlight, words of Christ (red),
+        // tag a Strong's number — works in ANY translation (the cross-version path for red-letter/Strong's).
+        registerBibleAnnotations(this);
         // Fetch a chapter from a licensed online version (ESV / NASB / NKJV) via the backend proxy,
         // cache it in the vault, and open it. Keys live server-side; cached notes are reused.
         registerBibleVersions(this);
@@ -65,6 +68,18 @@ export default class AIAssistantPlugin extends Plugin {
         registerBibleStrongsHover(this);
         // Personal commentary — your own verse-attached notes, marked + listed in the reader.
         registerBibleCommentary(this);
+        // Register Bible frontmatter property TYPES so Obsidian's Properties editor treats them right:
+        // bible-parastarts as a LIST (add verse numbers as items — a number field rejects commas),
+        // the ref/version/book fields as plain text. Best-effort (internal API).
+        try {
+            const mtm = (this.app as any).metadataTypeManager;
+            if (mtm?.setType) {
+                mtm.setType("bible-parastarts", "multitext");
+                mtm.setType("commentary-ref", "text");
+                mtm.setType("bible-version", "text");
+                mtm.setType("bible-book", "text");
+            }
+        } catch { /* internal API absent — the note format still works */ }
         // Bible reading layout (verse-by-verse vs flowing) — plugin-owned, no CSS snippet needed.
         applyBibleLayout(this.settings.bibleLayout);
         // Bible reader text size (user-adjustable, independent of Obsidian's global font size).

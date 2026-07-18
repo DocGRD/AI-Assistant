@@ -8,7 +8,7 @@
 // The `parseBibleRef` target→label parser and the hovercard are deliberately standalone so the
 // Phase 2 custom renderer can reuse them.
 
-import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice, Platform } from "obsidian";
+import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice, Platform, Menu, Editor } from "obsidian";
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -138,15 +138,34 @@ async function showBibleHovercard(plugin: Plugin, anchor: HTMLElement, target: s
 
     hcDestroy();
     hcActiveAnchor = anchor;
-    const text = await readVerseText(plugin, ref.linkpath, ref.block);
+    let text = await readVerseText(plugin, ref.linkpath, ref.block);
+    let openTarget = target;
+    let note = "";
+    if (!text && !/\/web\//.test(ref.linkpath)) {
+        // The verse isn't in this translation (e.g. only some chapters pasted) — fall back to the
+        // World English Bible, which ships complete, and say so.
+        const parts = ref.linkpath.split("/");
+        if (parts.length >= 4) {
+            parts[parts.length - 2] = "web";
+            const webPath = parts.join("/");
+            const webText = await readVerseText(plugin, webPath, ref.block);
+            if (webText) {
+                text = webText;
+                openTarget = ref.block ? `${webPath}#^${ref.block}` : webPath;
+                note = "Shown from the World English Bible — not in this translation.";
+            }
+        }
+    }
     if (anchor !== hcActiveAnchor) return;             // moved off before the read finished
 
     const card = document.body.createDiv("loremaster-bible-hovercard");
     hcCard = card;
     card.createDiv("loremaster-bible-hovercard-ref").setText(ref.label);
     if (text) card.createDiv("loremaster-bible-hovercard-text").setText(text);
+    else card.createDiv("loremaster-bible-hovercard-note").setText("(verse text not available in this translation)");
+    if (note) card.createDiv("loremaster-bible-hovercard-note").setText(note);
     const actions = card.createDiv("loremaster-bible-hovercard-actions");
-    const openIn = (newLeaf: boolean) => plugin.app.workspace.openLinkText(target, "", newLeaf);
+    const openIn = (newLeaf: boolean) => plugin.app.workspace.openLinkText(openTarget, "", newLeaf);
     actions.createEl("button", { text: "Open" })
         .addEventListener("click", () => { openIn(false); hcDestroy(); });
     actions.createEl("button", { text: "Open in new tab" })
@@ -498,7 +517,9 @@ function formatPastedChapter(raw: string, bookSlug: string, chapter: number, ver
     if (!verses.size) return { error: "Couldn't find verse numbers in the pasted text." };
     const fm = ["---", "cssclasses:", "  - bible", `bible-version: ${version}`,
         `bible-book: ${bookSlug}`, `bible-booknum: ${num}`, `bible-chapter: ${chapter}`,
-        "bible-parastarts: 1", "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, ""];
+        // list form so Obsidian's property editor treats it as a LIST (add verse numbers as items)
+        // rather than a number field that rejects commas.
+        "bible-parastarts:", "  - 1", "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, ""];
     const body = [...verses.keys()].sort((a, b) => a - b).map(n => `**${n}** ${verses.get(n)} ^v${n}`);
     return { path: `bible/${pad2(num)}-${bookSlug}/${version}/${bookSlug}-${pad3(chapter)}.md`,
              note: fm.concat(body).join("\n") + "\n", verses: verses.size };
@@ -532,6 +553,66 @@ class BiblePasteModal extends Modal {
         }));
     }
     onClose(): void { this.contentEl.empty(); }
+}
+
+// ── Manual annotation (works in ANY translation) ────────────────────────────
+// Select text in a Bible note (edit / Live Preview) and right-click to: highlight it, mark it as the
+// words of Christ (red), or tag a word with a Strong's number. These wrap the selection in the same
+// markup the reader already renders (==highlight==, <span class="lm-wj">, <span class="lm-s" data-s>),
+// so red-letter, highlighting and Strong's hover work in KJV, ESV, pasted chapters — anything.
+class StrongsInputModal extends Modal {
+    constructor(private plugin: Plugin, private onSubmit: (n: string) => void) { super(plugin.app); }
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Tag word with a Strong's number" });
+        const input = contentEl.createEl("input", { type: "text", attr: { placeholder: "e.g. H430 or G26" } });
+        input.style.width = "100%";
+        const submit = () => {
+            const v = input.value.trim().toUpperCase();
+            this.close();
+            if (/^[HG]\d+$/.test(v)) this.onSubmit(v);
+            else new Notice("Enter a Strong's number like H430 (Hebrew) or G26 (Greek).");
+        };
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+        const row = contentEl.createDiv(); row.style.marginTop = "8px";
+        row.createEl("button", { text: "Add", cls: "mod-cta" }).addEventListener("click", submit);
+        setTimeout(() => input.focus(), 0);
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+/** Right-click annotations on a Bible (or commentary) note's selected text. */
+export function registerBibleAnnotations(plugin: Plugin): void {
+    plugin.registerEvent(plugin.app.workspace.on("editor-menu", (menu: Menu, editor: Editor, view: any) => {
+        const path = view?.file?.path as string | undefined;
+        if (!path || !(path.startsWith("bible/") || path.startsWith("bible-commentary/"))) return;
+        const sel = editor.getSelection();
+        if (!sel) return;
+        const wrap = (s: string) => editor.replaceSelection(s);
+        menu.addItem((i) => i.setTitle("Bible: highlight").setIcon("highlighter")
+            .onClick(() => wrap(`==${sel}==`)));
+        menu.addItem((i) => i.setTitle("Bible: words of Christ (red)").setIcon("quote-glyph")
+            .onClick(() => wrap(`<span class="lm-wj">${sel}</span>`)));
+        menu.addItem((i) => i.setTitle("Bible: tag Strong's number…").setIcon("hash")
+            .onClick(() => new StrongsInputModal(plugin, (n) => wrap(`<span class="lm-s" data-s="${n}">${sel}</span>`)).open()));
+    }));
+
+    // Same three as commands (hotkey-able + testable; work on the current selection in any note).
+    const selWrap = (editor: Editor, fn: (s: string) => string) => {
+        const s = editor.getSelection();
+        if (!s) { new Notice("Select some text first."); return; }
+        editor.replaceSelection(fn(s));
+    };
+    plugin.addCommand({ id: "bible-highlight", name: "Bible: highlight selection",
+        editorCallback: (editor: Editor) => selWrap(editor, (s) => `==${s}==`) });
+    plugin.addCommand({ id: "bible-words-of-christ", name: "Bible: mark selection as words of Christ (red)",
+        editorCallback: (editor: Editor) => selWrap(editor, (s) => `<span class="lm-wj">${s}</span>`) });
+    plugin.addCommand({ id: "bible-tag-strongs", name: "Bible: tag selection with a Strong's number",
+        editorCallback: (editor: Editor) => {
+            const s = editor.getSelection();
+            if (!s) { new Notice("Select a word first."); return; }
+            new StrongsInputModal(plugin, (n) => editor.replaceSelection(`<span class="lm-s" data-s="${n}">${s}</span>`)).open();
+        } });
 }
 
 /** Register the "paste a chapter from another translation" command. */

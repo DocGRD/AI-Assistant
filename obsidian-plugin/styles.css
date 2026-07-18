@@ -1227,3 +1227,6 @@ body.lm-bible-flow .markdown-preview-view.bible .el-em { display: block; }
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--text-muted); margin: 6px 4px 3px;
 }
+
+/* Hovercard note line — e.g. "shown from WEB, not in this translation" / verse text unavailable. */
+.loremaster-bible-hovercard-note { color: var(--text-muted); font-style: italic; font-size: 12px; margin-top: 2px; }
