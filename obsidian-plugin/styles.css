@@ -1188,6 +1188,11 @@ body.lm-bible-flow .markdown-preview-view.bible .el-em { display: block; }
 .lm-comm-link { color: var(--color-purple, var(--text-accent)); text-decoration: none; cursor: pointer; }
 .lm-comm-link:hover { text-decoration: underline; }
 
+/* Matthew Henry commentary link under the chapter title */
+.lm-mhc-link { margin: 0.1em 0 0.6em; font-size: 0.92em; }
+.lm-mhc-link a { color: var(--text-muted); text-decoration: none; cursor: pointer; }
+.lm-mhc-link a:hover { color: var(--text-accent); text-decoration: underline; }
+
 /* ── Word-level Strong's (KJV notes): tagged words + hover/tap popup ── */
 .markdown-preview-view.bible span.lm-s { cursor: help; }
 .markdown-preview-view.bible span.lm-s:hover {

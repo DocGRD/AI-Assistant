@@ -64,6 +64,42 @@ class CommentaryIndex {
     }
 }
 
+/** Reader overlay: a link to Matthew Henry's Complete Commentary for the open chapter.
+ *  The mapping "<booknum>:<chapter>" -> mhc note id lives in AI/bible-mhc.json (built by
+ *  assistant_core/bible/tools/gen_mhc_index.py). We inject the link right under the chapter title
+ *  so it works on every existing note without rewriting any files. */
+export function registerMatthewHenryLink(plugin: Plugin): void {
+    const MHC_DIR = "AI/Library/matthew-henry";
+    let idxPromise: Promise<Record<string, string>> | null = null;
+    const loadIndex = () => (idxPromise ??= plugin.app.vault.adapter
+        .read("AI/bible-mhc.json").then(s => JSON.parse(s) as Record<string, string>).catch(() => ({})));
+
+    plugin.registerMarkdownPostProcessor(async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+        const path = ctx.sourcePath || "";
+        if (!path.startsWith("bible/")) return;
+        const h1 = (el.tagName === "H1" ? el : el.querySelector("h1")) as HTMLElement | null;
+        if (!h1) return;
+        if (h1.nextElementSibling?.classList?.contains("lm-mhc-link")) return;   // already injected
+        const pp = path.split("/");
+        if (pp.length < 4) return;
+        const book = pp[pp.length - 3].replace(/^\d+-/, "");
+        const chapter = parseInt((pp[pp.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
+        const num = BOOK_NUM[book];
+        if (!num || !chapter) return;
+
+        const id = (await loadIndex())[`${num}:${chapter}`];
+        if (!id) return;                                     // no commentary for this chapter
+        const target = `${MHC_DIR}/${id}`;
+        const div = createDiv("lm-mhc-link");
+        div.createEl("a", { text: `📖 Matthew Henry on ${bookLabel(book)} ${chapter}`, href: target })
+            .addEventListener("click", (e) => {
+                e.preventDefault();
+                plugin.app.workspace.openLinkText(target, ctx.sourcePath, (e as MouseEvent).ctrlKey || (e as MouseEvent).metaKey);
+            });
+        h1.insertAdjacentElement("afterend", div);
+    });
+}
+
 /** Open a commentary note (or a menu if a verse has several). */
 function openNotes(plugin: Plugin, notes: TFile[], evt: MouseEvent): void {
     if (notes.length === 1) { plugin.app.workspace.openLinkText(notes[0].path, "", evt.ctrlKey || evt.metaKey); return; }
@@ -199,6 +235,7 @@ export function registerBibleCommentary(plugin: Plugin): void {
 
     registerCommentaryMarkers(plugin, index);
     registerCommentarySection(plugin, index);
+    registerMatthewHenryLink(plugin);
 
     plugin.addCommand({
         id: "bible-write-commentary",
