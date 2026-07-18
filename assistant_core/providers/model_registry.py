@@ -161,6 +161,33 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         ),
     ),
 
+    "ollama": ModelSpec(
+        provider        = "ollama",
+        model_id        = "qwen2.5:3b",
+        context_window  = 32_000,
+        tpm_limit       = 100_000_000,   # local — no real per-minute cap
+        rpm_limit       = 100_000_000,
+        rpd_limit       = 100_000_000,
+        base_url        = "http://localhost:11434/v1",
+        trains_on_data  = "no",          # local — content never leaves the box
+        status          = "active",
+        strengths       = [
+            "local — no cloud rate limits, fully private",
+            "fine for structured background tasks (graph triple extraction)",
+        ],
+        weaknesses      = [
+            "small 3B model — lower quality than the cloud models",
+            "only available when Ollama is running on the box",
+        ],
+        notes = (
+            "Local Ollama model on the box (http://localhost:11434/v1). Preferred FIRST for background "
+            "graph extraction (via provider_override) so it never burns cloud free-tier limits; the "
+            "router falls back to cloud if Ollama is down. Not in the default preference order, so "
+            "normal chat still routes to the cloud models first. Needs a non-empty `ollama_api_key` "
+            "(dummy value — Ollama ignores the key) so the router builds the provider."
+        ),
+    ),
+
     "webui": ModelSpec(
         provider        = "webui",
         model_id        = "user-mediated",

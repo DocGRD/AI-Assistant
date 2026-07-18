@@ -69,11 +69,20 @@ def extract_triples(router, note_text: str, private: bool = True) -> list[tuple[
     if router is None or not note_text.strip():
         return []
     from assistant_core.providers.base_provider import Message
+    # Prefer a LOCAL model (Ollama on the box) for graph extraction so it never burns cloud free-tier
+    # limits — extraction is a high-volume background task and a small local model is plenty for it.
+    # Configurable via `graph_extraction_provider` (default "ollama"); if that provider isn't built
+    # (Ollama absent / no dummy key), fall back to normal private routing. The router still falls
+    # through to a cloud model if the local one errors mid-request.
+    override = str((router.config or {}).get("graph_extraction_provider", "ollama") or "").lower()
+    if override and override not in router.available_models:
+        override = None
     try:
-        reply, _ = router.generate(
+        reply, used = router.generate(
             messages=[Message(role="user", content=note_text[:8000])],
             system_prompt=EXTRACT_SYSTEM, max_tokens=400, temperature=0.2,
             private=True, allow_webui_on_private=False,
+            provider_override=override or None,
         )
     except Exception as exc:
         logger.warning(f"[Graph] extraction call failed: {exc}")

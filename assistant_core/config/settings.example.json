@@ -88,5 +88,8 @@
   "esv_api_key": "",
   "apibible_api_key": "",
   "apibible_nasb_id": "",
-  "apibible_nkjv_id": ""
+  "apibible_nkjv_id": "",
+
+  "ollama_api_key": "ollama",
+  "graph_extraction_provider": "ollama"
 }
