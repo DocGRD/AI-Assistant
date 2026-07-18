@@ -20,13 +20,10 @@ logger = logging.getLogger("assistant")
 _MAX_TRIPLES = 12
 
 EXTRACT_SYSTEM = (
-    "You build a knowledge graph. From the note, list the key entities (people, places, concepts, "
-    "books, works, projects, events) and how they relate — one relationship per line, in exactly "
-    "the form:  Subject | relation | Object\n"
-    "Use canonical Title-Case entity names and a 1-3 word lowercase relation (e.g. 'is a', 'wrote', "
-    "'uses', 'part of', 'refers to'). Extract every clear relationship the note supports, up to "
-    f"{_MAX_TRIPLES}. Output ONLY the triple lines — no headings, no commentary. Only if there is "
-    "truly nothing, output exactly NONE."
+    "You build a knowledge graph. From the text, list the key entities (people, places, concepts, "
+    "books, events) and how they relate, one per line as: Subject | relation | Object. Use short "
+    "Title-Case names and a 1-3 word lowercase relation. Extract EVERY clear relationship you can "
+    f"find, up to {_MAX_TRIPLES}. Output only those lines. Only if there is truly nothing, output NONE."
 )
 
 # A safe entity name: letters/digits/spaces/hyphen, trimmed, not absurdly long.
