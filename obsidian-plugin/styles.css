@@ -982,7 +982,13 @@
   font-weight: 600;
   color: var(--text-accent);
   margin-bottom: 3px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
+.loremaster-bible-hovercard-close {
+  background: none; border: none; cursor: pointer; padding: 0 2px;
+  font-size: 17px; line-height: 1; color: var(--text-muted);
+}
+.loremaster-bible-hovercard-close:hover { color: var(--text-normal); }
 .loremaster-bible-hovercard-text { color: var(--text-normal); }
 .loremaster-bible-hovercard-actions {
   display: flex;
@@ -1232,6 +1238,20 @@ body.lm-bible-flow .markdown-preview-view.bible .el-em { display: block; }
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--text-muted); margin: 6px 4px 3px;
 }
+/* Study section at the top of the verse-number panel: Matthew Henry + your commentary notes. */
+.loremaster-bible-allxref-study {
+  padding-bottom: 4px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.loremaster-bible-allxref-study .loremaster-bible-allxref-list { display: flex; flex-direction: column; gap: 2px; }
+a.lm-allxref-note, a.lm-allxref-mhc {
+  display: inline-block; color: var(--text-accent); text-decoration: none; padding: 1px 4px;
+}
+a.lm-allxref-note:hover, a.lm-allxref-mhc:hover { text-decoration: underline; }
+.loremaster-bible-allxref-mhc { margin: 2px 0 0; }
+
+/* Commentary ✎ marker sits right after the verse number. */
+sup.lm-comm-sup { margin-left: 1px; }
 
 /* Hovercard note line — e.g. "shown from WEB, not in this translation" / verse text unavailable. */
 .loremaster-bible-hovercard-note { color: var(--text-muted); font-style: italic; font-size: 12px; margin-top: 2px; }

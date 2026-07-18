@@ -9,6 +9,7 @@
 // Phase 2 custom renderer can reuse them.
 
 import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice, Platform, Menu, Editor } from "obsidian";
+import { commentaryNotesForVerse, mhcNoteFor } from "./bible-commentary";
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -160,7 +161,10 @@ async function showBibleHovercard(plugin: Plugin, anchor: HTMLElement, target: s
 
     const card = document.body.createDiv("loremaster-bible-hovercard");
     hcCard = card;
-    card.createDiv("loremaster-bible-hovercard-ref").setText(ref.label);
+    const refRow = card.createDiv("loremaster-bible-hovercard-ref");
+    refRow.createSpan({ text: ref.label });
+    refRow.createEl("button", { text: "×", cls: "loremaster-bible-hovercard-close", attr: { "aria-label": "Close" } })
+        .addEventListener("click", (e) => { e.stopPropagation(); hcDestroy(); });
     if (text) card.createDiv("loremaster-bible-hovercard-text").setText(text);
     else card.createDiv("loremaster-bible-hovercard-note").setText("(verse text not available in this translation)");
     if (note) card.createDiv("loremaster-bible-hovercard-note").setText(note);
@@ -177,21 +181,20 @@ async function showBibleHovercard(plugin: Plugin, anchor: HTMLElement, target: s
 
     card.addEventListener("mouseenter", () => { hcOverCard = true; });
     card.addEventListener("mouseleave", () => { hcOverCard = false; hcScheduleHide(); });
-    // Mobile has no mouseleave — dismiss by tapping anywhere outside the card (or the anchor).
-    if (Platform.isMobile) {
-        setTimeout(() => {
-            const dismiss = (ev: Event) => {
-                const n = ev.target as Node;
-                if (hcCard && hcCard.contains(n)) return;
-                if (anchor.contains(n)) return;
-                hcDestroy();
-                document.removeEventListener("touchstart", dismiss, true);
-                document.removeEventListener("click", dismiss, true);
-            };
-            document.addEventListener("touchstart", dismiss, true);
-            document.addEventListener("click", dismiss, true);
-        }, 0);
-    }
+    // Dismiss by tapping/clicking anywhere outside the card (all platforms — mobile has no mouseleave,
+    // and a card spawned from the verse-number panel on desktop has no hover relationship either).
+    setTimeout(() => {
+        const dismiss = (ev: Event) => {
+            const n = ev.target as Node;
+            if (card.contains(n) || anchor.contains(n)) return;     // taps on the card/anchor keep it
+            card.remove();
+            if (hcCard === card) hcCard = null;
+            document.removeEventListener("pointerdown", dismiss, true);
+            document.removeEventListener("click", dismiss, true);
+        };
+        document.addEventListener("pointerdown", dismiss, true);
+        document.addEventListener("click", dismiss, true);
+    }, 0);
 }
 
 /** True when a marker tap should OPEN THE CARD rather than navigate (mobile — so you can read the
@@ -224,19 +227,50 @@ export function bookLabel(slug: string): string {
         .join(" ");
 }
 
-/** Click/tap a verse number → a panel listing ALL cross-references AND all related-by-meaning links
- *  for that verse. Tapping a listed reference opens the same read-card as the inline markers. Has a
- *  close (×) button and dismisses on Escape or a tap/click outside (touch-friendly). */
+/** Click/tap a verse number → a "study" panel for that verse: at the TOP, a link to Matthew Henry's
+ *  commentary for the chapter and links to YOUR personal commentary notes on the verse; below,
+ *  ALL cross-references and all related-by-meaning links. Tapping a reference opens the same read-card
+ *  as the inline markers. Has a close (×) button and dismisses on Escape or a tap/click outside. */
 let allXrefPanel: HTMLElement | null = null;
-function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
-                      xrefs: any[], embeds: any[], hrefFor: (t: any) => string): void {
+async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
+                      book: string, chapter: number, verse: number, version: string,
+                      xrefs: any[], embeds: any[], hrefFor: (t: any) => string): Promise<void> {
     allXrefPanel?.remove();
     const panel = document.body.createDiv("loremaster-bible-allxref");
     allXrefPanel = panel;
+
+    const close = () => {
+        panel.remove(); if (allXrefPanel === panel) allXrefPanel = null;
+        document.removeEventListener("pointerdown", dismiss, true);
+        document.removeEventListener("click", dismiss, true);
+        document.removeEventListener("keydown", dismiss, true);
+    };
+    const dismiss = (ev: Event) => {
+        if (ev instanceof KeyboardEvent) { if (ev.key === "Escape") close(); return; }
+        // ignore taps inside the panel or on the read-card the panel spawned
+        const n = ev.target as Node;
+        if (panel.contains(n) || (hcCard && hcCard.contains(n))) return;
+        close();
+    };
+    const openNote = (path: string) => { plugin.app.workspace.openLinkText(path, "", false); close(); };
+
     const head = panel.createDiv("loremaster-bible-allxref-head");
     head.createSpan({ text: label });
     head.createEl("button", { text: "×", cls: "loremaster-bible-allxref-close", attr: { "aria-label": "Close" } })
         .addEventListener("click", (e) => { e.stopPropagation(); close(); });
+
+    // ── Study section (top): Matthew Henry + your personal commentary notes ──
+    const study = panel.createDiv("loremaster-bible-allxref-study");
+    const myNotes = commentaryNotesForVerse(book, chapter, verse);
+    if (myNotes.length) {
+        study.createDiv("loremaster-bible-allxref-sub").setText("My commentary");
+        const list = study.createDiv("loremaster-bible-allxref-list");
+        for (const f of myNotes) {
+            const a = list.createEl("a", { text: f.basename, cls: "loremaster-bible-allxref-item lm-allxref-note", attr: { href: f.path } });
+            a.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); openNote(f.path); });
+        }
+    }
+    const mhcSlot = study.createDiv("loremaster-bible-allxref-mhc");   // filled async below
 
     const section = (title: string, items: any[]) => {
         if (!items.length) return;
@@ -251,24 +285,11 @@ function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
     };
     section(`Cross-references (${xrefs.length})`, xrefs);
     section(`Related by meaning (${embeds.length})`, embeds);
-    if (!xrefs.length && !embeds.length) panel.createDiv("loremaster-bible-allxref-sub").setText("No links for this verse.");
+    if (!xrefs.length && !embeds.length) panel.createDiv("loremaster-bible-allxref-sub").setText("No cross-references for this verse.");
 
     const r = anchor.getBoundingClientRect();
     panel.style.top = `${window.scrollY + r.bottom + 4}px`;
     panel.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 260)}px`;
-    const close = () => {
-        panel.remove(); if (allXrefPanel === panel) allXrefPanel = null;
-        document.removeEventListener("pointerdown", dismiss, true);
-        document.removeEventListener("click", dismiss, true);
-        document.removeEventListener("keydown", dismiss, true);
-    };
-    const dismiss = (ev: Event) => {
-        if (ev instanceof KeyboardEvent) { if (ev.key === "Escape") close(); return; }
-        // ignore taps inside the panel or on the read-card the panel spawned
-        const n = ev.target as Node;
-        if (panel.contains(n) || (hcCard && hcCard.contains(n))) return;
-        close();
-    };
     // pointerdown covers touch + mouse; click as a backup (some mobile webviews). Delay so the
     // opening tap doesn't immediately dismiss it.
     setTimeout(() => {
@@ -276,6 +297,16 @@ function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
         document.addEventListener("click", dismiss, true);
         document.addEventListener("keydown", dismiss, true);
     }, 0);
+
+    // Matthew Henry link — always offered so you can reach the chapter's commentary from any verse.
+    const num = BOOK_NUM[book];
+    if (num) {
+        const mhcPath = await mhcNoteFor(plugin, num, chapter);
+        if (mhcPath && allXrefPanel === panel) {
+            const a = mhcSlot.createEl("a", { text: "📖 Matthew Henry", cls: "loremaster-bible-allxref-item lm-allxref-mhc", attr: { href: mhcPath } });
+            a.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); openNote(mhcPath); });
+        }
+    }
 }
 
 /** Register the cross-reference OVERLAY: cross-refs are stored once (bible/.crossrefs/{book}.json,
@@ -393,16 +424,16 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                     a.addEventListener("click", onMarkerClick(a, href));
                 }
             }
-            // Tap the verse number → panel of ALL cross-references + all related-by-meaning links.
-            // Available whenever the verse has either kind (even if inline markers are toggled off).
-            if (targets.length || sims.length) {
-                num.addClass("lm-verse-num");
-                num.setAttribute("aria-label", `${targets.length} cross-references, ${sims.length} related`);
-                num.addEventListener("click", (ev) => {
-                    ev.preventDefault(); ev.stopPropagation();
-                    showAllXrefs(plugin, num, `${bookLabel(book)} ${chapter}:${vnum}`, targets, sims, hrefFor);
-                });
-            }
+            // Tap the verse number → study panel: Matthew Henry + your notes at top, then ALL
+            // cross-references + related-by-meaning. Always available (Matthew Henry is offered for
+            // every verse), even if a verse has no cross-references or inline markers are toggled off.
+            num.addClass("lm-verse-num");
+            num.setAttribute("aria-label", `Study ${bookLabel(book)} ${chapter}:${vnum}`);
+            num.addEventListener("click", (ev) => {
+                ev.preventDefault(); ev.stopPropagation();
+                void showAllXrefs(plugin, num, `${bookLabel(book)} ${chapter}:${vnum}`,
+                    book, chapter, parseInt(vnum, 10), version, targets, sims, hrefFor);
+            });
         }
     });
 }

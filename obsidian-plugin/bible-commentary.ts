@@ -64,16 +64,34 @@ class CommentaryIndex {
     }
 }
 
+// The active index, shared so the verse-number "study" popup (bible.ts) can list your commentary
+// notes for a verse without owning its own index.
+let sharedIndex: CommentaryIndex | null = null;
+/** Your commentary notes that comment on a specific verse ("book" slug + chapter + verse). */
+export function commentaryNotesForVerse(book: string, chapter: number, verse: number): TFile[] {
+    if (!sharedIndex) return [];
+    sharedIndex.ensureBuilt();
+    return (sharedIndex.byVerse.get(`${book}.${chapter}.${verse}`) || []).slice();
+}
+
+// ── Matthew Henry lookup (shared: the reader header link AND the verse-number study popup) ──
+const MHC_DIR = "AI/Library/matthew-henry";
+let mhcIdxPromise: Promise<Record<string, string>> | null = null;
+function loadMhcIndex(plugin: Plugin): Promise<Record<string, string>> {
+    return (mhcIdxPromise ??= plugin.app.vault.adapter.read("AI/bible-mhc.json")
+        .then(s => JSON.parse(s) as Record<string, string>).catch(() => ({})));
+}
+/** Vault path (no extension) of the Matthew Henry note for a book number + chapter, or null. */
+export async function mhcNoteFor(plugin: Plugin, booknum: number, chapter: number): Promise<string | null> {
+    const id = (await loadMhcIndex(plugin))[`${booknum}:${chapter}`];
+    return id ? `${MHC_DIR}/${id}` : null;
+}
+
 /** Reader overlay: a link to Matthew Henry's Complete Commentary for the open chapter.
  *  The mapping "<booknum>:<chapter>" -> mhc note id lives in AI/bible-mhc.json (built by
  *  assistant_core/bible/tools/gen_mhc_index.py). We inject the link right under the chapter title
  *  so it works on every existing note without rewriting any files. */
 export function registerMatthewHenryLink(plugin: Plugin): void {
-    const MHC_DIR = "AI/Library/matthew-henry";
-    let idxPromise: Promise<Record<string, string>> | null = null;
-    const loadIndex = () => (idxPromise ??= plugin.app.vault.adapter
-        .read("AI/bible-mhc.json").then(s => JSON.parse(s) as Record<string, string>).catch(() => ({})));
-
     plugin.registerMarkdownPostProcessor(async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
         const path = ctx.sourcePath || "";
         if (!path.startsWith("bible/")) return;
@@ -87,9 +105,8 @@ export function registerMatthewHenryLink(plugin: Plugin): void {
         const num = BOOK_NUM[book];
         if (!num || !chapter) return;
 
-        const id = (await loadIndex())[`${num}:${chapter}`];
-        if (!id) return;                                     // no commentary for this chapter
-        const target = `${MHC_DIR}/${id}`;
+        const target = await mhcNoteFor(plugin, num, chapter);
+        if (!target) return;                                 // no commentary for this chapter
         const div = createDiv("lm-mhc-link");
         div.createEl("a", { text: `📖 Matthew Henry on ${bookLabel(book)} ${chapter}`, href: target })
             .addEventListener("click", (e) => {
@@ -131,11 +148,13 @@ export function registerCommentaryMarkers(plugin: Plugin, index: CommentaryIndex
             const notes = index.byVerse.get(`${book}.${chapter}.${vnum}`);
             if (!notes || !notes.length) continue;
             p.setAttribute("data-lm-comm", "1");
-            const sup = p.createEl("sup");
-            sup.appendText(" ");
+            // Marker sits right after the verse NUMBER (not at the end of the verse) so it reads as
+            // "this verse has a note", next to what it annotates.
+            const sup = createEl("sup", { cls: "lm-comm-sup" });
             sup.createEl("a", { text: "✎", cls: "lm-comm-mark", href: "#",
                 attr: { "aria-label": `${notes.length} note${notes.length === 1 ? "" : "s"}` } })
                 .addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openNotes(plugin, notes, e as MouseEvent); });
+            s.insertAdjacentElement("afterend", sup);
         }
     });
 }
@@ -228,6 +247,7 @@ class WriteCommentaryModal extends Modal {
 /** Register the commentary index, overlays, and the "write a note" command. */
 export function registerBibleCommentary(plugin: Plugin): void {
     const index = new CommentaryIndex(plugin);
+    sharedIndex = index;   // let the verse-number study popup (bible.ts) read it
     plugin.app.workspace.onLayoutReady(() => index.build());
     // Mark dirty immediately (so the next reader render rebuilds) AND schedule a debounced rebuild.
     plugin.registerEvent(plugin.app.metadataCache.on("resolved", () => { index.markDirty(); index.schedule(); }));
