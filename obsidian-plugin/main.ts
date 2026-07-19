@@ -75,6 +75,7 @@ export default class AIAssistantPlugin extends Plugin {
             const mtm = (this.app as any).metadataTypeManager;
             if (mtm?.setType) {
                 mtm.setType("bible-parastarts", "multitext");
+                mtm.setType("bible-xref-anchors", "multitext");
                 mtm.setType("commentary-ref", "text");
                 mtm.setType("bible-version", "text");
                 mtm.setType("bible-book", "text");

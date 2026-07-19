@@ -1,4 +1,4 @@
-<!-- help-version: 35 -->
+<!-- help-version: 36 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -86,11 +86,14 @@ not as `vault:` chat commands. The annotation commands act on the **selected tex
 | `Bible: concordance (Strong's number or word)` | Every verse using a Strong's number (`H430`) or English word (`love`) |
 | `Bible: get a chapter (ESV / NASB / NKJV)` | Fetch a licensed version's chapter via your service, save it in the vault, open it |
 | `Bible: paste a chapter (new translation)` | Paste raw chapter text → LoreMaster formats it into the standard verse layout |
+| `Bible: insert a passage (into this note)` | Insert several verses (choose version + range like `1-5`) into the note you're editing, as a quoted passage linked back to the chapter |
 | `Bible: toggle reading layout (verse-by-verse ⟷ flowing)` | Switch the reader between one-verse-per-line and flowing paragraphs |
 
 *Reader extras that need no command:* tap a **verse number** for a study popup (Matthew Henry + your
-notes + all cross-references); a **📖 Matthew Henry** link sits under each chapter title; hover/tap a
-word in a Strong's-tagged chapter for its lexicon entry. See [[Features]] for the full walkthrough.
+notes + all cross-references); each cross-reference in that popup has an **⚓** to pin its marker right
+after a chosen word in the verse (a pinned marker shows even when cross-references are toggled off); a
+**📖 Matthew Henry** link sits under each chapter title; hover/tap a word in a Strong's-tagged chapter
+for its lexicon entry. See [[Features]] for the full walkthrough.
 
 ## Obsidian command palette (core + your plugins)
 Loremaster knows your whole Obsidian command palette — core **and every community plugin you install** — so

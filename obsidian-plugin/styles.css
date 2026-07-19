@@ -1253,5 +1253,21 @@ a.lm-allxref-note:hover, a.lm-allxref-mhc:hover { text-decoration: underline; }
 /* Commentary ✎ marker sits right after the verse number. */
 sup.lm-comm-sup { margin-left: 1px; }
 
+/* Cross-reference row in the verse popup: label + "anchor to a word" button. */
+.loremaster-bible-allxref-row { display: flex; align-items: center; gap: 6px; }
+.loremaster-bible-allxref-row .loremaster-bible-allxref-item { flex: 1 1 auto; }
+.loremaster-bible-allxref-anchor {
+  border: none; background: transparent; cursor: pointer; color: var(--text-faint);
+  font-size: 13px; line-height: 1; padding: 0 3px; flex: 0 0 auto;
+}
+.loremaster-bible-allxref-anchor:hover { color: var(--text-accent); }
+/* Word-picker modal: the verse's words as clickable chips. */
+.lm-wordpick { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; }
+.lm-wordpick-chip {
+  border: 1px solid var(--background-modifier-border); background: var(--background-secondary);
+  color: var(--text-normal); border-radius: 5px; padding: 2px 7px; cursor: pointer; font-size: 0.95em;
+}
+.lm-wordpick-chip:hover { background: var(--interactive-accent); color: var(--text-on-accent); }
+
 /* Hovercard note line — e.g. "shown from WEB, not in this translation" / verse text unavailable. */
 .loremaster-bible-hovercard-note { color: var(--text-muted); font-style: italic; font-size: 12px; margin-top: 2px; }

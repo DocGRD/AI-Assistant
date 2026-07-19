@@ -143,8 +143,10 @@ async function showBibleHovercard(plugin: Plugin, anchor: HTMLElement, target: s
     let openTarget = target;
     let note = "";
     if (!text && !/\/web\//.test(ref.linkpath)) {
-        // The verse isn't in this translation (e.g. only some chapters pasted) — fall back to the
-        // World English Bible, which ships complete, and say so.
+        // Couldn't read the verse in this translation — fall back to the complete World English Bible.
+        // Distinguish WHY: if the version's chapter note exists in the vault but this verse is absent,
+        // the translation genuinely omits it ("not in this translation"); if we don't have that
+        // version/chapter at all, it's only an availability gap ("not available in this translation").
         const parts = ref.linkpath.split("/");
         if (parts.length >= 4) {
             parts[parts.length - 2] = "web";
@@ -153,7 +155,11 @@ async function showBibleHovercard(plugin: Plugin, anchor: HTMLElement, target: s
             if (webText) {
                 text = webText;
                 openTarget = ref.block ? `${webPath}#^${ref.block}` : webPath;
-                note = "Shown from the World English Bible — not in this translation.";
+                const versionChapterExists =
+                    plugin.app.metadataCache.getFirstLinkpathDest(ref.linkpath, "") instanceof TFile;
+                note = versionChapterExists
+                    ? "Shown from the World English Bible — this verse is not in this translation."
+                    : "Shown from the World English Bible — not available in this translation.";
             }
         }
     }
@@ -227,6 +233,117 @@ export function bookLabel(slug: string): string {
         .join(" ");
 }
 
+// ── Word-anchored cross-references ──────────────────────────────────────────
+// By default a verse's cross-reference markers cluster at the END of the verse. You can instead pin a
+// specific reference right AFTER the word it relates to: the association (verse + target → word index)
+// is stored in the note's `bible-xref-anchors` frontmatter and the reader places that marker inline.
+
+/** Insert `marker` right after the (wordIndex)-th whitespace word inside a verse <p>, skipping the
+ *  leading verse-number <strong> and any existing <sup> markers. Returns false if the word isn't found
+ *  (caller then appends at the end as usual). Word counting matches readVerseText's whitespace split. */
+function placeMarkerAfterWord(p: HTMLElement, wordIndex: number, marker: HTMLElement): boolean {
+    // Gather the verse's text nodes (skipping the verse-number <strong> and any <sup> markers) and their
+    // CONCATENATION, then tokenise the concatenation — not each node separately — so word boundaries match
+    // readVerseText (which strips spans). Otherwise a <span> (Strong's tag / red-letter) splits a word and
+    // its trailing punctuation into two tokens and the placement drifts.
+    const nodes: Text[] = [];
+    let combined = "";
+    const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node: Node) => {
+            const el = (node as Text).parentElement;
+            if (!el) return NodeFilter.FILTER_REJECT;
+            if (el.closest("sup")) return NodeFilter.FILTER_REJECT;                       // existing markers
+            if (el.tagName === "STRONG" && el === p.firstElementChild) return NodeFilter.FILTER_REJECT;  // verse number
+            return NodeFilter.FILTER_ACCEPT;
+        },
+    });
+    for (let tn = walker.nextNode() as Text | null; tn; tn = walker.nextNode() as Text | null) {
+        nodes.push(tn); combined += tn.nodeValue || "";
+    }
+    // Character offset right after the (wordIndex)-th whitespace word in the combined text.
+    let endOffset = -1, count = 0, m: RegExpExecArray | null;
+    const re = /\S+/g;
+    while ((m = re.exec(combined))) {
+        if (count === wordIndex) { endOffset = m.index + m[0].length; break; }
+        count++;
+    }
+    if (endOffset < 0) return false;
+    // Map that global offset back to a specific text node + local offset and insert there.
+    let acc = 0;
+    for (const node of nodes) {
+        const len = (node.nodeValue || "").length;
+        if (endOffset <= acc + len) {
+            const tail = node.splitText(endOffset - acc);
+            node.parentNode!.insertBefore(marker, tail);
+            return true;
+        }
+        acc += len;
+    }
+    return false;
+}
+
+/** Parse `bible-xref-anchors` (list of "verse:wordIndex:tb.tc.tv") into a "verse:tb.tc.tv" → wordIndex map. */
+function xrefAnchorMap(fm: any): Map<string, number> {
+    const out = new Map<string, number>();
+    const raw = fm?.["bible-xref-anchors"];
+    for (const s of Array.isArray(raw) ? raw : []) {
+        const m = String(s).match(/^(\d+):(\d+):(.+)$/);
+        if (m) out.set(`${m[1]}:${m[3]}`, parseInt(m[2], 10));
+    }
+    return out;
+}
+
+async function writeXrefAnchor(plugin: Plugin, notePath: string, verse: number,
+                               target: string, wordIndex: number | null): Promise<void> {
+    const file = plugin.app.vault.getAbstractFileByPath(notePath);
+    if (!(file instanceof TFile)) return;
+    await plugin.app.fileManager.processFrontMatter(file, (fm: any) => {
+        const arr: string[] = Array.isArray(fm["bible-xref-anchors"]) ? fm["bible-xref-anchors"].map(String) : [];
+        // drop any existing placement for this verse+target, then (unless clearing) add the new one
+        const kept = arr.filter(s => !(s.startsWith(`${verse}:`) && s.endsWith(`:${target}`)));
+        if (wordIndex != null) kept.push(`${verse}:${wordIndex}:${target}`);
+        if (kept.length) fm["bible-xref-anchors"] = kept;
+        else delete fm["bible-xref-anchors"];
+    });
+}
+
+/** Force the active reading view to re-run post-processors so a placement change shows immediately. */
+function rerenderActivePreview(plugin: Plugin): void {
+    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+    (view as any)?.previewMode?.rerender?.(true);
+}
+
+/** Modal: pick which word of a verse a cross-reference marker should sit after. */
+class WordAnchorModal extends Modal {
+    constructor(private plugin: Plugin, private notePath: string, private verse: number,
+                private verseText: string, private target: string, private targetLabel: string) {
+        super(plugin.app);
+    }
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: `Place “${this.targetLabel}” after a word` });
+        contentEl.createEl("p", { cls: "setting-item-description",
+            text: `Verse ${this.verse}. Click the word this cross-reference relates to — its marker will sit just after it.` });
+        const box = contentEl.createDiv("lm-wordpick");
+        const words = this.verseText.split(/\s+/).filter(Boolean);
+        words.forEach((w, i) => {
+            const chip = box.createEl("button", { text: w, cls: "lm-wordpick-chip" });
+            chip.addEventListener("click", async () => {
+                await writeXrefAnchor(this.plugin, this.notePath, this.verse, this.target, i);
+                new Notice(`Marker placed after “${w}”.`);
+                this.close();
+                rerenderActivePreview(this.plugin);
+            });
+        });
+        new Setting(contentEl).addButton(b => b.setButtonText("Move back to the end of the verse").onClick(async () => {
+            await writeXrefAnchor(this.plugin, this.notePath, this.verse, this.target, null);
+            this.close();
+            rerenderActivePreview(this.plugin);
+        }));
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
 /** Click/tap a verse number → a "study" panel for that verse: at the TOP, a link to Matthew Henry's
  *  commentary for the chapter and links to YOUR personal commentary notes on the verse; below,
  *  ALL cross-references and all related-by-meaning links. Tapping a reference opens the same read-card
@@ -272,19 +389,35 @@ async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
     }
     const mhcSlot = study.createDiv("loremaster-bible-allxref-mhc");   // filled async below
 
-    const section = (title: string, items: any[]) => {
+    const booknum = BOOK_NUM[book];
+    const notePath = booknum ? `bible/${pad2(booknum)}-${book}/${version}/${book}-${pad3(chapter)}.md` : "";
+    const notePathNoExt = notePath.replace(/\.md$/, "");
+    const section = (title: string, items: any[], anchorable: boolean) => {
         if (!items.length) return;
         panel.createDiv("loremaster-bible-allxref-sub").setText(title);
         const list = panel.createDiv("loremaster-bible-allxref-list");
         for (const t of items) {
             const href = hrefFor(t);
-            const a = list.createEl("a", { text: t.n, cls: "loremaster-bible-allxref-item", attr: { href } });
+            const row = list.createDiv("loremaster-bible-allxref-row");
+            const a = row.createEl("a", { text: t.n, cls: "loremaster-bible-allxref-item", attr: { href } });
             // Tap a listed reference → the same read-card (verse text + Open) as the inline markers.
             a.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); void showBibleHovercard(plugin, a, href); });
+            // Pin this reference's marker after a specific word in the verse.
+            if (anchorable && notePath) {
+                row.createEl("button", { text: "⚓", cls: "loremaster-bible-allxref-anchor",
+                    attr: { "aria-label": "Place this reference after a word" } })
+                    .addEventListener("click", async (ev) => {
+                        ev.preventDefault(); ev.stopPropagation();
+                        const vt = await readVerseText(plugin, notePathNoExt, `v${verse}`);
+                        if (!vt) { new Notice("Couldn't read this verse's text to place the marker."); return; }
+                        close();
+                        new WordAnchorModal(plugin, notePath, verse, vt, `${t.b}.${t.c}.${t.v}`, t.n).open();
+                    });
+            }
         }
     };
-    section(`Cross-references (${xrefs.length})`, xrefs);
-    section(`Related by meaning (${embeds.length})`, embeds);
+    section(`Cross-references (${xrefs.length})`, xrefs, true);
+    section(`Related by meaning (${embeds.length})`, embeds, false);
     if (!xrefs.length && !embeds.length) panel.createDiv("loremaster-bible-allxref-sub").setText("No cross-references for this verse.");
 
     const r = anchor.getBoundingClientRect();
@@ -369,6 +502,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         // Paragraph starts (from the USFM \p boundaries) — mark them so flow layout can break there.
         const fm = plugin.app.metadataCache.getCache(ctx.sourcePath)?.frontmatter;
         const paraStarts = new Set(String(fm?.["bible-parastarts"] ?? "").split(",").filter(Boolean));
+        const anchorMap = xrefAnchorMap(fm);   // verse:tb.tc.tv → wordIndex (custom marker placement)
         const data = await loadBook(book);
         const sim = await loadSimilar(book, chapter);   // per-verse embedding neighbours
 
@@ -400,14 +534,24 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             const vnum = (num.textContent || "").trim();
             if (paraStarts.has(vnum)) (p.closest(".el-p") || p).addClass("lm-para-start");
             const targets = (data[`${book}.${chapter}.${vnum}`] || []).filter((t: any) => BOOK_NUM[t.b]);
-            // Cross-reference markers (public-domain), quiet superscript letters. (Toggle: settings.)
-            if (showXrefs) for (let i = 0; i < Math.min(targets.length, shown); i++) {
-                const t = targets[i], href = hrefFor(t);
-                const sup = p.createEl("sup");
-                sup.appendText(" ");
+            // Cross-reference markers (public-domain), quiet superscript letters.
+            // A reference pinned to a word (bible-xref-anchors) ALWAYS renders right after that word —
+            // even when the general "show cross-references" toggle is off — because it's a deliberate
+            // placement. The rest cluster at the end of the verse, only when the toggle is on and up to
+            // the configured count.
+            let endShown = 0;
+            for (let i = 0; i < targets.length; i++) {
+                const t = targets[i];
+                const wIdx = anchorMap.get(`${vnum}:${t.b}.${t.c}.${t.v}`);
+                const isAnchored = wIdx != null;
+                if (!isAnchored && (!showXrefs || endShown >= shown)) continue;
+                const href = hrefFor(t);
+                const sup = createEl("sup");
                 const a = sup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-xref",
                     attr: { "data-href": href, href, "aria-label": t.n } });
                 a.addEventListener("click", onMarkerClick(a, href));
+                const placedInline = isAnchored && placeMarkerAfterWord(p, wIdx!, sup);
+                if (!placedInline) { sup.insertBefore(document.createTextNode(" "), a); p.appendChild(sup); endShown++; }
             }
             // Embedding-similarity markers (verse index), distinct "≈" group, deduped against the
             // cross-references so a passage already cross-referenced isn't shown twice. (Toggle: settings.)
@@ -646,12 +790,88 @@ export function registerBibleAnnotations(plugin: Plugin): void {
         } });
 }
 
-/** Register the "paste a chapter from another translation" command. */
+// ── Insert a passage into the current note ──────────────────────────────────
+/** Parse "1-5", "1,3,5", or "3" (within one chapter) into an ascending, de-duplicated verse list. */
+function parseVerseRange(spec: string): number[] {
+    const out = new Set<number>();
+    for (const part of (spec || "").split(",")) {
+        const p = part.trim();
+        const m = p.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+        if (m) {
+            const a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+            const lo = Math.min(a, b), hi = Math.max(a, b);
+            for (let v = lo; v <= hi && v < lo + 200; v++) out.add(v);
+        } else if (/^\d+$/.test(p)) {
+            out.add(parseInt(p, 10));
+        }
+    }
+    return [...out].sort((a, b) => a - b);
+}
+
+/** Read a verse range from the vault's Bible notes and format it as a quoted passage (blockquote with
+ *  bold verse numbers, like the reader) plus a linked reference footer. */
+async function buildPassageMarkdown(plugin: Plugin, book: string, chapter: number,
+                                    versesSpec: string, version: string):
+                                    Promise<{ text?: string; error?: string }> {
+    const num = BOOK_NUM[book];
+    if (!num) return { error: `Unknown book slug "${book}" (use e.g. john, 1-corinthians, psalms).` };
+    if (!chapter) return { error: "Enter a chapter number." };
+    const nums = parseVerseRange(versesSpec);
+    if (!nums.length) return { error: "Enter verses like 1-5, 1,3,5, or 3." };
+    const linkbase = `bible/${pad2(num)}-${book}/${version}/${book}-${pad3(chapter)}`;
+    const lines: string[] = [];
+    for (const v of nums) {
+        const t = await readVerseText(plugin, linkbase, `v${v}`);
+        if (t) lines.push(`> **${v}** ${t}`);
+    }
+    if (!lines.length) return { error: `No verses found for ${bookLabel(book)} ${chapter} in "${version}". `
+        + `Add that chapter first with "Bible: paste a chapter" or "Bible: get a chapter".` };
+    const first = nums[0], last = nums[nums.length - 1];
+    const rangeLabel = first === last ? `${first}` : `${first}–${last}`;
+    const ref = `${bookLabel(book)} ${chapter}:${rangeLabel}`;
+    lines.push(">", `> — [${ref}](${linkbase}#^v${first}) (${version.toUpperCase()})`);
+    return { text: lines.join("\n") + "\n" };
+}
+
+class InsertPassageModal extends Modal {
+    constructor(private plugin: Plugin, private editor: Editor) { super(plugin.app); }
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Insert a passage" });
+        contentEl.createEl("p", { cls: "setting-item-description",
+            text: "Reads several verses from your Bible notes and inserts them here as a quoted passage, "
+                + "with a link back to the chapter." });
+        let book = "", version = "web", chapter = "", verses = "";
+        new Setting(contentEl).setName("Book").setDesc("slug — e.g. john, 1-corinthians, psalms")
+            .addText(t => t.onChange(v => book = v));
+        new Setting(contentEl).setName("Chapter").addText(t => { t.inputEl.type = "number"; t.onChange(v => chapter = v); });
+        new Setting(contentEl).setName("Verses").setDesc("e.g. 1-5, or 1,3,5, or 3")
+            .addText(t => t.onChange(v => verses = v));
+        new Setting(contentEl).setName("Version").setDesc("web, kjv, esv, … (must be in your vault)")
+            .addText(t => { t.setValue("web"); t.onChange(v => version = v); });
+        new Setting(contentEl).addButton(b => b.setButtonText("Insert").setCta().onClick(async () => {
+            const md = await buildPassageMarkdown(this.plugin, book.toLowerCase().trim(),
+                parseInt(chapter, 10), verses, (version || "web").toLowerCase().trim());
+            if ("error" in md) { new Notice(md.error!); return; }
+            this.editor.replaceSelection(md.text!);
+            this.close();
+        }));
+        setTimeout(() => (contentEl.querySelector("input") as HTMLInputElement | null)?.focus(), 0);
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+/** Register the "paste a chapter" + "insert a passage" authoring commands. */
 export function registerBiblePaste(plugin: Plugin): void {
     plugin.addCommand({
         id: "bible-paste-chapter",
         name: "Bible: paste a chapter (new translation)",
         callback: () => new BiblePasteModal(plugin).open(),
+    });
+    plugin.addCommand({
+        id: "bible-insert-passage",
+        name: "Bible: insert a passage (into this note)",
+        editorCallback: (editor: Editor) => new InsertPassageModal(plugin, editor).open(),
     });
 }
 

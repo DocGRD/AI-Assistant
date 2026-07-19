@@ -1,4 +1,4 @@
-<!-- help-version: 35 -->
+<!-- help-version: 36 -->
 ---
 tags: [help, user-guide]
 ---
@@ -22,6 +22,12 @@ Open one in **Reading view** (chapters auto-open there) and you get:
   tap away.
 - **Matthew Henry's Commentary** — a **📖 Matthew Henry on <Book> <Ch>** link sits under each chapter's
   title, and is also in the verse-number popup, so you can reach the commentary from anywhere you read.
+- **Pin a cross-reference to a word.** In the verse-number popup, each cross-reference has an **⚓**
+  button: click it, then click the word it relates to, and its marker moves to sit right after that
+  word instead of clustering at the end. A pinned marker shows even when you've toggled the general
+  cross-references off — so you can keep a clean page and surface just the links that matter, next to
+  the words they explain. (Stored in the note's `bible-xref-anchors`; "Move back to the end of the
+  verse" undoes it.)
 - **Verse-by-verse or flowing paragraphs** — run the command *"Bible: toggle reading layout"*.
 - **Poetry** (Psalms, Proverbs) laid out as indented poetry; **prose** grouped into paragraphs.
 - **Red-letter** — the words of Christ (Gospels, Acts, Revelation) render in red.
@@ -65,6 +71,13 @@ written on get a **✎** marker right after the verse number (tap to open your n
 also listed at the top of that verse's number popup and under the chapter. Write freely — it's your
 growing study library. *(A hand-made commentary note only links to its verse if it carries a
 `commentary-ref:` line in its frontmatter — the "write a note" command adds this for you.)*
+
+### Quote a passage into a note
+
+To drop scripture into a study note, sermon outline, or journal entry, run **"Bible: insert a passage
+(into this note)"** from the editor. Pick the book, chapter, a verse range (`1-5`, `1,3,5`, or a single
+`3`), and version — LoreMaster reads those verses from your Bible notes and inserts them at the cursor
+as a quoted passage (bold verse numbers, like the reader) with a link back to the chapter.
 
 ### Get a chapter from a licensed online version (ESV / NASB / NKJV)
 

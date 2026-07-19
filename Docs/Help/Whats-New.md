@@ -1,10 +1,21 @@
-<!-- help-version: 35 -->
+<!-- help-version: 36 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.45**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.46**.*
+
+## Bible: quote a passage + pin references to words (v1.10.46)
+- **Insert a passage.** *"Bible: insert a passage (into this note)"* drops several verses (choose the
+  version and a range like `1-5`) into whatever note you're writing, as a quoted passage linked back to
+  the chapter — handy for study notes and sermon outlines.
+- **Pin a cross-reference to a word.** In the verse-number popup, each cross-reference now has an **⚓**
+  button — click it, click the word it relates to, and the marker sits right after that word instead of
+  at the end of the verse. Pinned markers show even when you've turned the general cross-references off.
+- **Clearer verse card.** When a verse can't be shown in your translation, the card now says *"not
+  available in this translation"* — and only *"not in this translation"* when that version genuinely
+  omits the verse.
 
 ## Bible: annotate it yourself + Matthew Henry from any verse (v1.10.43–v1.10.45)
 - **Mark up any translation.** In edit mode, select text and run **"Bible: highlight selection"**,
