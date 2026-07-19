@@ -940,7 +940,7 @@ resolves (deletes) the proposal, **Dismiss** drops it. Reuses the propose/commit
 
 **Slice 5 (live context summarization):** `context_manager.py` Pass 3 now condenses the oldest chat span
 into one `[Summary of earlier conversation: …]` block via a single LLM call instead of stubbing turns —
-opt-in (`context_summarization`, default off), privacy carried through (`trim(..., private=…)`), and falls
+opt-in (`cloud_summarization`, default off), privacy carried through (`trim(..., private=…)`), and falls
 back to the lossy trim if the call fails. Wired through the agent loop, server, and terminal.
 
 Tests: archival (move/keep/digest/no-reprocess), proposal list/apply/path-jail, and summarization
@@ -975,7 +975,7 @@ no-train providers), the high-volume providers (Cerebras / Groq-8b) for token-he
    chat turns / vault blocks outright (passes 2–3 today), an LLM condenses the about-to-be-trimmed span
    into a short `[Summary of earlier conversation: …]` block that stays in history. Reuses this
    milestone's summarization machinery + budget guard; privacy carries over (a private turn summarizes
-   only via no-train providers). Gated by a setting (`context_summarization: true`); falls back to the
+   only via no-train providers). Gated by a setting (`cloud_summarization: true`); falls back to the
    current trim if the summarizer call fails, so a long session degrades gracefully instead of losing
    old context wholesale. This is the everyday-facing half of M17 (the nightly pass is the other half).
 6. **Tests + docs.** Deterministic tests with a fake router/embedder: episodes→proposal; a near-dup is

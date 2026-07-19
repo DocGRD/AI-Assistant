@@ -32,7 +32,7 @@
   "auto_consolidate_enabled": true,
   "auto_consolidate_hour": 4,
   "episode_archive_days": 30,
-  "context_summarization": false,
+  "cloud_summarization": false,
   "auto_graph_enabled": false,
   "graph_build_limit": 50,
   "graph_include_private": false,

@@ -24,7 +24,7 @@ to `Learned-Facts`.
 
 ### T17.02 — Context summarization + scheduler decision
 **Steps:** `… -m unittest tests.test_memory_episodes tests.test_scheduler -v`
-**Expected:** Pass — `context_summarization` replaces a trimmed span with a `[Summary …]` block and falls
+**Expected:** Pass — `cloud_summarization` replaces a trimmed span with a `[Summary …]` block and falls
 back to trim on failure; `consolidate_due` fires once per night.
 
 - [ ] ✅ Pass  &nbsp; [ ] ❌ Fail  &nbsp; [ ] ⏭ Skip

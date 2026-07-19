@@ -87,7 +87,7 @@ class TestContextManagerUsesLocal(unittest.TestCase):
         from assistant_core.providers.base_provider import Message
 
         router = mock.MagicMock()
-        cm = ContextManager(mock.MagicMock(), router=router, config={})  # context_summarization off
+        cm = ContextManager(mock.MagicMock(), router=router, config={})  # cloud_summarization off
         span = [Message(role="user", content="hi")]
         with mock.patch.object(local_llm, "available", return_value=False):
             out = cm._summarize(span, private=False)

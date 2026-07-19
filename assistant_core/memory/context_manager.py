@@ -39,15 +39,25 @@ class ContextManager:
 
     def __init__(self, model_registry: ModelRegistry, router=None, config: dict | None = None):
         self._registry = model_registry
-        # M17 Slice 5 — summary-based compression of the oldest chat turns instead of dropping
-        # them. Enabled when the user opts in (context_summarization) OR when a local small model
-        # is reachable — summarising is a reductive, low-risk task ideal for a ~3B local model, and
-        # doing it locally is free/offline so we can afford to always compress rather than drop.
+        # M17 Slice 5 — summary-based compression of the oldest chat turns instead of dropping them.
+        # The local small model (Ollama) is ALWAYS preferred and tried first — summarising is a
+        # reductive, low-risk task ideal for a ~3B local model, and doing it locally is free/offline.
+        # Compression (vs. a lossy drop) is possible when EITHER a local model is reachable OR
+        # `cloud_summarization` permits the cloud fallback.
         self._router = router
         self._config = config or {}
         from assistant_core import local_llm
-        self._summarize_enabled = (bool(self._config.get("context_summarization", False))
+        self._summarize_enabled = (self._cloud_summarization_allowed()
                                    or local_llm.available(self._config))
+
+    def _cloud_summarization_allowed(self) -> bool:
+        """Whether a CLOUD model may summarise old chat turns. Local (Ollama) is always tried first;
+        this only permits the cloud fallback when no local model is reachable. Default off = local
+        summarisation only (drop old turns if no local model). Legacy alias: `context_summarization`."""
+        cfg = self._config
+        if "cloud_summarization" in cfg:
+            return bool(cfg.get("cloud_summarization"))
+        return bool(cfg.get("context_summarization", False))   # backward-compat
 
     def trim(
         self,
@@ -287,9 +297,9 @@ class ContextManager:
             out = local_llm.summarize(convo, self._config)
             if out:
                 return out
-        # No local model — use the cloud router only if the user explicitly enabled it,
-        # otherwise return "" so the caller just trims (drops) the old turns instead.
-        if not self._config.get("context_summarization", False) or self._router is None:
+        # No local model — use the cloud router only if the user explicitly enabled it
+        # (cloud_summarization), otherwise return "" so the caller just trims (drops) the old turns.
+        if not self._cloud_summarization_allowed() or self._router is None:
             return ""
         sys = ("Summarise the earlier conversation below into a few sentences that capture "
                "the decisions made, facts established, and any open threads. Be concise and "

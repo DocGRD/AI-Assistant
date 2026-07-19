@@ -1,4 +1,4 @@
-<!-- help-version: 34 -->
+<!-- help-version: 35 -->
 ---
 tags: [help, user-guide, privacy, settings]
 ---
@@ -74,7 +74,7 @@ Some keys apply live (agent steps, tokens, temperature, hybrid weights); the res
 | `auto_graph_enabled` / `graph_build_limit` | Nightly knowledge-graph build (off by default — costly) |
 | `episode_archive_days` | Age at which daily episodes are archived (default 30) |
 | `web_research_enabled` / `web_max_results` / `web_max_fetches` | Autonomous web research |
-| `context_summarization` | Compress long chats into a summary block instead of dropping them |
+| `cloud_summarization` | When a long chat must be compressed, allow a **cloud** model to write the summary if no local model is reachable. Default **off** — the local model (Ollama) always summarises when available; with no local model, off simply drops the oldest turns rather than sending them to the cloud. (Legacy name: `context_summarization`.) |
 
 ## What runs automatically (no OS cron)
 An in-process scheduler on the box runs **weekly provider discovery** (~3 AM) and **nightly memory

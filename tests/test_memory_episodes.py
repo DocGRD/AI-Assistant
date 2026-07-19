@@ -170,7 +170,7 @@ class ContextSummarizationTests(unittest.TestCase):   # M17 Slice 5
 
     def test_summarizes_instead_of_stubbing(self):
         router = _SummaryRouter()
-        cm = ContextManager(_FakeReg(), router=router, config={"context_summarization": True})
+        cm = ContextManager(_FakeReg(), router=router, config={"cloud_summarization": True})
         trimmed = cm.trim(self._history(8), "groq", "SYS", max_response_tokens=256, private=True)
         joined = "\n".join(m.content for m in trimmed)
         self.assertIn("[Summary of earlier conversation:", joined)
@@ -178,10 +178,18 @@ class ContextSummarizationTests(unittest.TestCase):   # M17 Slice 5
         self.assertGreaterEqual(router.calls, 1)
         self.assertTrue(router.last_private)                  # privacy carried into the summarizer
 
-    def test_falls_back_to_trim_on_failure(self):
-        import logging
-        router = _SummaryRouter(fail=True)
+    def test_legacy_context_summarization_alias(self):
+        # The old key name still works (backward-compat) and behaves like cloud_summarization.
+        router = _SummaryRouter()
         cm = ContextManager(_FakeReg(), router=router, config={"context_summarization": True})
+        trimmed = cm.trim(self._history(8), "groq", "SYS", max_response_tokens=256)
+        joined = "\n".join(m.content for m in trimmed)
+        self.assertIn("[Summary of earlier conversation:", joined)
+        self.assertGreaterEqual(router.calls, 1)
+
+    def test_falls_back_to_trim_on_failure(self):
+        router = _SummaryRouter(fail=True)
+        cm = ContextManager(_FakeReg(), router=router, config={"cloud_summarization": True})
         with self.assertLogs("assistant", level="WARNING"):   # summariser failure is expected
             trimmed = cm.trim(self._history(8), "groq", "SYS", max_response_tokens=256)
         joined = "\n".join(m.content for m in trimmed)
@@ -189,7 +197,7 @@ class ContextSummarizationTests(unittest.TestCase):   # M17 Slice 5
 
     def test_disabled_uses_trim(self):
         router = _SummaryRouter()
-        cm = ContextManager(_FakeReg(), router=router, config={"context_summarization": False})
+        cm = ContextManager(_FakeReg(), router=router, config={"cloud_summarization": False})
         cm.trim(self._history(8), "groq", "SYS", max_response_tokens=256)
         self.assertEqual(router.calls, 0)                     # opt-in: no LLM call when disabled
 
