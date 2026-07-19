@@ -1,10 +1,40 @@
-<!-- help-version: 18 -->
+<!-- help-version: 34 -->
 ---
 tags: [help, user-guide, privacy, settings]
 ---
 # Privacy, Providers & Settings
 
 Part of [[How-To-Use]]. The live provider list is [[Provider-Registry]].
+
+## Changing your API key (the LAN token)
+The **API token** authenticates the plugin to a service exposed on your network (it must match
+`api_token` in the service's `assistant_core/config/settings.json`). To rotate it:
+
+1. **On the service host** (the machine running the Python service), edit
+   `assistant_core/config/settings.json` and set a new strong `api_token`, then **restart the service**
+   (in the plugin's *Service settings → Restart*, or `curl -X POST -H "X-API-Key: <old-token>"
+   http://127.0.0.1:8765/restart`).
+2. **In each Obsidian client**, open **Settings → Loremaster → Service connection → API token** and paste
+   the new value. Use **Test connection** to confirm — a green result means it matches.
+3. A **provider** API key (Groq / Google / Cerebras / NVIDIA) is different — those live in the same
+   `settings.json` (`groq_api_key`, `google_api_key`, …); change them there and restart. They are never
+   entered in the plugin.
+
+If you only use local/vault-file mode (service on `127.0.0.1`), the API token can be left blank.
+
+## Bible version keys (ESV / NASB / NKJV)
+The offline base version is WEB (public domain, bundled). Licensed translations are fetched on demand
+through the service — your keys stay on the service, never in the vault or the plugin. Set them in the
+plugin's **Service settings (control panel)** (Settings → Loremaster → *Service settings* → **Load**),
+which shows a write-only field for each:
+- **`esv_api_key`** — a free key from **api.esv.org** (create an API application). ESV's terms cap local
+  caching at **500 verses**, so the reader keeps only your most-recently-read ESV chapters.
+- **`apibible_api_key`** — a free key from **scripture.api.bible** (API.Bible, "Starter", non-commercial).
+- **`apibible_nasb_id` / `apibible_nkjv_id`** — the *bible id* for each translation as shown for your key
+  on scripture.api.bible (which bibles a key can access varies, so you copy the id yourself).
+
+After saving keys, **Restart the service**. Then use the command *"Bible: get a chapter (ESV / NASB / NKJV)"* —
+the chapter is fetched once, saved in the vault under `bible/<book>/<version>/`, and reused thereafter.
 
 ## Privacy — how "private" works
 A turn is **private** when you toggle **🔒 Private** in the plugin, a note has `private: true`

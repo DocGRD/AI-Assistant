@@ -1,10 +1,26 @@
-<!-- help-version: 33 -->
+<!-- help-version: 34 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.40**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.45**.*
+
+## Bible: annotate it yourself + Matthew Henry from any verse (v1.10.43–v1.10.45)
+- **Mark up any translation.** In edit mode, select text and run **"Bible: highlight selection"**,
+  **"Bible: mark selection as words of Christ (red)"**, or **"Bible: tag selection with a Strong's
+  number"** (also on the right-click **Bible** menu). This is how you add red-letter or Strong's to a
+  version that doesn't ship with them — e.g. mark Christ's words red in the ESV.
+- **Matthew Henry's Commentary, linked.** Every chapter shows a **📖 Matthew Henry on <Book> <Ch>**
+  link under its title, and the same link is in the verse-number popup — so you can jump to the
+  commentary from anywhere you're reading.
+- **Verse-number study popup.** Tap a verse number and the popup now leads with **your commentary
+  notes** on that verse and the **Matthew Henry** link, above all the cross-references and
+  related-by-meaning passages. The **✎** note marker now sits right after the verse number.
+- **Popups close cleanly.** The cross-reference read-card gained a **×** button and closes when you
+  tap away (both fixes also apply to the verse-number popup).
+- **Verse card falls back to the WEB** when a verse isn't in the translation you're reading, with a
+  note saying so.
 
 ## Bible: interlinear, concordance, your own commentary (v1.10.40)
 - **Interlinear + concordance (Strong's).** *"Bible: interlinear (this chapter)"* shows the chapter

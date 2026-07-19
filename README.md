@@ -60,15 +60,22 @@ on a CUDA box, CPU everywhere else.
 
 **Bible study reader.** The public-domain **World English Bible** ships as folder-ordered notes
 (`bible/{NN}-{book}/{version}/…`, sourced from USFM so poetry, paragraphs, and section headings are
-preserved), read in a classic serif study-Bible layout. The plugin renders three distinct link layers over
+preserved), read in a classic serif study-Bible layout. The plugin renders distinct link layers over
 scripture: **cross-references** (public-domain OpenBible, stored once and version-independent, injected as
-quiet superscript markers — hover for the verse, click to open it, click a verse number for *all* of them)
-and **"Related by meaning"** (embedding-similarity passages, dashed links, deduplicated against the
-cross-references). Verse-by-verse ⟷ flowing-paragraph layouts, auto-Reading-view, and a configurable
-cross-reference count. Scripture and imported commentary (e.g. Matthew Henry) are in the semantic index, so
-`vault:ask` searches God's word. Adding another translation is a paste into the standard note format — the
-cross-references and related links then appear automatically. (Copyrighted translations like ESV/NASB/NKJV
-are used only within their terms; WEB is the bundled public-domain base.)
+quiet superscript markers — hover for the verse, click to open it) and **"Related by meaning"**
+(embedding-similarity passages, dashed links, deduplicated against the cross-references). Tapping a
+**verse number** opens a study popup that leads with a **Matthew Henry** commentary link and **your own**
+commentary notes on that verse, then lists all of its cross-references; a **📖 Matthew Henry** link also
+sits under each chapter title. **Interlinear + concordance** from public-domain KJV+Strong's; **red-letter**
+words of Christ; and **your own commentary** (`commentary-ref` notes surface as a ✎ on the verse). You can
+also **annotate any translation yourself** — select text in edit mode and run *"Bible: mark selection as
+words of Christ (red)"*, *"…highlight selection"*, or *"…tag selection with a Strong's number"* to add
+red-letter or Strong's where a version doesn't ship them. Verse-by-verse ⟷ flowing-paragraph layouts,
+auto-Reading-view, and a configurable cross-reference count. Scripture and imported commentary (e.g. Matthew
+Henry) are in the semantic index, so `vault:ask` searches God's word. Adding another translation is a paste
+(or the *"get a chapter (ESV / NASB / NKJV)"* command) into the standard note format — the cross-references
+and related links then appear automatically. (Copyrighted translations like ESV/NASB/NKJV are used only
+within their terms; WEB is the bundled public-domain base.)
 
 **Research round-trip.** `vault:research` generates a prompt for a web AI; when you paste the answer back,
 the assistant saves it **verbatim** to `AI/Research/`, gives it a short LLM-generated title, produces a

@@ -1,10 +1,78 @@
-<!-- help-version: 29 -->
+<!-- help-version: 34 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
-# What's New in Loremaster
+# What's New in LoreMaster
 
-*A capability overview so you can learn everything Loremaster can do. Current through **v1.10.15**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.45**.*
+
+## Bible: annotate it yourself + Matthew Henry from any verse (v1.10.43–v1.10.45)
+- **Mark up any translation.** In edit mode, select text and run **"Bible: highlight selection"**,
+  **"Bible: mark selection as words of Christ (red)"**, or **"Bible: tag selection with a Strong's
+  number"** (also on the right-click **Bible** menu). This is how you add red-letter or Strong's to a
+  version that doesn't ship with them — e.g. mark Christ's words red in the ESV.
+- **Matthew Henry's Commentary, linked.** Every chapter shows a **📖 Matthew Henry on <Book> <Ch>**
+  link under its title, and the same link is in the verse-number popup — so you can jump to the
+  commentary from anywhere you're reading.
+- **Verse-number study popup.** Tap a verse number and the popup now leads with **your commentary
+  notes** on that verse and the **Matthew Henry** link, above all the cross-references and
+  related-by-meaning passages. The **✎** note marker now sits right after the verse number.
+- **Popups close cleanly.** The cross-reference read-card gained a **×** button and closes when you
+  tap away (both fixes also apply to the verse-number popup).
+- **Verse card falls back to the WEB** when a verse isn't in the translation you're reading, with a
+  note saying so.
+
+## Bible: interlinear, concordance, your own commentary (v1.10.40)
+- **Interlinear + concordance (Strong's).** *"Bible: interlinear (this chapter)"* shows the chapter
+  word-by-word with Strong's numbers (tap one for the Hebrew/Greek word, meaning, and every verse that
+  uses it). *"Bible: concordance (Strong's number or word)"* finds every verse using a number or word.
+  Built from the public-domain **KJV+Strong's** (the WEB's own tags are corrupt) + the openscriptures
+  lexicon.
+- **Your own commentary.** *"Bible: write a note on this verse"* creates a note tied to a verse/passage
+  (`commentary-ref`); annotated verses get a **✎** you can tap, and your notes are listed under the
+  chapter. A study library you build over time.
+
+## Bible: red-letter, online versions, text size, phone fixes (v1.10.38–v1.10.39)
+- **Red-letter (words of Christ).** In the Gospels, Acts and Revelation, the words of Jesus render
+  in red — automatically, from the source text.
+- **Online versions (ESV / NASB / NKJV).** Command *"Bible: get a chapter (ESV / NASB / NKJV)"*
+  fetches a chapter from a licensed version through your local service and **saves it in the vault**,
+  so it's only ever fetched once and gets the full reader treatment (cross-references, hovercards,
+  layout). Keys live in the service settings — see *Privacy & Settings*. ESV honours its 500-verse
+  caching cap automatically.
+- **Text size.** Settings → Loremaster → Bible reader → **Text size** scales the reader's text
+  (80–160%) without changing Obsidian's global font size.
+- **Phone fixes.** Cross-references now render on mobile (a compatibility bug hid them), and tapping
+  a superscript marker on the phone now opens the read-card (with an **Open** button) instead of
+  jumping straight to the verse — so you can read it first, then choose to open it.
+
+## Bible study: related-by-meaning, "see all", classic typography (v1.10.32–v1.10.35)
+- **"Related by meaning."** Below each chapter, a distinct dashed-link section shows passages the
+  **embeddings** judge most similar — separate from the public-domain cross-references, and
+  deduplicated against them (if a passage is already a cross-reference, it isn't repeated here).
+- **See every cross-reference.** Click a **verse number** to open a panel listing *all* of that
+  verse's cross-references (up to 20), each opening the exact verse.
+- **How many cross-refs to show** is now a setting (Settings → Loremaster → Bible reader), default 4.
+- **Classic study-Bible look** — serif text, centered chapter heading, italic Psalm titles, small
+  superscript verse numbers, comfortable spacing.
+- **Scripture is searchable.** The Bible and imported commentary are in the semantic index, so
+  `vault:ask "what does scripture say about …"` finds and cites God's word.
+
+## A study Bible inside Obsidian (v1.10.31)
+- **The whole Bible, read in Obsidian.** The public-domain World English Bible (WEB) ships as
+  folder-ordered notes — `bible/40-matthew/web/matthew-001.md` — sourced from USFM, so poetry
+  (Psalms) is laid out as poetry, prose reads as paragraphs, and each chapter has prev/next nav.
+- **Cross-references as a shared overlay.** Every verse's cross-references (from OpenBible) are stored
+  **once** and drawn onto the page by the plugin as small superscript markers. Hover one → the
+  reference + the full linked verse; click → open that verse (Ctrl/Cmd-click = new tab). Because the
+  references live once and are version-independent, **adding another translation repeats no
+  cross-reference work.**
+- **Two reading layouts.** Command *"Bible: toggle reading layout"* flips between verse-by-verse and
+  flowing paragraphs (paragraphs break at the translation's natural boundaries).
+- **Reads in Reading view.** Bible chapters auto-open in Reading view (that's where the overlay,
+  hidden verse anchors, and layouts render). Ask *"how do I add a chapter from another translation?"*
+  and LoreMaster will walk you through the note format.
+- Commentary too: Matthew Henry's whole commentary can be imported as linked notes.
 
 ## Loremaster understands itself + robust handling of huge notes (v1.10.13–v1.10.15)
 - **Everyday replies are much faster (v1.10.15).** A routing bug tiered every Gemini model as

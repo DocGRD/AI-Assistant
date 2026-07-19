@@ -1,4 +1,4 @@
-<!-- help-version: 26 -->
+<!-- help-version: 34 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -70,6 +70,27 @@ Running goals live under the **🎯 Goals** button.*
 |---|---|
 | `vault:clip <url>` | Save a web page's readable text — or a **YouTube** transcript — as a sourced, indexed note in `AI/Clippings/` (disabled in Private mode) |
 | `vault:template <name> [:: context]` | Fill a **Templater/Templates** template's fields from context → propose-only note |
+
+## Bible study & reading (Obsidian commands)
+
+These are **plugin commands** — run them from the Command Palette (or a right-click menu where noted),
+not as `vault:` chat commands. The annotation commands act on the **selected text in edit mode**.
+
+| Command | What it does |
+|---|---|
+| `Bible: highlight selection` | Wrap the selected text in a `==highlight==` (edit mode; also right-click → Bible) |
+| `Bible: mark selection as words of Christ (red)` | Render the selection **red** (words of Christ) — works in any translation (edit mode; also right-click → Bible) |
+| `Bible: tag selection with a Strong's number` | Tag the selected word with a Strong's number (`H430`/`G26`) so the Strong's popup works on it in any version (edit mode) |
+| `Bible: write a note on this verse` | Create a personal commentary note tied to a verse/passage (`commentary-ref`); the verse gets a ✎ |
+| `Bible: interlinear (this chapter)` | Word-by-word Strong's for the open chapter; tap a number for the Hebrew/Greek word + concordance |
+| `Bible: concordance (Strong's number or word)` | Every verse using a Strong's number (`H430`) or English word (`love`) |
+| `Bible: get a chapter (ESV / NASB / NKJV)` | Fetch a licensed version's chapter via your service, save it in the vault, open it |
+| `Bible: paste a chapter (new translation)` | Paste raw chapter text → LoreMaster formats it into the standard verse layout |
+| `Bible: toggle reading layout (verse-by-verse ⟷ flowing)` | Switch the reader between one-verse-per-line and flowing paragraphs |
+
+*Reader extras that need no command:* tap a **verse number** for a study popup (Matthew Henry + your
+notes + all cross-references); a **📖 Matthew Henry** link sits under each chapter title; hover/tap a
+word in a Strong's-tagged chapter for its lexicon entry. See [[Features]] for the full walkthrough.
 
 ## Obsidian command palette (core + your plugins)
 Loremaster knows your whole Obsidian command palette — core **and every community plugin you install** — so

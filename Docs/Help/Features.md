@@ -1,10 +1,114 @@
-<!-- help-version: 23 -->
+<!-- help-version: 34 -->
 ---
 tags: [help, user-guide]
 ---
 # Features — by task
 
 Part of [[How-To-Use]]. See [[Commands]] for the exact syntax.
+
+## Read the Bible (study reader)
+
+The public-domain **World English Bible (WEB)** ships as notes under `bible/`, one folder per book in
+canonical order (`bible/40-matthew/…`), one note per chapter (`bible/40-matthew/web/matthew-001.md`).
+Open one in **Reading view** (chapters auto-open there) and you get:
+
+- **Cross-references** as small superscript markers after each verse. Hover a marker to see the
+  reference and the full linked verse; click it to open that verse (Ctrl/Cmd-click opens a new tab).
+  The read-card has a **×** close button and closes when you tap away. The references are stored once
+  in `AI/bible-crossrefs/` and drawn on by the plugin, so they are the same for every translation.
+- **Tap the verse number → a study popup** for that verse: at the top, a **📖 Matthew Henry** link to
+  the chapter's commentary and links to **your own** commentary notes on that verse; below, *all* of
+  the verse's cross-references and related-by-meaning links. Available on every verse. × to close, or
+  tap away.
+- **Matthew Henry's Commentary** — a **📖 Matthew Henry on <Book> <Ch>** link sits under each chapter's
+  title, and is also in the verse-number popup, so you can reach the commentary from anywhere you read.
+- **Verse-by-verse or flowing paragraphs** — run the command *"Bible: toggle reading layout"*.
+- **Poetry** (Psalms, Proverbs) laid out as indented poetry; **prose** grouped into paragraphs.
+- **Red-letter** — the words of Christ (Gospels, Acts, Revelation) render in red.
+- **"Related by meaning"** — a distinct section per chapter with embedding-similar passages, plus a
+  per-verse `≈` marker; both deduplicated against the cross-references.
+- **Text size** — Settings → Loremaster → Bible reader → **Text size** (80–160%), reader-only.
+- **On mobile**, tap a superscript marker to open its read-card (with **Open**) rather than jumping away.
+
+### Annotate: highlight, words of Christ, tag a Strong's number
+
+You can mark up any translation yourself — this is how you add red-letter or Strong's to a version that
+doesn't ship with them. Open the chapter in **edit mode**, select the word(s), then run one of these
+(Command Palette, or right-click → the **Bible** menu):
+
+- **"Bible: highlight selection"** — wraps it in `==…==` (a highlight).
+- **"Bible: mark selection as words of Christ (red)"** — renders the selection red, like the built-in
+  red-letter. Use this to mark Christ's words in ESV/NASB/NKJV or anywhere they aren't already red.
+- **"Bible: tag selection with a Strong's number"** — asks for a number (e.g. `H430`, `G26`) and tags
+  the word, so the Strong's hover/tap popup then works on it in **any** translation.
+
+Switch back to Reading view to see the result. (These edit the note text, so they need an active editor
+and a selection — they won't appear when the note is in Reading view.)
+
+### Interlinear & concordance (Strong's)
+
+- **Interlinear** — command *"Bible: interlinear (this chapter)"* opens the open chapter word-by-word,
+  each word tagged with its **Strong's number**. Tap a number for its Hebrew/Greek word,
+  transliteration, meaning, and a link into the concordance.
+- **Concordance** — command *"Bible: concordance (Strong's number or word)"*. Enter a Strong's number
+  (`H430`, `G26`) or an English word (`love`) and get every verse that uses it, each a link.
+- Accuracy note: the WEB's own word-tags are unreliable, so the Strong's data is built from the
+  public-domain **KJV + Strong's** (the basis of Strong's Concordance) plus the openscriptures
+  lexicon. It lives in `AI/bible-strongs/`; the WEB stays your reading text.
+
+### Your own commentary
+
+Write your own notes on scripture and see them in the reader. Command *"Bible: write a note on this
+verse"* (from an open chapter) creates a note under `bible-commentary/` carrying `commentary-ref:
+<book>.<ch>.<v>` (a single verse, a range `…v-v2`, or a whole chapter `<book>.<ch>`). Verses you've
+written on get a **✎** marker right after the verse number (tap to open your note); your notes are
+also listed at the top of that verse's number popup and under the chapter. Write freely — it's your
+growing study library. *(A hand-made commentary note only links to its verse if it carries a
+`commentary-ref:` line in its frontmatter — the "write a note" command adds this for you.)*
+
+### Get a chapter from a licensed online version (ESV / NASB / NKJV)
+
+The fastest way to add another translation: run the command **"Bible: get a chapter (ESV / NASB / NKJV)"**,
+pick the version, book slug and chapter. LoreMaster fetches it through your local service (your API keys
+stay on the service — set them under *Privacy & Settings → Bible version keys*), **saves it in the vault**,
+and opens it — so it's only ever fetched once and gets the full reader treatment. ESV automatically honours
+its 500-verse caching cap.
+
+### Add a chapter from another translation (by hand / paste)
+
+The WEB is included; you can add a chapter of any translation **you have legal access to** by pasting
+it into a note in the standard format (the cross-references then appear automatically — you never add
+them by hand). Create the note at:
+
+```
+bible/{NN}-{book-slug}/{version}/{book-slug}-{CCC}.md
+```
+
+e.g. `bible/43-john/esv/john-003.md` for ESV John 3 (NN = book number 01–66, CCC = zero-padded
+chapter). Give it this frontmatter and body:
+
+```markdown
+---
+cssclasses:
+  - bible
+bible-version: esv
+bible-book: john
+bible-booknum: 43
+bible-chapter: 3
+bible-parastarts: 1,16,22
+---
+# John 3
+
+**1** Now there was a man of the Pharisees named Nicodemus… ^v1
+**2** This man came to Jesus by night… ^v2
+```
+
+Rules: each verse is `**{number}** {text} ^v{number}` (the `^v#` anchor is what cross-references land
+on); `bible-parastarts` lists the verses that begin a new paragraph; for poetry, indent second lines
+with an em-space. **Copyright:** only add translations you're licensed to store (WEB is public domain;
+ESV/NASB/NKJV are copyrighted — use them only within their terms). Prefer the command
+*"Bible: paste a chapter (new translation)"* — paste the raw text and LoreMaster splits it into the
+standard verse format for you.
 
 ## What's new in v1.6 (quick map)
 - **📥 Approvals inbox** (sidebar badge-button → modal) — every background proposal in one place:

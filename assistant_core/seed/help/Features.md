@@ -1,4 +1,4 @@
-<!-- help-version: 33 -->
+<!-- help-version: 34 -->
 ---
 tags: [help, user-guide]
 ---
@@ -14,8 +14,14 @@ Open one in **Reading view** (chapters auto-open there) and you get:
 
 - **Cross-references** as small superscript markers after each verse. Hover a marker to see the
   reference and the full linked verse; click it to open that verse (Ctrl/Cmd-click opens a new tab).
-  The references are stored once in `AI/bible-crossrefs/` and drawn on by the plugin, so they are the
-  same for every translation.
+  The read-card has a **×** close button and closes when you tap away. The references are stored once
+  in `AI/bible-crossrefs/` and drawn on by the plugin, so they are the same for every translation.
+- **Tap the verse number → a study popup** for that verse: at the top, a **📖 Matthew Henry** link to
+  the chapter's commentary and links to **your own** commentary notes on that verse; below, *all* of
+  the verse's cross-references and related-by-meaning links. Available on every verse. × to close, or
+  tap away.
+- **Matthew Henry's Commentary** — a **📖 Matthew Henry on <Book> <Ch>** link sits under each chapter's
+  title, and is also in the verse-number popup, so you can reach the commentary from anywhere you read.
 - **Verse-by-verse or flowing paragraphs** — run the command *"Bible: toggle reading layout"*.
 - **Poetry** (Psalms, Proverbs) laid out as indented poetry; **prose** grouped into paragraphs.
 - **Red-letter** — the words of Christ (Gospels, Acts, Revelation) render in red.
@@ -23,6 +29,21 @@ Open one in **Reading view** (chapters auto-open there) and you get:
   per-verse `≈` marker; both deduplicated against the cross-references.
 - **Text size** — Settings → Loremaster → Bible reader → **Text size** (80–160%), reader-only.
 - **On mobile**, tap a superscript marker to open its read-card (with **Open**) rather than jumping away.
+
+### Annotate: highlight, words of Christ, tag a Strong's number
+
+You can mark up any translation yourself — this is how you add red-letter or Strong's to a version that
+doesn't ship with them. Open the chapter in **edit mode**, select the word(s), then run one of these
+(Command Palette, or right-click → the **Bible** menu):
+
+- **"Bible: highlight selection"** — wraps it in `==…==` (a highlight).
+- **"Bible: mark selection as words of Christ (red)"** — renders the selection red, like the built-in
+  red-letter. Use this to mark Christ's words in ESV/NASB/NKJV or anywhere they aren't already red.
+- **"Bible: tag selection with a Strong's number"** — asks for a number (e.g. `H430`, `G26`) and tags
+  the word, so the Strong's hover/tap popup then works on it in **any** translation.
+
+Switch back to Reading view to see the result. (These edit the note text, so they need an active editor
+and a selection — they won't appear when the note is in Reading view.)
 
 ### Interlinear & concordance (Strong's)
 
@@ -40,8 +61,10 @@ Open one in **Reading view** (chapters auto-open there) and you get:
 Write your own notes on scripture and see them in the reader. Command *"Bible: write a note on this
 verse"* (from an open chapter) creates a note under `bible-commentary/` carrying `commentary-ref:
 <book>.<ch>.<v>` (a single verse, a range `…v-v2`, or a whole chapter `<book>.<ch>`). Verses you've
-written on get a **✎** marker (tap to open your note), and your notes are listed under the chapter.
-Write freely — it's your growing study library.
+written on get a **✎** marker right after the verse number (tap to open your note); your notes are
+also listed at the top of that verse's number popup and under the chapter. Write freely — it's your
+growing study library. *(A hand-made commentary note only links to its verse if it carries a
+`commentary-ref:` line in its frontmatter — the "write a note" command adds this for you.)*
 
 ### Get a chapter from a licensed online version (ESV / NASB / NKJV)
 
