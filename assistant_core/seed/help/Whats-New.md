@@ -1,4 +1,4 @@
-<!-- help-version: 37 -->
+<!-- help-version: 38 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
@@ -8,9 +8,9 @@ tags: [help, user-guide, whats-new]
 
 ## Bible: quote a passage + pin references to words (v1.10.46)
 - **Insert a passage.** *"Bible: insert a passage (into this note)"* drops several verses (choose the
-  version and a range like `1-5`) into whatever note you're writing, as a **live embed** (transclusion)
-  that displays the text from the chapter note rather than copying it, with a reference link back to the
-  chapter — handy for study notes and sermon outlines.
+  version and a range like `1-5`) into whatever note you're writing, rendered as one **flowing paragraph**
+  (the reader's look) read **live** from the chapter note — it displays the text rather than copying it,
+  so edits to the source flow through. Handy for study notes and sermon outlines.
 - **Pin a cross-reference to a word.** In the verse-number popup, each cross-reference now has an **⚓**
   button — click it, click the word it relates to, and the marker sits right after that word instead of
   at the end of the verse. Pinned markers show even when you've turned the general cross-references off.

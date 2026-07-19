@@ -110,6 +110,29 @@ export async function readVerseText(plugin: Plugin, linkpath: string, block: str
         .trim();
 }
 
+/** Like readVerseText but PRESERVES the red-letter/Strong's `<span>`s, for the flowing passage embed
+ *  (which reconstructs them via DOM). Strips only the verse number, block anchor, poetry indents, and
+ *  cross-reference marker wikilinks. */
+export async function readVerseRaw(plugin: Plugin, linkpath: string, block: string | null): Promise<string> {
+    const file = plugin.app.metadataCache.getFirstLinkpathDest(linkpath, "");
+    if (!(file instanceof TFile) || !block) return "";
+    const content = await plugin.app.vault.cachedRead(file);
+    const anchor = ` ^${block}`;
+    const lines = content.split(/\r?\n/).map(l => l.replace(/\s+$/, ""));
+    const end = lines.findIndex(l => l.endsWith(anchor));
+    if (end < 0) return "";
+    let start = end;
+    while (start > 0 && !/^\*\*\d+\*\*/.test(lines[start])) start--;
+    return lines.slice(start, end + 1).join(" ")
+        .replace(/\s*\^v\d+/g, "")
+        .replace(/^\*\*\d+\*\*\s*/, "")             // drop the leading **verse-number** (span text kept)
+        .replace(/ /g, " ")                     // poetry em-space → normal space (flow, not indent)
+        .replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g, "")  // strip cross-ref wikilink markers
+        .replace(/\[\[[^\]]*\]\]/g, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+}
+
 // ── Shared cross-ref / embedding hovercard ──────────────────────────────────
 // One card at a time. Used by BOTH desktop hover (mouseover) and mobile tap (a marker's click
 // handler), so on the phone a tap opens the card to READ — with an Open button — instead of
@@ -819,21 +842,15 @@ async function buildPassageMarkdown(plugin: Plugin, book: string, chapter: numbe
     const nums = parseVerseRange(versesSpec);
     if (!nums.length) return { error: "Enter verses like 1-5, 1,3,5, or 3." };
     const linkbase = `bible/${pad2(num)}-${book}/${version}/${book}-${pad3(chapter)}`;
-    // Transclude each verse so the passage DISPLAYS live from the chapter note — a link, not a copy;
-    // if the source verse changes, this updates too. (Obsidian embeds one block per link, so a verse
-    // range becomes one `![[…#^vN]]` embed per verse.)
-    const lines: string[] = [];
-    for (const v of nums) {
-        const t = await readVerseText(plugin, linkbase, `v${v}`);
-        if (t) lines.push(`![[${linkbase}#^v${v}]]`);
-    }
-    if (!lines.length) return { error: `No verses found for ${bookLabel(book)} ${chapter} in "${version}". `
+    // Confirm the passage exists so we don't insert a block that renders "not found".
+    const exists = await readVerseText(plugin, linkbase, `v${nums[0]}`);
+    if (!exists) return { error: `No verses found for ${bookLabel(book)} ${chapter} in "${version}". `
         + `Add that chapter first with "Bible: paste a chapter" or "Bible: get a chapter".` };
-    const first = nums[0], last = nums[nums.length - 1];
-    const rangeLabel = first === last ? `${first}` : `${first}–${last}`;
-    const ref = `${bookLabel(book)} ${chapter}:${rangeLabel}`;
-    lines.push("", `— [${ref}](${linkbase}#^v${first}) (${version.toUpperCase()})`);
-    return { text: lines.join("\n") + "\n" };
+    // Emit a fenced block the plugin renders as ONE flowing paragraph, read live from the chapter note
+    // each render (a link that displays the passage — not a copy) with the reader's paragraph look.
+    const body = ["```bible-passage", `book: ${book}`, `chapter: ${chapter}`,
+                  `verses: ${versesSpec.trim()}`, `version: ${version}`, "```", ""];
+    return { text: body.join("\n") };
 }
 
 class InsertPassageModal extends Modal {
@@ -875,6 +892,69 @@ export function registerBiblePaste(plugin: Plugin): void {
         id: "bible-insert-passage",
         name: "Bible: insert a passage (into this note)",
         editorCallback: (editor: Editor) => new InsertPassageModal(plugin, editor).open(),
+    });
+}
+
+/** Append a verse's inline content to `p`, rebuilding red-letter/Strong's `<span>`s via DOM (never
+ *  innerHTML — so vault content can't inject markup). */
+function appendVerseInline(p: HTMLElement, raw: string): void {
+    const re = /<span class="(lm-wj|lm-s)"(?:\s+data-s="([^"]*)")?>([\s\S]*?)<\/span>/g;
+    let last = 0, m: RegExpExecArray | null;
+    while ((m = re.exec(raw))) {
+        if (m.index > last) p.appendText(raw.slice(last, m.index));
+        const span = p.createEl("span", { cls: m[1], text: m[3] });
+        if (m[2]) span.setAttr("data-s", m[2]);
+        last = m.index + m[0].length;
+    }
+    if (last < raw.length) p.appendText(raw.slice(last));
+}
+
+/** Render a ```bible-passage``` code block as ONE flowing quoted paragraph, read LIVE from the chapter
+ *  note (so it tracks edits) — the reader's paragraph look, not stacked Obsidian block embeds. Body is
+ *  key:value lines: book / chapter / verses / version. Inserted by "Bible: insert a passage". */
+export function registerBiblePassageEmbed(plugin: Plugin): void {
+    plugin.registerMarkdownCodeBlockProcessor("bible-passage", async (source, el, ctx) => {
+        const cfg: Record<string, string> = {};
+        for (const line of source.split(/\r?\n/)) {
+            const m = line.match(/^\s*([a-z]+)\s*:\s*(.+?)\s*$/i);
+            if (m) cfg[m[1].toLowerCase()] = m[2];
+        }
+        const book = (cfg.book || "").toLowerCase().trim();
+        const chapter = parseInt(cfg.chapter || "", 10);
+        const version = (cfg.version || "web").toLowerCase().trim();
+        const num = BOOK_NUM[book];
+        const box = el.createDiv("lm-passage");
+        if (!num || !chapter || !cfg.verses) {
+            box.createDiv("lm-passage-err").setText("Bible passage: set book, chapter and verses."); return;
+        }
+        const nums = parseVerseRange(cfg.verses);
+        const linkbase = `bible/${pad2(num)}-${book}/${version}/${book}-${pad3(chapter)}`;
+        const para = box.createEl("p", { cls: "lm-passage-text" });
+        let got = 0;
+        for (const v of nums) {
+            const raw = await readVerseRaw(plugin, linkbase, `v${v}`);
+            if (!raw) continue;
+            para.createEl("sup", { cls: "lm-passage-vnum", text: String(v) });
+            para.appendText(" ");
+            appendVerseInline(para, raw);
+            para.appendText(" ");
+            got++;
+        }
+        if (!got) {
+            box.empty();
+            box.createDiv("lm-passage-err").setText(
+                `Passage not found: ${bookLabel(book)} ${chapter} (${version.toUpperCase()}). Add that chapter first.`);
+            return;
+        }
+        const first = nums[0], last = nums[nums.length - 1];
+        const range = first === last ? `${first}` : `${first}–${last}`;
+        const href = `${linkbase}#^v${first}`;
+        const cap = box.createDiv("lm-passage-ref");
+        cap.createEl("a", { text: `— ${bookLabel(book)} ${chapter}:${range} (${version.toUpperCase()})`, attr: { href } })
+            .addEventListener("click", (e) => {
+                e.preventDefault();
+                plugin.app.workspace.openLinkText(href, ctx.sourcePath, (e as MouseEvent).ctrlKey || (e as MouseEvent).metaKey);
+            });
     });
 }
 

@@ -1261,6 +1261,24 @@ sup.lm-comm-sup { margin-left: 1px; }
   font-size: 13px; line-height: 1; padding: 0 3px; flex: 0 0 auto;
 }
 .loremaster-bible-allxref-anchor:hover { color: var(--text-accent); }
+/* Flowing quoted passage (```bible-passage``` embed) — one paragraph, reader look, live from source. */
+.lm-passage {
+  margin: 0.7em 0;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 3px solid var(--background-modifier-border);
+  font-family: var(--font-text);
+}
+.lm-passage-text { margin: 0; line-height: 1.75; }
+.lm-passage-vnum {
+  font-size: 0.68em; font-weight: 600; color: var(--text-accent);
+  vertical-align: super; line-height: 0; margin: 0 1px 0 2px;
+}
+.lm-passage .lm-wj { color: var(--color-red, #b23b3b); }
+.lm-passage-ref { margin-top: 0.45em; font-size: 0.85em; color: var(--text-muted); }
+.lm-passage-ref a { color: var(--text-muted); text-decoration: none; cursor: pointer; }
+.lm-passage-ref a:hover { color: var(--text-accent); text-decoration: underline; }
+.lm-passage-err { color: var(--text-muted); font-style: italic; }
+
 /* Word-picker modal: the verse's words as clickable chips. */
 .lm-wordpick { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; }
 .lm-wordpick-chip {

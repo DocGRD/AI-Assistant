@@ -1,4 +1,4 @@
-<!-- help-version: 37 -->
+<!-- help-version: 38 -->
 ---
 tags: [help, user-guide]
 ---
@@ -76,10 +76,10 @@ growing study library. *(A hand-made commentary note only links to its verse if 
 
 To drop scripture into a study note, sermon outline, or journal entry, run **"Bible: insert a passage
 (into this note)"** from the editor. Pick the book, chapter, a verse range (`1-5`, `1,3,5`, or a single
-`3`), and version — LoreMaster inserts each verse at the cursor as a **live embed** (an Obsidian
-transclusion, `![[…#^vN]]`), so the passage *displays* the text from the chapter note rather than
-copying it: if the source verse changes, the embed updates. A reference link back to the chapter is
-added below.
+`3`), and version — LoreMaster inserts a small `bible-passage` block that renders as **one flowing
+paragraph** (inline superscript verse numbers, red-letter, the reader's look), read **live** from the
+chapter note: it *displays* the text rather than copying it, so if the source verse changes the passage
+updates. A reference link back to the chapter sits below it.
 
 ### Get a chapter from a licensed online version (ESV / NASB / NKJV)
 
