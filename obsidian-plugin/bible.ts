@@ -819,17 +819,20 @@ async function buildPassageMarkdown(plugin: Plugin, book: string, chapter: numbe
     const nums = parseVerseRange(versesSpec);
     if (!nums.length) return { error: "Enter verses like 1-5, 1,3,5, or 3." };
     const linkbase = `bible/${pad2(num)}-${book}/${version}/${book}-${pad3(chapter)}`;
+    // Transclude each verse so the passage DISPLAYS live from the chapter note — a link, not a copy;
+    // if the source verse changes, this updates too. (Obsidian embeds one block per link, so a verse
+    // range becomes one `![[…#^vN]]` embed per verse.)
     const lines: string[] = [];
     for (const v of nums) {
         const t = await readVerseText(plugin, linkbase, `v${v}`);
-        if (t) lines.push(`> **${v}** ${t}`);
+        if (t) lines.push(`![[${linkbase}#^v${v}]]`);
     }
     if (!lines.length) return { error: `No verses found for ${bookLabel(book)} ${chapter} in "${version}". `
         + `Add that chapter first with "Bible: paste a chapter" or "Bible: get a chapter".` };
     const first = nums[0], last = nums[nums.length - 1];
     const rangeLabel = first === last ? `${first}` : `${first}–${last}`;
     const ref = `${bookLabel(book)} ${chapter}:${rangeLabel}`;
-    lines.push(">", `> — [${ref}](${linkbase}#^v${first}) (${version.toUpperCase()})`);
+    lines.push("", `— [${ref}](${linkbase}#^v${first}) (${version.toUpperCase()})`);
     return { text: lines.join("\n") + "\n" };
 }
 
@@ -839,8 +842,8 @@ class InsertPassageModal extends Modal {
         const { contentEl } = this;
         contentEl.createEl("h3", { text: "Insert a passage" });
         contentEl.createEl("p", { cls: "setting-item-description",
-            text: "Reads several verses from your Bible notes and inserts them here as a quoted passage, "
-                + "with a link back to the chapter." });
+            text: "Embeds several verses here as a live transclusion from your Bible notes (a link that "
+                + "displays the passage, not a copy), with a reference link back to the chapter." });
         let book = "", version = "web", chapter = "", verses = "";
         new Setting(contentEl).setName("Book").setDesc("slug — e.g. john, 1-corinthians, psalms")
             .addText(t => t.onChange(v => book = v));
