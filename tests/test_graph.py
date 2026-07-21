@@ -39,10 +39,13 @@ class ExtractTriplesTests(unittest.TestCase):
     def test_forces_private_single_call(self):
         calls = {"private": None, "n": 0}
         class _Router:
+            config: dict = {}
+            available_models: list = []
             def generate(self, messages, system_prompt="", private=False, **kw):
                 calls["private"] = private; calls["n"] += 1
                 return "Alpha | relates to | Beta", "groq"
-        t = extract_triples(_Router(), "some note text")
+        # Note text must clear the extractor's "skip trivially short notes" gate (>= 40 clean chars).
+        t = extract_triples(_Router(), "Some note text long enough to warrant graph extraction here.")
         self.assertEqual(t, [("Alpha", "relates to", "Beta")])
         self.assertTrue(calls["private"])
         self.assertEqual(calls["n"], 1)
@@ -117,6 +120,10 @@ class StoreTests(unittest.TestCase):
 
 
 class _TripleRouter:
+    # Mirror the real router's interface used by the extractor (config + available_models),
+    # so graph extraction takes the normal cloud path instead of a provider override.
+    config: dict = {}
+    available_models: list = []
     def __init__(self, reply): self.reply = reply
     def generate(self, messages, system_prompt="", **kw): return self.reply, "groq"
 
@@ -137,7 +144,8 @@ class JobTests(unittest.TestCase):
 
     def test_build_for_note_merges(self):
         from assistant_core.graph.job import build_graph_for_note
-        self._note("06 - Projects/Heat.md", "A rocket heater uses thermal mass.")
+        self._note("06 - Projects/Heat.md",
+                   "A rocket heater uses thermal mass to store and radiate heat over many hours.")
         rep = build_graph_for_note(self.vault, _TripleRouter("Rocket Heater | uses | Thermal Mass"),
                                    "06 - Projects/Heat.md")
         self.assertEqual(rep["triples"], 1)
@@ -156,7 +164,9 @@ class JobTests(unittest.TestCase):
 
     def test_private_note_marks_private_entities(self):
         from assistant_core.graph.job import build_graph_for_note
-        self._note("Journal.md", "Secret Plan involves Bunker.", private=True)
+        self._note("Journal.md",
+                   "The Secret Plan involves a hidden Bunker stocked for the long winter ahead.",
+                   private=True)
         build_graph_for_note(self.vault, _TripleRouter("Secret Plan | involves | Bunker"), "Journal.md")
         self.assertTrue(G._load_entity(self.vault, "Secret Plan")["private"])
 
