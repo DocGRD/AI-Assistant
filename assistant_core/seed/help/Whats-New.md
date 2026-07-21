@@ -1,10 +1,20 @@
-<!-- help-version: 40 -->
+<!-- help-version: 41 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.50**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.52**.*
+
+## Bible: polish — nav, linked quotes, poetry passages, ≈ anchors (v1.10.51–v1.10.52)
+- **Bottom nav sits right under the last verse** now (it used to float too far down). It's baked into
+  the chapter so it renders cleanly at the foot.
+- **"Write a note on this verse" links the verse instead of copying it** — the new note embeds a live
+  passage of the verse (which updates if the source changes), then your Commentary heading.
+- **Inserted passages keep poetry.** *"Bible: insert a passage"* of a Psalm now lays the verses out as
+  poetry (indented stichs) instead of running them together.
+- **Pin a "related by meaning" link to a word too.** The ⚓ in the verse-number popup now works on the
+  related-by-meaning (≈) links as well as cross-references.
 
 ## Bible: word-level notes + poetry on paste (v1.10.50)
 - **Attach a note to specific words.** Select a word or phrase in a chapter and run *"Bible: attach a

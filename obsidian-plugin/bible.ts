@@ -123,13 +123,15 @@ export async function readVerseRaw(plugin: Plugin, linkpath: string, block: stri
     if (end < 0) return "";
     let start = end;
     while (start > 0 && !/^\*\*\d+\*\*/.test(lines[start])) start--;
-    return lines.slice(start, end + 1).join(" ")
-        .replace(/\s*\^v\d+/g, "")
-        .replace(/^\*\*\d+\*\*\s*/, "")             // drop the leading **verse-number** (span text kept)
-        .replace(/ /g, " ")                     // poetry em-space → normal space (flow, not indent)
+    // Keep each stich as its own line (poetry keeps its shape) and keep the leading em-space indents —
+    // the passage renderer turns \n into <br> and the em-spaces render as the poetic indent. A prose
+    // verse is a single line and just flows.
+    return lines.slice(start, end + 1).join("\n")
+        .replace(/[ \t]*\^v\d+/g, "")               // block anchor (spaces/tabs only, not the newline)
+        .replace(/^\*\*\d+\*\*[ \t]*/, "")          // drop the leading **verse-number** (span text kept)
         .replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g, "")  // strip cross-ref wikilink markers
         .replace(/\[\[[^\]]*\]\]/g, "")
-        .replace(/\s{2,}/g, " ")
+        .replace(/[ \t]{2,}/g, " ")                 // collapse space runs (NOT newlines, NOT em-spaces)
         .trim();
 }
 
@@ -440,7 +442,7 @@ async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
         }
     };
     section(`Cross-references (${xrefs.length})`, xrefs, true);
-    section(`Related by meaning (${embeds.length})`, embeds, false);
+    section(`Related by meaning (${embeds.length})`, embeds, true);
     if (!xrefs.length && !embeds.length) panel.createDiv("loremaster-bible-allxref-sub").setText("No cross-references for this verse.");
 
     const r = anchor.getBoundingClientRect();
@@ -578,18 +580,27 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             }
             // Embedding-similarity markers (verse index), distinct "≈" group, deduped against the
             // cross-references so a passage already cross-referenced isn't shown twice. (Toggle: settings.)
+            // Like cross-refs, a related-link pinned to a word (bible-xref-anchors) renders as its own
+            // ≈ marker right after that word — even if embeds are toggled off; the rest cluster at the end.
             const xset = new Set(targets.map((t: any) => `${t.b}.${t.c}.${t.v}`));
             const sims = (sim[vnum] || []).filter((t: any) => BOOK_NUM[t.b] && !xset.has(`${t.b}.${t.c}.${t.v}`));
-            if (showEmbeds && sims.length) {
-                const esup = p.createEl("sup", { cls: "lm-embed-group" });
-                esup.appendText(" ≈");
-                for (let i = 0; i < Math.min(sims.length, 2); i++) {
-                    const t = sims[i], href = hrefFor(t);
-                    esup.appendText(" ");   // space the ≈ markers apart (they used to run together)
-                    const a = esup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-embed-vlink",
+            let esup: HTMLElement | null = null, endSims = 0;
+            for (let i = 0; i < sims.length; i++) {
+                const t = sims[i], href = hrefFor(t);
+                const wIdx = anchorMap.get(`${vnum}:${t.b}.${t.c}.${t.v}`);
+                const mkAnchor = (parent: HTMLElement) => {
+                    const a = parent.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-embed-vlink",
                         attr: { "data-href": href, href, "aria-label": `≈ ${t.n}` } });
                     a.addEventListener("click", onMarkerClick(a, href));
+                };
+                if (wIdx != null) {
+                    const sup = createEl("sup", { cls: "lm-embed-group" });
+                    sup.appendText("≈"); mkAnchor(sup);
+                    if (placeMarkerAfterWord(p, wIdx, sup)) continue;   // pinned after the word
                 }
+                if (!showEmbeds || endSims >= 2) continue;              // end cluster: capped, toggle-gated
+                if (!esup) { esup = p.createEl("sup", { cls: "lm-embed-group" }); esup.appendText(" ≈"); }
+                esup.appendText(" "); mkAnchor(esup); endSims++;
             }
             // Tap the verse number → study panel: Matthew Henry + your notes at top, then ALL
             // cross-references + related-by-meaning. Always available (Matthew Henry is offered for
@@ -950,15 +961,23 @@ export function registerBiblePaste(plugin: Plugin): void {
 /** Append a verse's inline content to `p`, rebuilding red-letter/Strong's `<span>`s via DOM (never
  *  innerHTML — so vault content can't inject markup). */
 function appendVerseInline(p: HTMLElement, raw: string): void {
+    // Render text, turning \n (a poetic stich break) into <br>; leading em-spaces render as the indent.
+    const emit = (parent: HTMLElement, text: string) => {
+        text.split("\n").forEach((seg, i) => {
+            if (i > 0) parent.createEl("br");
+            if (seg) parent.appendText(seg);
+        });
+    };
     const re = /<span class="(lm-wj|lm-s)"(?:\s+data-s="([^"]*)")?>([\s\S]*?)<\/span>/g;
     let last = 0, m: RegExpExecArray | null;
     while ((m = re.exec(raw))) {
-        if (m.index > last) p.appendText(raw.slice(last, m.index));
-        const span = p.createEl("span", { cls: m[1], text: m[3] });
+        if (m.index > last) emit(p, raw.slice(last, m.index));
+        const span = p.createEl("span", { cls: m[1] });
         if (m[2]) span.setAttr("data-s", m[2]);
+        emit(span, m[3]);
         last = m.index + m[0].length;
     }
-    if (last < raw.length) p.appendText(raw.slice(last));
+    if (last < raw.length) emit(p, raw.slice(last));
 }
 
 /** Render a ```bible-passage``` code block as ONE flowing quoted paragraph, read LIVE from the chapter

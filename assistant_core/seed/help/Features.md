@@ -1,4 +1,4 @@
-<!-- help-version: 40 -->
+<!-- help-version: 41 -->
 ---
 tags: [help, user-guide]
 ---
@@ -22,9 +22,9 @@ Open one in **Reading view** (chapters auto-open there) and you get:
   tap away.
 - **Matthew Henry's Commentary** — a **📖 Matthew Henry on <Book> <Ch>** link sits under each chapter's
   title, and is also in the verse-number popup, so you can reach the commentary from anywhere you read.
-- **Pin a cross-reference to a word.** In the verse-number popup, each cross-reference has an **⚓**
-  button: click it, then click the word it relates to, and its marker moves to sit right after that
-  word instead of clustering at the end. A pinned marker shows even when you've toggled the general
+- **Pin a cross-reference (or a related-by-meaning link) to a word.** In the verse-number popup, each
+  cross-reference *and* each related-by-meaning (≈) link has an **⚓** button: click it, then click the
+  word it relates to, and its marker moves to sit right after that word instead of clustering at the end. A pinned marker shows even when you've toggled the general
   cross-references off — so you can keep a clean page and surface just the links that matter, next to
   the words they explain. (Stored in the note's `bible-xref-anchors`; "Move back to the end of the
   verse" undoes it.)
