@@ -68,6 +68,8 @@
   },
   "hybrid_depth": 1,
   "watcher_poll_interval": 5,
+  "watcher_reindex_cap": 40,
+  "watcher_reindex_throttle": 0.05,
 
   "link_validation": "strip",
   "hallucination_guard": "escalate_web",
