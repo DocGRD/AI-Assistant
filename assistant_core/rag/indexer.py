@@ -25,7 +25,8 @@ logger = logging.getLogger("assistant")
 # semantic search of scripture is a primary use of the vault. Only the machine-data folder
 # of cross-reference JSON is skipped (it isn't prose and would add noise).
 DEFAULT_EXCLUDES = ("AI/System", "AI/Memory/Episodes", "AI/Memory/proposed",
-                    "AI/Graph", "AI/Chat", "AI/bible-crossrefs", "AI/bible-strongs")
+                    "AI/Graph", "AI/Chat", "AI/bible-crossrefs", "AI/bible-strongs",
+                    "AI/bible-sblgnt", "AI/bible-mhc")
 
 
 def _truthy(v) -> bool:
