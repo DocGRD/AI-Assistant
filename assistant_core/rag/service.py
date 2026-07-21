@@ -84,8 +84,11 @@ class RagService:
         with self._lock:
             return self.indexer.reindex(full=full)
 
-    def maybe_index_note(self, rel_path: str, content: str) -> bool:
-        """Re-embed a single note only if its content actually changed. Returns True if re-indexed."""
+    def maybe_index_note(self, rel_path: str, content: str, save: bool = True) -> bool:
+        """Re-embed a single note only if its content actually changed. Returns True if re-indexed.
+        Pass save=False to defer the (CPU/IO-heavy, whole-store) write — the caller then calls
+        save_index() once after a batch, so a mass change doesn't save the store per note (which
+        holds the GIL and can starve the HTTP event loop)."""
         rel_path = rel_path.replace("\\", "/")
         if not self.should_index(rel_path):
             return False
@@ -93,9 +96,15 @@ class RagService:
             if self.store.note_hashes.get(rel_path) == VaultIndexer._hash(content):
                 return False
             self.indexer.index_note(rel_path, content=content)
-            self.store.save()
+            if save:
+                self.store.save()
         logger.info(f"[RAG] Re-indexed changed note: {rel_path}")
         return True
+
+    def save_index(self) -> None:
+        """Persist the vector store (used to batch writes after re-indexing several notes)."""
+        with self._lock:
+            self.store.save()
 
     # ------------------------------------------------------------------
     # Query (read)

@@ -38,6 +38,11 @@ class VaultWatcher:
         self._last_check:   dict[str, float] = {}
         self._running       = False
         self._rag           = rag
+        # Throttle incremental re-indexing so a mass change can't block the HTTP event loop:
+        # at most `reindex_cap` notes per poll pass, with a short yield between each.
+        self._reindex_cap      = int(config.get("watcher_reindex_cap", 40))
+        self._reindex_throttle = float(config.get("watcher_reindex_throttle", 0.05))
+        self._reindexed_this_pass = 0
 
         if not self._vault.exists():
             raise ValueError(f"Vault path does not exist: {self._vault_path}")
@@ -84,8 +89,19 @@ class VaultWatcher:
             logger.info("[VaultWatcher] Watcher stopped")
 
     def _check_vault(self) -> None:
+        # Re-indexing is capped per pass and the store is saved ONCE at the end (not per note), so a
+        # mass change (e.g. a migration touching thousands of notes) is spread over several passes and
+        # never holds the GIL long enough to starve the HTTP event loop. The rest carry over next pass.
+        self._reindexed_this_pass = 0
         for md_file in self._vault.rglob("*.md"):
             self._check_file(md_file)
+            if self._reindexed_this_pass >= self._reindex_cap:
+                break   # leave the rest for the next poll — keeps each pass short
+        if self._reindexed_this_pass and self._rag:
+            try:
+                self._rag.save_index()
+            except Exception as exc:
+                logger.debug(f"[VaultWatcher] index save failed: {exc}")
 
     def _check_file(self, filepath: Path) -> None:
         """Single read passed to process() — eliminates TOCTOU race."""
@@ -113,7 +129,10 @@ class VaultWatcher:
             # actually changed (hash-checked). Only the indexing machine does this.
             if self._rag and self._rag.enabled:
                 try:
-                    self._rag.maybe_index_note(rel_path, content)
+                    # save=False: the whole-store write is batched to once per pass (see _check_vault).
+                    if self._rag.maybe_index_note(rel_path, content, save=False):
+                        self._reindexed_this_pass += 1
+                        time.sleep(self._reindex_throttle)   # yield so the event loop stays responsive
                 except Exception as exc:
                     logger.debug(f"[VaultWatcher] RAG index of {rel_path} failed: {exc}")
 
