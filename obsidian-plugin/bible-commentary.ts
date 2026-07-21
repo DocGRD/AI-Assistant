@@ -6,7 +6,7 @@
 // The reader marks annotated verses with a ✎ and lists your notes under the chapter. Notes can live
 // anywhere; the "write a note" command puts them in bible-commentary/{book}/.
 
-import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice, Menu } from "obsidian";
+import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice, Menu, Editor } from "obsidian";
 import { BOOK_NUM, pad2, pad3, bookLabel, readVerseText } from "./bible";
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -271,6 +271,67 @@ export function registerBibleCommentary(plugin: Plugin): void {
             if (!book || !chapter || !BOOK_NUM[book]) return false;
             if (!checking) new WriteCommentaryModal(plugin, book, chapter, version).open();
             return true;
+        },
+    });
+
+    registerWordNotes(plugin);
+}
+
+/** Word-level notes: select a word or phrase in a Bible chapter and attach a note to it. The selection
+ *  is wrapped in a `<span class="lm-wnote" data-note="…">` and the reader shows a 📝 at the FRONT of it
+ *  that opens the note. The note itself is a normal commentary note (carries `commentary-ref`, so it
+ *  also appears in the verse's ✎ list). */
+export function registerWordNotes(plugin: Plugin): void {
+    // Reader: decorate each lm-wnote span with a leading 📝 icon (once).
+    plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+        if (!ctx.sourcePath?.startsWith("bible/")) return;
+        el.querySelectorAll("span.lm-wnote").forEach((span) => {
+            if ((span as HTMLElement).querySelector(".lm-wnote-icon")) return;
+            span.prepend(createSpan({ cls: "lm-wnote-icon", text: "📝" }));
+        });
+    });
+    // Reader: tapping a word-note (icon or text) opens its note. Delegated so it survives re-renders.
+    plugin.registerDomEvent(document, "click", (evt: MouseEvent) => {
+        const t = evt.target as HTMLElement | null;
+        const span = t?.closest?.("span.lm-wnote") as HTMLElement | null;
+        if (!span || !span.closest(".markdown-preview-view.bible, .markdown-reading-view.bible")) return;
+        const path = span.getAttribute("data-note");
+        if (!path) return;
+        evt.preventDefault(); evt.stopPropagation();
+        plugin.app.workspace.openLinkText(path, "", evt.ctrlKey || evt.metaKey);
+    });
+
+    plugin.addCommand({
+        id: "bible-attach-word-note",
+        name: "Bible: attach a note to selection",
+        editorCallback: async (editor: Editor) => {
+            const file = plugin.app.workspace.getActiveFile();
+            if (!file || !file.path.startsWith("bible/")) { new Notice("Open a Bible chapter first."); return; }
+            const sel = editor.getSelection().trim();
+            if (!sel) { new Notice("Select the word(s) the note should attach to."); return; }
+            const pp = file.path.split("/");
+            const book = pp[pp.length - 3].replace(/^\d+-/, "");
+            const chapter = parseInt((pp[pp.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
+            if (!BOOK_NUM[book] || !chapter) { new Notice("This doesn't look like a Bible chapter."); return; }
+            // Derive the verse: walk up from the selection start to the nearest **N** line.
+            let verse = 0;
+            for (let ln = editor.getCursor("from").line; ln >= 0; ln--) {
+                const m = editor.getLine(ln).match(/^\*\*(\d+)\*\*/);
+                if (m) { verse = parseInt(m[1], 10); break; }
+            }
+            const slug = sel.toLowerCase().replace(/<[^>]*>/g, "").replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-|-$/g, "").slice(0, 24) || "words";
+            const stamp = Date.now().toString(36).slice(-4);
+            const notePath = `bible-commentary/${book}/${book}-${pad3(chapter)}-${verse || "x"}-${slug}-${stamp}.md`;
+            const label = `${bookLabel(book)} ${chapter}${verse ? `:${verse}` : ""}`;
+            const clean = sel.replace(/<[^>]*>/g, "");
+            const ref = verse ? `commentary-ref: ${book}.${chapter}.${verse}\n` : "";
+            const bodyNote = `---\n${ref}tags: [bible-commentary, word-note]\n---\n# ${label} — “${clean}”\n\n> ${clean}\n\n## Note\n\n`;
+            try { await plugin.app.vault.createFolder(`bible-commentary/${book}`); } catch { /* exists */ }
+            if (plugin.app.vault.getAbstractFileByPath(notePath)) { new Notice("A note for that already exists."); return; }
+            await plugin.app.vault.create(notePath, bodyNote);
+            editor.replaceSelection(`<span class="lm-wnote" data-note="${notePath}">${sel}</span>`);
+            plugin.app.workspace.openLinkText(notePath, file.path, false);
         },
     });
 }

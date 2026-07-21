@@ -1261,6 +1261,13 @@ sup.lm-comm-sup { margin-left: 1px; }
   font-size: 13px; line-height: 1; padding: 0 3px; flex: 0 0 auto;
 }
 .loremaster-bible-allxref-anchor:hover { color: var(--text-accent); }
+/* Word-level notes: a phrase with an attached note, marked by a 📝 at its front. */
+.markdown-preview-view.bible span.lm-wnote,
+.markdown-reading-view.bible span.lm-wnote {
+  border-bottom: 1px dotted var(--text-accent); cursor: pointer;
+}
+.lm-wnote-icon { font-size: 0.72em; vertical-align: super; line-height: 0; margin-right: 2px; cursor: pointer; }
+
 /* Bottom (plugin-injected) chapter nav — centered, matches the baked top nav. */
 .markdown-preview-view.bible .lm-bible-nav,
 .markdown-reading-view.bible .lm-bible-nav { text-align: center; color: var(--text-muted); font-size: 0.92em; }

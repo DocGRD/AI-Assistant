@@ -1,4 +1,4 @@
-<!-- help-version: 39 -->
+<!-- help-version: 40 -->
 ---
 tags: [help, user-guide]
 ---
@@ -72,6 +72,11 @@ also listed at the top of that verse's number popup and under the chapter. Write
 growing study library. *(A hand-made commentary note only links to its verse if it carries a
 `commentary-ref:` line in its frontmatter — the "write a note" command adds this for you.)*
 
+You can also attach a note to **specific words**: select a word or phrase in a chapter and run
+*"Bible: attach a note to selection"* (or right-click → Bible). A **📝** appears at the front of those
+words in the reader and opens the note when tapped — and because the note carries `commentary-ref`, it
+shows in the verse's ✎ list too.
+
 ### Quote a passage into a note
 
 To drop scripture into a study note, sermon outline, or journal entry, run **"Bible: insert a passage
@@ -125,7 +130,8 @@ each poetic line (stich) on its own line, then select them and run *"Bible: form
 hand. **Copyright:** only add translations you're licensed to store (WEB is public domain;
 ESV/NASB/NKJV are copyrighted — use them only within their terms). Prefer the command
 *"Bible: paste a chapter (new translation)"* — paste the raw text and LoreMaster splits it into the
-standard verse format for you.
+standard verse format for you. For a Psalm or other poetry, turn on the **Poetry** toggle in that dialog
+and the line breaks in what you paste are kept as poetic lines (indented stichs).
 
 ## What's new in v1.6 (quick map)
 - **📥 Approvals inbox** (sidebar badge-button → modal) — every background proposal in one place:

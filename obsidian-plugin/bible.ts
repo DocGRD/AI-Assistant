@@ -685,8 +685,9 @@ function cleanPaste(raw: string): string {
     return raw.replace(/ /g, " ").replace(/\[[a-z0-9]{1,3}\]/gi, "")
         .replace(/\(\s*\d+\s*\)/g, "").replace(/[ \t]+/g, " ").trim();
 }
-function splitVerses(raw: string): Map<number, string> {
-    const flat = cleanPaste(raw).replace(/\s+/g, " ");
+function splitVerses(raw: string, poetry = false): Map<number, string> {
+    // In poetry mode keep newlines (they're the stich breaks); otherwise flatten all whitespace.
+    const flat = poetry ? cleanPaste(raw).replace(/[ \t]+/g, " ") : cleanPaste(raw).replace(/\s+/g, " ");
     const out = new Map<number, string>();
     if (!flat) return out;
     const m1 = flat.match(/(?<![\d.])1\b/);
@@ -697,13 +698,21 @@ function splitVerses(raw: string): Map<number, string> {
         const strong = rest.match(new RegExp(`(?<![\\d.])\\b${nxt}\\b(?=\\s*[“"'A-Z])`));
         const loose = strong || rest.match(new RegExp(`(?<![\\d.])\\b${nxt}\\b`));
         if (loose && loose.index !== undefined) {
-            out.set(cur, flat.slice(start, start + loose.index).replace(/^[ .]+|[ .]+$/g, ""));
+            out.set(cur, flat.slice(start, start + loose.index).replace(/^[\s.]+|[\s.]+$/g, ""));
             cur = nxt; start = start + loose.index + loose[0].length;
-        } else { out.set(cur, rest.replace(/^[ .]+|[ .]+$/g, "")); break; }
+        } else { out.set(cur, rest.replace(/^[\s.]+|[\s.]+$/g, "")); break; }
         if (nxt > 250) break;
     }
     for (const [k, v] of out) if (!v.trim()) out.delete(k);
     return out;
+}
+
+/** Format a verse's text as poetry: each source line (stich) breaks (two trailing spaces) and
+ *  continuation stichs are em-space-indented — the exact layout the reader renders as poetry. */
+function poetryFormat(text: string): string {
+    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+    if (lines.length <= 1) return text.replace(/\s*\n\s*/g, " ");
+    return lines.map((l, i) => (i === 0 ? l : " " + l) + (i < lines.length - 1 ? "  " : "")).join("\n");
 }
 /** prev · book · next chapter nav as a wikilink line (targets may not exist yet — that's fine). */
 function navLine(num: number, book: string, version: string, chapter: number): string {
@@ -715,13 +724,13 @@ function navLine(num: number, book: string, version: string, chapter: number): s
     return parts.join(" · ");
 }
 
-function formatPastedChapter(raw: string, bookSlug: string, chapter: number, version: string) {
+function formatPastedChapter(raw: string, bookSlug: string, chapter: number, version: string, poetry = false) {
     bookSlug = bookSlug.toLowerCase().trim();
     const num = BOOK_NUM[bookSlug];
     if (!num) return { error: `Unknown book slug "${bookSlug}" (use e.g. john, 1-corinthians, psalms).` };
     if (!chapter) return { error: "Enter a chapter number." };
     if (!version) return { error: "Enter a version (e.g. esv, nasb, nkjv)." };
-    const verses = splitVerses(raw);
+    const verses = splitVerses(raw, poetry);
     if (!verses.size) return { error: "Couldn't find verse numbers in the pasted text." };
     const nav = navLine(num, bookSlug, version, chapter);
     const fm = ["---", "cssclasses:", "  - bible", `bible-version: ${version}`,
@@ -729,7 +738,10 @@ function formatPastedChapter(raw: string, bookSlug: string, chapter: number, ver
         // list form so Obsidian's property editor treats it as a LIST (add verse numbers as items)
         // rather than a number field that rejects commas.
         "bible-parastarts:", "  - 1", "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, "", nav, ""];
-    const body = [...verses.keys()].sort((a, b) => a - b).map(n => `**${n}** ${verses.get(n)} ^v${n}`);
+    const body = [...verses.keys()].sort((a, b) => a - b).map(n => {
+        const vt = poetry ? poetryFormat(verses.get(n)!) : (verses.get(n) || "").replace(/\s*\n\s*/g, " ");
+        return `**${n}** ${vt} ^v${n}`;
+    });
     // Blank line BETWEEN verses (\n\n) so each renders as its own paragraph — matches the generated
     // notes and lets the reader's per-verse overlays work. (A single \n was a soft break in one <p>.)
     // Nav line above the text AND below it.
@@ -745,15 +757,17 @@ class BiblePasteModal extends Modal {
         contentEl.createEl("p", { cls: "setting-item-description",
             text: "Paste a chapter from a translation you're licensed to use. It's saved in the standard " +
                   "format so cross-references and related-by-meaning appear automatically." });
-        let book = "", version = "", chapter = "";
+        let book = "", version = "", chapter = "", poetry = false;
         new Setting(contentEl).setName("Book").setDesc("slug — e.g. john, 1-corinthians, psalms")
             .addText(t => t.onChange(v => book = v));
         new Setting(contentEl).setName("Chapter").addText(t => { t.inputEl.type = "number"; t.onChange(v => chapter = v); });
         new Setting(contentEl).setName("Version").setDesc("e.g. esv, nasb, nkjv").addText(t => t.onChange(v => version = v));
+        new Setting(contentEl).setName("Poetry").setDesc("keep the pasted line breaks as poetic lines (for Psalms, Proverbs…)")
+            .addToggle(t => t.setValue(false).onChange(v => poetry = v));
         const ta = contentEl.createEl("textarea", { attr: { rows: "12", placeholder: "Paste the chapter text here…" } });
         ta.style.cssText = "width:100%;font-family:var(--font-monospace);";
         new Setting(contentEl).addButton(b => b.setButtonText("Format & save").setCta().onClick(async () => {
-            const r = formatPastedChapter(ta.value, book, parseInt(chapter, 10), version.toLowerCase().trim());
+            const r = formatPastedChapter(ta.value, book, parseInt(chapter, 10), version.toLowerCase().trim(), poetry);
             if ("error" in r) { new Notice(r.error!); return; }
             if (this.plugin.app.vault.getAbstractFileByPath(r.path)) { new Notice(`Already exists: ${r.path}`); return; }
             const folder = r.path.split("/").slice(0, -1).join("/");
@@ -809,6 +823,8 @@ export function registerBibleAnnotations(plugin: Plugin): void {
             .onClick(() => new StrongsInputModal(plugin, (n) => wrap(`<span class="lm-s" data-s="${n}">${sel}</span>`)).open()));
         if (/\n/.test(sel)) menu.addItem((i) => i.setTitle("Bible: format as poetry").setIcon("text-quote")
             .onClick(() => formatPoetry(editor)));
+        if (path.startsWith("bible/")) menu.addItem((i) => i.setTitle("Bible: attach a note to selection").setIcon("pencil")
+            .onClick(() => (plugin.app as any).commands.executeCommandById("loremaster:bible-attach-word-note")));
     }));
 
     // Same three as commands (hotkey-able + testable; work on the current selection in any note).

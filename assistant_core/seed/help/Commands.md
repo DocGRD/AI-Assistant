@@ -1,4 +1,4 @@
-<!-- help-version: 39 -->
+<!-- help-version: 40 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -83,6 +83,7 @@ not as `vault:` chat commands. The annotation commands act on the **selected tex
 | `Bible: tag selection with a Strong's number` | Tag the selected word with a Strong's number (`H430`/`G26`) so the Strong's popup works on it in any version (edit mode) |
 | `Bible: format selection as poetry (indent stich lines)` | Turn a line-broken selection into indented poetry — hard breaks between stichs + em-space indents on continuation lines (edit mode; also right-click → Bible). Break the verse into stich lines first. |
 | `Bible: write a note on this verse` | Create a personal commentary note tied to a verse/passage (`commentary-ref`); the verse gets a ✎ |
+| `Bible: attach a note to selection` | Select a word or phrase → creates a note attached to it; a 📝 appears at the front of those words in the reader and opens the note (edit mode; also right-click → Bible) |
 | `Bible: interlinear (this chapter)` | Word-by-word Strong's for the open chapter; tap a number for the Hebrew/Greek word + concordance |
 | `Bible: concordance (Strong's number or word)` | Every verse using a Strong's number (`H430`) or English word (`love`) |
 | `Bible: get a chapter (ESV / NASB / NKJV)` | Fetch a licensed version's chapter via your service, save it in the vault, open it |

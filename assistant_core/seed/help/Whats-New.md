@@ -1,10 +1,18 @@
-<!-- help-version: 39 -->
+<!-- help-version: 40 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.49**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.50**.*
+
+## Bible: word-level notes + poetry on paste (v1.10.50)
+- **Attach a note to specific words.** Select a word or phrase in a chapter and run *"Bible: attach a
+  note to selection"* (or right-click → Bible). A 📝 appears at the front of those words in the reader;
+  tapping it opens the note. The note is tied to the verse too, so it also shows in the verse's ✎ list.
+- **Paste poetry that stays poetry.** The *"Bible: paste a chapter"* dialog has a **Poetry** toggle —
+  turn it on and the line breaks in what you paste are kept as poetic lines (indented stichs), so a
+  pasted Psalm lays out correctly instead of running together.
 
 ## Bible: poetry, top+bottom nav, cleaner chapters (v1.10.47–v1.10.49)
 - **Format as poetry.** Break a verse into stich lines, select them, and run *"Bible: format selection
