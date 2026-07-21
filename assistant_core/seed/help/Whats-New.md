@@ -1,10 +1,18 @@
-<!-- help-version: 41 -->
+<!-- help-version: 42 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.52**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.53**.*
+
+## Bible: modern critical Greek text — SBLGNT interlinear + concordance (v1.10.53)
+- The interlinear and concordance now have a **Text** switch: *KJV / Strong's (TR)* or **SBLGNT
+  (critical)**. On SBLGNT, the interlinear shows the actual modern critical Greek NT word-by-word with
+  **morphology** ("verb aor act ind", "noun nom sg masc") — still keyed to Strong's numbers — and the
+  concordance counts verses over the SBLGNT text. SBLGNT is the Greek New Testament; the OT stays on
+  KJV/Strong's. (Free, license-clean sources: SBLGNT + MorphGNT + a lemma→Strong's map; see the
+  `_CREDITS.md` in `AI/bible-sblgnt/`.)
 
 ## Bible: polish — nav, linked quotes, poetry passages, ≈ anchors (v1.10.51–v1.10.52)
 - **Bottom nav sits right under the last verse** now (it used to float too far down). It's baked into

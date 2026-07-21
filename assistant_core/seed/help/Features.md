@@ -1,4 +1,4 @@
-<!-- help-version: 41 -->
+<!-- help-version: 42 -->
 ---
 tags: [help, user-guide]
 ---
@@ -61,6 +61,11 @@ and a selection — they won't appear when the note is in Reading view.)
 - Accuracy note: the WEB's own word-tags are unreliable, so the Strong's data is built from the
   public-domain **KJV + Strong's** (the basis of Strong's Concordance) plus the openscriptures
   lexicon. It lives in `AI/bible-strongs/`; the WEB stays your reading text.
+- **Modern critical text (SBLGNT).** Both the interlinear and the concordance have a **Text** switch —
+  *KJV / Strong's (TR)* or **SBLGNT (critical)**. The SBLGNT basis shows the actual modern-critical Greek
+  New Testament word-by-word with **morphology** (e.g. "verb aor act ind"), still keyed to Strong's
+  numbers, and the concordance then counts verses over the SBLGNT text. (SBLGNT is the Greek NT; OT
+  stays on KJV/Strong's.) Data in `AI/bible-sblgnt/` — see its `_CREDITS.md` for sources/licenses.
 
 ### Your own commentary
 

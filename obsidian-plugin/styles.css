@@ -1169,6 +1169,11 @@ body.lm-bible-flow .markdown-preview-view.bible .el-em { display: block; }
 .lm-interlinear-vnum { color: var(--text-accent); font-weight: 600; font-size: 0.8em; }
 .lm-interlinear-word { display: inline-block; margin: 0 0.25em 0.35em 0; }
 .lm-interlinear-en { }
+/* SBLGNT interlinear: each word as a small stacked block — Greek word, morphology, Strong's. */
+.lm-interlinear-gk { vertical-align: top; text-align: center; margin: 0 0.4em 0.5em 0; }
+.lm-interlinear-grk { display: block; font-size: 1.05em; }
+.lm-interlinear-morph { display: block; font-size: 0.62em; color: var(--text-muted); line-height: 1.2; }
+.lm-interlinear-gk .lm-strongs-num { display: block; font-size: 0.72em; }
 
 .lm-concordance-results { margin-top: 10px; }
 .lm-concordance-count { font-weight: 600; color: var(--text-accent); margin: 8px 0 4px; }

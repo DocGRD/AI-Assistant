@@ -20,6 +20,7 @@ export interface AIAssistantSettings {
     bibleFontScale: number; // Bible reader text size, percent of normal (80–160)
     bibleShowXrefs: boolean;  // show inline cross-reference markers
     bibleShowEmbeds: boolean; // show inline related-by-meaning (≈) markers
+    bibleStudySource: "strongs" | "sblgnt"; // interlinear/concordance basis: KJV+Strong's (TR) or SBLGNT
 }
 
 const DEFAULT_SETTINGS: AIAssistantSettings = {
@@ -33,6 +34,7 @@ const DEFAULT_SETTINGS: AIAssistantSettings = {
     bibleFontScale: 100,
     bibleShowXrefs: true,
     bibleShowEmbeds: true,
+    bibleStudySource: "strongs",
 };
 
 // ---------------------------------------------------------------------------
