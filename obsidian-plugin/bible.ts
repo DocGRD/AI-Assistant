@@ -705,6 +705,16 @@ function splitVerses(raw: string): Map<number, string> {
     for (const [k, v] of out) if (!v.trim()) out.delete(k);
     return out;
 }
+/** prev · book · next chapter nav as a wikilink line (targets may not exist yet — that's fine). */
+function navLine(num: number, book: string, version: string, chapter: number): string {
+    const base = (ch: number) => `bible/${pad2(num)}-${book}/${version}/${book}-${pad3(ch)}`;
+    const parts: string[] = [];
+    if (chapter > 1) parts.push(`[[${base(chapter - 1)}|← ${bookLabel(book)} ${chapter - 1}]]`);
+    parts.push(`[[bible/${pad2(num)}-${book}/${version}/${book}|${bookLabel(book)}]]`);
+    parts.push(`[[${base(chapter + 1)}|${bookLabel(book)} ${chapter + 1} →]]`);
+    return parts.join(" · ");
+}
+
 function formatPastedChapter(raw: string, bookSlug: string, chapter: number, version: string) {
     bookSlug = bookSlug.toLowerCase().trim();
     const num = BOOK_NUM[bookSlug];
@@ -713,14 +723,18 @@ function formatPastedChapter(raw: string, bookSlug: string, chapter: number, ver
     if (!version) return { error: "Enter a version (e.g. esv, nasb, nkjv)." };
     const verses = splitVerses(raw);
     if (!verses.size) return { error: "Couldn't find verse numbers in the pasted text." };
+    const nav = navLine(num, bookSlug, version, chapter);
     const fm = ["---", "cssclasses:", "  - bible", `bible-version: ${version}`,
         `bible-book: ${bookSlug}`, `bible-booknum: ${num}`, `bible-chapter: ${chapter}`,
         // list form so Obsidian's property editor treats it as a LIST (add verse numbers as items)
         // rather than a number field that rejects commas.
-        "bible-parastarts:", "  - 1", "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, ""];
+        "bible-parastarts:", "  - 1", "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, "", nav, ""];
     const body = [...verses.keys()].sort((a, b) => a - b).map(n => `**${n}** ${verses.get(n)} ^v${n}`);
+    // Blank line BETWEEN verses (\n\n) so each renders as its own paragraph — matches the generated
+    // notes and lets the reader's per-verse overlays work. (A single \n was a soft break in one <p>.)
+    // Nav line above the text AND below it.
     return { path: `bible/${pad2(num)}-${bookSlug}/${version}/${bookSlug}-${pad3(chapter)}.md`,
-             note: fm.concat(body).join("\n") + "\n", verses: verses.size };
+             note: fm.concat([body.join("\n\n"), "", nav]).join("\n") + "\n", verses: verses.size };
 }
 
 class BiblePasteModal extends Modal {
@@ -793,6 +807,8 @@ export function registerBibleAnnotations(plugin: Plugin): void {
             .onClick(() => wrap(`<span class="lm-wj">${sel}</span>`)));
         menu.addItem((i) => i.setTitle("Bible: tag Strong's number…").setIcon("hash")
             .onClick(() => new StrongsInputModal(plugin, (n) => wrap(`<span class="lm-s" data-s="${n}">${sel}</span>`)).open()));
+        if (/\n/.test(sel)) menu.addItem((i) => i.setTitle("Bible: format as poetry").setIcon("text-quote")
+            .onClick(() => formatPoetry(editor)));
     }));
 
     // Same three as commands (hotkey-able + testable; work on the current selection in any note).
@@ -811,6 +827,26 @@ export function registerBibleAnnotations(plugin: Plugin): void {
             if (!s) { new Notice("Select a word first."); return; }
             new StrongsInputModal(plugin, (n) => editor.replaceSelection(`<span class="lm-s" data-s="${n}">${s}</span>`)).open();
         } });
+
+    // Poetry: turn a line-broken selection into indented poetry. Each poetic line (stich) becomes its
+    // own line (two-space hard break) and continuation lines are indented with an em-space — the exact
+    // format the reader renders as poetry. Break the verse into stich lines first, then run this.
+    const formatPoetry = (editor: Editor) => {
+        const sel = editor.getSelection();
+        if (!sel) { new Notice("Select the verse lines (one stich per line) to format as poetry."); return; }
+        const EM = " ";   // em-space — the reader's poetic indent
+        const lines = sel.split("\n");
+        const out = lines.map((line, i) => {
+            let l = line.replace(/[ \t]+$/, "");                    // drop trailing whitespace
+            if (!l.trim()) return l;                                // keep blank lines
+            if (!/^\s*\*\*\d+\*\*/.test(l)) l = EM + l.replace(/^[ \t ]+/, "");   // indent continuations
+            if (i < lines.length - 1) l += "  ";                    // hard break (all but the last line)
+            return l;
+        });
+        editor.replaceSelection(out.join("\n"));
+    };
+    plugin.addCommand({ id: "bible-format-poetry", name: "Bible: format selection as poetry (indent stich lines)",
+        editorCallback: formatPoetry });
 }
 
 // ── Insert a passage into the current note ──────────────────────────────────
@@ -956,6 +992,54 @@ export function registerBiblePassageEmbed(plugin: Plugin): void {
                 plugin.app.workspace.openLinkText(href, ctx.sourcePath, (e as MouseEvent).ctrlKey || (e as MouseEvent).metaKey);
             });
     });
+}
+
+/** Ensure a bible chapter has a prev·book·next nav at the BOTTOM (the generated notes bake one only at
+ *  the top; pasted notes now bake both). We append a bottom nav on file-open when none is present.
+ *  Targets may not exist yet — that's fine, the link just won't resolve until you add that chapter. */
+export function registerBibleChapterNav(plugin: Plugin): void {
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    const inject = async (file: TFile) => {
+        if (!file || !file.path.startsWith("bible/")) return;
+        const pp = file.path.split("/");
+        if (pp.length < 4) return;
+        const book = pp[pp.length - 3].replace(/^\d+-/, "");
+        const version = pp[pp.length - 2];
+        const chapter = parseInt((pp[pp.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
+        const num = BOOK_NUM[book];
+        if (!num || !chapter) return;
+        let sizer: HTMLElement | null = null;
+        for (let i = 0; i < 12; i++) {
+            await sleep(300);
+            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view || view.file !== file) continue;
+            const c = view.contentEl.querySelector(
+                ".markdown-preview-view.bible .markdown-preview-sizer, .markdown-reading-view.bible .markdown-preview-sizer") as HTMLElement | null;
+            if (c && c.querySelector("p")) { sizer = c; break; }
+        }
+        if (!sizer) return;
+        // A baked bottom nav already present in the note? (last non-empty block containing ← and →)
+        const kids = Array.from(sizer.children).filter(k => (k.textContent || "").trim());
+        if (kids.slice(-2).some(k => (k.textContent || "").includes("←") && (k.textContent || "").includes("→"))) return;
+        // Append OUTSIDE the sizer (into its scroll-container parent) so reading-view virtualization,
+        // which strips unmanaged nodes inside the sizer, doesn't remove it. Sits below all content.
+        const host = sizer.parentElement || sizer;
+        if (host.querySelector(":scope > .lm-bible-nav-bottom")) return;
+        const nav = host.createDiv("lm-bible-nav lm-bible-nav-bottom");
+        const base = (ch: number) => `bible/${pad2(num)}-${book}/${version}/${book}-${pad3(ch)}`;
+        const link = (path: string, text: string) => {
+            const a = nav.createEl("a", { text, cls: "lm-bible-nav-link", attr: { href: path } });
+            a.addEventListener("click", (e) => {
+                e.preventDefault();
+                plugin.app.workspace.openLinkText(path, file.path, (e as MouseEvent).ctrlKey || (e as MouseEvent).metaKey);
+            });
+        };
+        if (chapter > 1) { link(base(chapter - 1), `← ${bookLabel(book)} ${chapter - 1}`); nav.createSpan({ text: " · " }); }
+        link(`bible/${pad2(num)}-${book}/${version}/${book}`, bookLabel(book));
+        nav.createSpan({ text: " · " });
+        link(base(chapter + 1), `${bookLabel(book)} ${chapter + 1} →`);
+    };
+    plugin.registerEvent(plugin.app.workspace.on("file-open", (file) => { if (file) void inject(file); }));
 }
 
 // ── Licensed online versions (ESV / NASB / NKJV) — fetched via the backend proxy, cached in the

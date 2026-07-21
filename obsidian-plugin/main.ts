@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleVersions, registerBibleAnnotations, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleChapterNav, registerBibleVersions, registerBibleAnnotations, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
 import { registerBibleStrongs, registerBibleStrongsHover } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
 
@@ -56,6 +56,7 @@ export default class AIAssistantPlugin extends Plugin {
         // "Paste a chapter from another translation" command.
         registerBiblePaste(this);
         registerBiblePassageEmbed(this);
+        registerBibleChapterNav(this);
         // Right-click annotations on selected text in a Bible note: highlight, words of Christ (red),
         // tag a Strong's number — works in ANY translation (the cross-version path for red-letter/Strong's).
         registerBibleAnnotations(this);

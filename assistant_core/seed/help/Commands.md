@@ -1,4 +1,4 @@
-<!-- help-version: 38 -->
+<!-- help-version: 39 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -81,6 +81,7 @@ not as `vault:` chat commands. The annotation commands act on the **selected tex
 | `Bible: highlight selection` | Wrap the selected text in a `==highlight==` (edit mode; also right-click → Bible) |
 | `Bible: mark selection as words of Christ (red)` | Render the selection **red** (words of Christ) — works in any translation (edit mode; also right-click → Bible) |
 | `Bible: tag selection with a Strong's number` | Tag the selected word with a Strong's number (`H430`/`G26`) so the Strong's popup works on it in any version (edit mode) |
+| `Bible: format selection as poetry (indent stich lines)` | Turn a line-broken selection into indented poetry — hard breaks between stichs + em-space indents on continuation lines (edit mode; also right-click → Bible). Break the verse into stich lines first. |
 | `Bible: write a note on this verse` | Create a personal commentary note tied to a verse/passage (`commentary-ref`); the verse gets a ✎ |
 | `Bible: interlinear (this chapter)` | Word-by-word Strong's for the open chapter; tap a number for the Hebrew/Greek word + concordance |
 | `Bible: concordance (Strong's number or word)` | Every verse using a Strong's number (`H430`) or English word (`love`) |
@@ -91,9 +92,10 @@ not as `vault:` chat commands. The annotation commands act on the **selected tex
 
 *Reader extras that need no command:* tap a **verse number** for a study popup (Matthew Henry + your
 notes + all cross-references); each cross-reference in that popup has an **⚓** to pin its marker right
-after a chosen word in the verse (a pinned marker shows even when cross-references are toggled off); a
-**📖 Matthew Henry** link sits under each chapter title; hover/tap a word in a Strong's-tagged chapter
-for its lexicon entry. See [[Features]] for the full walkthrough.
+after a chosen word in the verse (a pinned marker shows even when cross-references are toggled off);
+**📖 Matthew Henry** is in that popup; a **prev · book · next** nav sits at the top and bottom of every
+chapter; hover/tap a word in a Strong's-tagged chapter for its lexicon entry. See [[Features]] for the
+full walkthrough.
 
 ## Obsidian command palette (core + your plugins)
 Loremaster knows your whole Obsidian command palette — core **and every community plugin you install** — so

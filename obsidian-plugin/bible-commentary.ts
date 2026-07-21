@@ -255,7 +255,8 @@ export function registerBibleCommentary(plugin: Plugin): void {
 
     registerCommentaryMarkers(plugin, index);
     registerCommentarySection(plugin, index);
-    registerMatthewHenryLink(plugin);
+    // Matthew Henry is reachable from the verse-number study popup (mhcNoteFor); the per-chapter
+    // header link is intentionally NOT injected (removed per feedback — it cluttered the chapter top).
 
     plugin.addCommand({
         id: "bible-write-commentary",

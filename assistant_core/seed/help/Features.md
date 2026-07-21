@@ -1,4 +1,4 @@
-<!-- help-version: 38 -->
+<!-- help-version: 39 -->
 ---
 tags: [help, user-guide]
 ---
@@ -119,8 +119,10 @@ bible-parastarts: 1,16,22
 ```
 
 Rules: each verse is `**{number}** {text} ^v{number}` (the `^v#` anchor is what cross-references land
-on); `bible-parastarts` lists the verses that begin a new paragraph; for poetry, indent second lines
-with an em-space. **Copyright:** only add translations you're licensed to store (WEB is public domain;
+on); `bible-parastarts` lists the verses that begin a new paragraph. **For poetry** (e.g. a Psalm), put
+each poetic line (stich) on its own line, then select them and run *"Bible: format selection as poetry"*
+— it adds the hard breaks and em-space indents the reader renders as poetry, so you don't type them by
+hand. **Copyright:** only add translations you're licensed to store (WEB is public domain;
 ESV/NASB/NKJV are copyrighted — use them only within their terms). Prefer the command
 *"Bible: paste a chapter (new translation)"* — paste the raw text and LoreMaster splits it into the
 standard verse format for you.

@@ -18,13 +18,13 @@ from pathlib import Path
 
 # v1.7 — packaged AI/Help knowledge base. Bump when the seed/help/*.md content changes so
 # seed_help() refreshes the vault copies (which carry a matching `<!-- help-version: N -->`).
-HELP_VERSION = 38
+HELP_VERSION = 39
 _HELP_STAMP = re.compile(r"help-version:\s*(\d+)")
 
 # v1.9 — the System-Prompt is now packaged + version-stamped (assistant_core/seed/system/
 # System-Prompt.md, carrying `<!-- prompt-version: N -->`). seed_system_prompt() refreshes the
 # vault copy when it's missing or older, so the command list never drifts. Bump on prompt edits.
-PROMPT_VERSION = 10
+PROMPT_VERSION = 11
 _PROMPT_STAMP = re.compile(r"prompt-version:\s*(\d+)")
 
 logger = logging.getLogger("assistant")

@@ -1,10 +1,20 @@
-<!-- help-version: 38 -->
+<!-- help-version: 39 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.46**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.49**.*
+
+## Bible: poetry, top+bottom nav, cleaner chapters (v1.10.47–v1.10.49)
+- **Format as poetry.** Break a verse into stich lines, select them, and run *"Bible: format selection
+  as poetry"* (or right-click → Bible) — it adds the hard breaks + em-space indents the reader renders
+  as poetry, so you don't have to type them by hand.
+- **Nav at the top *and* bottom** of every chapter — regular and pasted — so you can jump prev/book/next
+  without scrolling back up. (Links work even if that chapter isn't in your vault yet.)
+- **Pasting a chapter** now puts a blank line between verses, so they lay out correctly without hand-editing.
+- **Removed** the Matthew Henry link from the chapter header (it's still one tap away in the verse-number
+  popup) for a cleaner page top.
 
 ## Bible: quote a passage + pin references to words (v1.10.46)
 - **Insert a passage.** *"Bible: insert a passage (into this note)"* drops several verses (choose the
