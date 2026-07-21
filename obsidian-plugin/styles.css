@@ -1164,6 +1164,12 @@ body.lm-bible-flow .markdown-preview-view.bible .el-em { display: block; }
 .lm-strongs-lemma { font-size: 1.15em; }
 .lm-strongs-translit { color: var(--text-muted); font-style: italic; }
 .lm-strongs-gloss { margin-top: 3px; color: var(--text-normal); font-size: 0.92em; }
+.lm-strongs-fuller { margin-top: 4px; color: var(--text-muted); font-size: 0.88em; line-height: 1.4; }
+.lm-strongs-fuller-src {
+    display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px;
+    background: var(--background-modifier-border); color: var(--text-muted);
+    font-size: 0.82em; font-weight: 600; letter-spacing: 0.02em; vertical-align: 1px;
+}
 
 .lm-interlinear-verse { margin: 0.5em 0; line-height: 2.1; }
 .lm-interlinear-vnum { color: var(--text-accent); font-weight: 600; font-size: 0.8em; }

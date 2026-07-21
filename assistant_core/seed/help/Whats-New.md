@@ -1,10 +1,18 @@
-<!-- help-version: 42 -->
+<!-- help-version: 43 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.53**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.54**.*
+
+## Bible: fuller lexicon definitions — Dodson (Greek) + BDB (Hebrew) (v1.10.54)
+- The Strong's popup and concordance now show a **fuller definition** under the short Strong's gloss:
+  **Dodson's Greek Lexicon** (Public Domain / CC0) for Greek numbers and **Brown-Driver-Briggs (BDB)**
+  (Public Domain) for Hebrew — each tagged with a small **Dodson** / **BDB** source badge. This is the
+  upgrade from Strong's terse (and sometimes dated) glosses to a proper lexicon: e.g. G2316 θεός, whose
+  Strong's gloss oddly reads "a magistrate", now also shows Dodson's "God, a god". The quick
+  word-hover popup prefers this fuller meaning. Sources are noted in `AI/bible-strongs/_CREDITS.md`.
 
 ## Bible: modern critical Greek text — SBLGNT interlinear + concordance (v1.10.53)
 - The interlinear and concordance now have a **Text** switch: *KJV / Strong's (TR)* or **SBLGNT

@@ -110,6 +110,30 @@ def load_lexicon(path: pathlib.Path) -> dict:
     return out
 
 
+DATA = pathlib.Path(__file__).parent / "data"
+
+
+def apply_fuller_defs(lex: dict, testament: str) -> int:
+    """Add a fuller free-lexicon definition (`d`) to each entry that has one.
+
+    Greek → Dodson (CC0); Hebrew → Brown-Driver-Briggs (public domain). Keyed by
+    the unpadded Strong's number. Idempotent; safe if the data files are absent.
+    """
+    fname = "dodson-defs.json" if testament == "G" else "bdb-defs.json"
+    path = DATA / fname
+    if not path.exists():
+        return 0
+    defs = json.loads(path.read_text(encoding="utf-8"))
+    n = 0
+    for strong, entry in lex.items():
+        num = strong[1:].lstrip("0") or "0"  # "G2316" -> "2316"
+        d = defs.get(num)
+        if d:
+            entry["d"] = d
+            n += 1
+    return n
+
+
 def ref_sort_key(ref: str):
     b, c, v = ref.rsplit(".", 2)
     return (NUM.get(b, 999), int(c), int(v))
@@ -150,6 +174,8 @@ def main():
 
     lex_h = load_lexicon(SC / "strongs-hebrew.js")
     lex_g = load_lexicon(SC / "strongs-greek.js")
+    up_h = apply_fuller_defs(lex_h, "H")
+    up_g = apply_fuller_defs(lex_g, "G")
     (OUT / "_lexicon-H.json").write_text(json.dumps(lex_h, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
     (OUT / "_lexicon-G.json").write_text(json.dumps(lex_g, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
 
@@ -157,6 +183,7 @@ def main():
     print(f"concordance: {len(conc_h)} Hebrew + {len(conc_g)} Greek numbers")
     print(f"word index: {len(words)} KJV head-words")
     print(f"lexicon: {len(lex_h)} Hebrew + {len(lex_g)} Greek entries")
+    print(f"fuller defs: {up_g} Greek (Dodson) + {up_h} Hebrew (BDB)")
 
 
 if __name__ == "__main__":

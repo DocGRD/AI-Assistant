@@ -13,7 +13,7 @@ import { BOOK_NUM, pad2, pad3, bookLabel } from "./bible";
 
 type Interlinear = Record<string, [string, string[]][]>;
 type Concordance = Record<string, string[]>;
-type Lexicon = Record<string, { l: string; t: string; g: string }>;
+type Lexicon = Record<string, { l: string; t: string; g: string; d?: string }>;
 type SblgntWord = { g: string; l: string; m: string; s: string };
 type SblgntInterlinear = Record<string, SblgntWord[]>;
 
@@ -94,6 +94,11 @@ async function lexiconLine(el: HTMLElement, data: StrongsData, strong: string,
     if (lex?.l) head.createSpan({ cls: "lm-strongs-lemma", text: ` ${lex.l}` });
     if (lex?.t) head.createSpan({ cls: "lm-strongs-translit", text: ` ${lex.t}` });
     if (lex?.g) row.createDiv("lm-strongs-gloss").setText(lex.g);
+    if (lex?.d) {
+        const full = row.createDiv("lm-strongs-fuller");
+        full.createSpan({ cls: "lm-strongs-fuller-src", text: isGreek(strong) ? "Dodson" : "BDB" });
+        full.createSpan({ text: " " + lex.d });
+    }
 }
 
 // ── Interlinear: the active chapter, word-by-word with Strong's numbers ──────────────────────
@@ -271,7 +276,10 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
             if (lex?.t) head.createSpan({ cls: "lm-strongs-translit", text: ` ${lex.t}` });
             head.createEl("a", { text: ` ${s}`, cls: "lm-strongs-num", href: "#" })
                 .addEventListener("click", (e) => { e.preventDefault(); destroy(); new ConcordanceModal(plugin, data, s).open(); });
-            if (lex?.g) row.createDiv({ cls: "lm-strongs-gloss", text: lex.g.length > 160 ? lex.g.slice(0, 160) + "…" : lex.g });
+            // prefer the fuller free-lexicon definition (Dodson/BDB) — it is cleaner and more
+            // accurate than the terse Strong's gloss; the full entry is one tap away.
+            const meaning = lex?.d || lex?.g;
+            if (meaning) row.createDiv({ cls: "lm-strongs-gloss", text: meaning.length > 160 ? meaning.slice(0, 160) + "…" : meaning });
         }
         c.createEl("a", { text: "Open Strong's entry →", cls: "lm-strongs-pop-open", href: "#" })
             .addEventListener("click", (e) => { e.preventDefault(); const s = codes[0]; destroy(); new ConcordanceModal(plugin, data, s).open(); });

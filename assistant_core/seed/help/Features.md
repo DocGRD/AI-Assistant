@@ -1,4 +1,4 @@
-<!-- help-version: 42 -->
+<!-- help-version: 43 -->
 ---
 tags: [help, user-guide]
 ---
@@ -58,9 +58,14 @@ and a selection — they won't appear when the note is in Reading view.)
   transliteration, meaning, and a link into the concordance.
 - **Concordance** — command *"Bible: concordance (Strong's number or word)"*. Enter a Strong's number
   (`H430`, `G26`) or an English word (`love`) and get every verse that uses it, each a link.
+- **Fuller definitions.** Under the terse Strong's gloss, each entry now also shows a fuller
+  free-lexicon definition — **Dodson** (Dodson's Greek Lexicon, Public Domain/CC0) for Greek numbers,
+  **BDB** (Brown-Driver-Briggs, Public Domain) for Hebrew — labelled with a small source badge. The
+  quick word-hover popup prefers this fuller meaning (the Strong's gloss can be terse or dated).
 - Accuracy note: the WEB's own word-tags are unreliable, so the Strong's data is built from the
   public-domain **KJV + Strong's** (the basis of Strong's Concordance) plus the openscriptures
-  lexicon. It lives in `AI/bible-strongs/`; the WEB stays your reading text.
+  lexicon. It lives in `AI/bible-strongs/` (see its `_CREDITS.md` for lexicon sources); the WEB stays
+  your reading text.
 - **Modern critical text (SBLGNT).** Both the interlinear and the concordance have a **Text** switch —
   *KJV / Strong's (TR)* or **SBLGNT (critical)**. The SBLGNT basis shows the actual modern-critical Greek
   New Testament word-by-word with **morphology** (e.g. "verb aor act ind"), still keyed to Strong's
