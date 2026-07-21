@@ -224,17 +224,12 @@ class WriteCommentaryModal extends Modal {
                 const folder = `bible-commentary/${this.book}`;
                 try { await this.plugin.app.vault.createFolder(folder); } catch { /* exists */ }
                 const title = `${bookLabel(this.book)} ${this.chapter}:${suffix}`;
-                // Quote the verse text (from the version you're reading) so the note is self-contained,
-                // then just a "Commentary" heading for YOU to write under. No AI-generated content.
-                const num = BOOK_NUM[this.book];
-                const linkpath = num ? `bible/${pad2(num)}-${this.book}/${this.version}/${this.book}-${pad3(this.chapter)}` : "";
-                const quoted: string[] = [];
-                for (let v = a; v <= (b2 && b2 > a ? b2 : a) && v < a + 200; v++) {
-                    const txt = linkpath ? await readVerseText(this.plugin, linkpath, `v${v}`) : "";
-                    if (txt) quoted.push(`> **${v}** ${txt}`);
-                }
-                const verseBlock = quoted.length ? quoted.join("\n> \n") + `\n> — ${title} (${this.version.toUpperCase()})\n\n` : "";
-                const body = `---\ncommentary-ref: ${ref}\ntags: [bible-commentary]\n---\n# ${title}\n\n${verseBlock}## Commentary\n\n`;
+                // Embed the verse as a LIVE bible-passage block (a link that displays it from the chapter
+                // note) rather than copying the text — so if the source changes, the quote here updates.
+                // Then just a "Commentary" heading for YOU to write under. No AI-generated content.
+                const passage = ["```bible-passage", `book: ${this.book}`, `chapter: ${this.chapter}`,
+                    `verses: ${suffix}`, `version: ${this.version}`, "```", "", ""].join("\n");
+                const body = `---\ncommentary-ref: ${ref}\ntags: [bible-commentary]\n---\n# ${title}\n\n${passage}## Commentary\n\n`;
                 file = await this.plugin.app.vault.create(path, body);
             }
             this.close();

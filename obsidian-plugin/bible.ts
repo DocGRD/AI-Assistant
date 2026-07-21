@@ -1010,53 +1010,9 @@ export function registerBiblePassageEmbed(plugin: Plugin): void {
     });
 }
 
-/** Ensure a bible chapter has a prev·book·next nav at the BOTTOM (the generated notes bake one only at
- *  the top; pasted notes now bake both). We append a bottom nav on file-open when none is present.
- *  Targets may not exist yet — that's fine, the link just won't resolve until you add that chapter. */
-export function registerBibleChapterNav(plugin: Plugin): void {
-    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-    const inject = async (file: TFile) => {
-        if (!file || !file.path.startsWith("bible/")) return;
-        const pp = file.path.split("/");
-        if (pp.length < 4) return;
-        const book = pp[pp.length - 3].replace(/^\d+-/, "");
-        const version = pp[pp.length - 2];
-        const chapter = parseInt((pp[pp.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
-        const num = BOOK_NUM[book];
-        if (!num || !chapter) return;
-        let sizer: HTMLElement | null = null;
-        for (let i = 0; i < 12; i++) {
-            await sleep(300);
-            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-            if (!view || view.file !== file) continue;
-            const c = view.contentEl.querySelector(
-                ".markdown-preview-view.bible .markdown-preview-sizer, .markdown-reading-view.bible .markdown-preview-sizer") as HTMLElement | null;
-            if (c && c.querySelector("p")) { sizer = c; break; }
-        }
-        if (!sizer) return;
-        // A baked bottom nav already present in the note? (last non-empty block containing ← and →)
-        const kids = Array.from(sizer.children).filter(k => (k.textContent || "").trim());
-        if (kids.slice(-2).some(k => (k.textContent || "").includes("←") && (k.textContent || "").includes("→"))) return;
-        // Append OUTSIDE the sizer (into its scroll-container parent) so reading-view virtualization,
-        // which strips unmanaged nodes inside the sizer, doesn't remove it. Sits below all content.
-        const host = sizer.parentElement || sizer;
-        if (host.querySelector(":scope > .lm-bible-nav-bottom")) return;
-        const nav = host.createDiv("lm-bible-nav lm-bible-nav-bottom");
-        const base = (ch: number) => `bible/${pad2(num)}-${book}/${version}/${book}-${pad3(ch)}`;
-        const link = (path: string, text: string) => {
-            const a = nav.createEl("a", { text, cls: "lm-bible-nav-link", attr: { href: path } });
-            a.addEventListener("click", (e) => {
-                e.preventDefault();
-                plugin.app.workspace.openLinkText(path, file.path, (e as MouseEvent).ctrlKey || (e as MouseEvent).metaKey);
-            });
-        };
-        if (chapter > 1) { link(base(chapter - 1), `← ${bookLabel(book)} ${chapter - 1}`); nav.createSpan({ text: " · " }); }
-        link(`bible/${pad2(num)}-${book}/${version}/${book}`, bookLabel(book));
-        nav.createSpan({ text: " · " });
-        link(base(chapter + 1), `${bookLabel(book)} ${chapter + 1} →`);
-    };
-    plugin.registerEvent(plugin.app.workspace.on("file-open", (file) => { if (file) void inject(file); }));
-}
+// (The bottom nav is now BAKED into the note markdown — by formatPastedChapter for pasted chapters and
+//  by the generator / a one-time migration for the rest — so it renders as a real block after the last
+//  verse with no reading-view virtualization gap. The old file-open injector was removed.)
 
 // ── Licensed online versions (ESV / NASB / NKJV) — fetched via the backend proxy, cached in the
 //    vault as normal bible notes so they're only ever fetched once and get the full reader treatment.
