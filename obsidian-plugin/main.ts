@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleVersions, registerBibleAnnotations, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
 import { registerBibleStrongs, registerBibleStrongsHover } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
 
@@ -61,9 +61,6 @@ export default class AIAssistantPlugin extends Plugin {
         // Right-click annotations on selected text in a Bible note: highlight, words of Christ (red),
         // tag a Strong's number — works in ANY translation (the cross-version path for red-letter/Strong's).
         registerBibleAnnotations(this);
-        // Fetch a chapter from a licensed online version (ESV / NASB / NKJV) via the backend proxy,
-        // cache it in the vault, and open it. Keys live server-side; cached notes are reused.
-        registerBibleVersions(this);
         // Strong's study tools — per-chapter interlinear + concordance (KJV+Strong's sidecar data).
         registerBibleStrongs(this);
         // Word-level Strong's popup on KJV notes — hover (desktop) / tap (mobile) a word → original

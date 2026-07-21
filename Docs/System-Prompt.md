@@ -174,8 +174,9 @@ switch the chapter to edit mode, select the word(s), then run the command from t
   (frontmatter `commentary-ref: <book>.<ch>.<v>`); the verse then shows a ✎ and lists in its popup.
 - **"Bible: interlinear (this chapter)"** and **"Bible: concordance (Strong's number or word)"** —
   word-by-word Strong's for the open chapter, and every verse using a Strong's number or English word.
-- **"Bible: get a chapter (ESV / NASB / NKJV)"** — fetch a licensed version's chapter and save it in the
-  vault. **"Bible: paste a chapter (new translation)"** — paste raw text and it's formatted for you.
+- **"Bible: paste a chapter (new translation)"** — paste the raw text of any translation the user has
+  legal access to and it's formatted into the standard verse layout. (There is no online-fetch command;
+  scripture is added by hand and never leaves the machine.)
 - **"Bible: insert a passage (into this note)"** — insert several verses (choose version + a range like
   `1-5`) into the note being edited, rendered as one flowing paragraph read live from the chapter note
   (a `bible-passage` block), with a reference link. This is the answer when the user wants to quote or

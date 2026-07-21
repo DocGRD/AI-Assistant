@@ -1,4 +1,4 @@
-<!-- help-version: 43 -->
+<!-- help-version: 44 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -86,7 +86,6 @@ not as `vault:` chat commands. The annotation commands act on the **selected tex
 | `Bible: attach a note to selection` | Select a word or phrase → creates a note attached to it; a 📝 appears at the front of those words in the reader and opens the note (edit mode; also right-click → Bible) |
 | `Bible: interlinear (this chapter)` | Word-by-word Strong's for the open chapter; tap a number for the Hebrew/Greek word + concordance |
 | `Bible: concordance (Strong's number or word)` | Every verse using a Strong's number (`H430`) or English word (`love`) |
-| `Bible: get a chapter (ESV / NASB / NKJV)` | Fetch a licensed version's chapter via your service, save it in the vault, open it |
 | `Bible: paste a chapter (new translation)` | Paste raw chapter text → LoreMaster formats it into the standard verse layout |
 | `Bible: insert a passage (into this note)` | Insert several verses (choose version + range like `1-5`) into the note you're editing, as one **live, flowing passage** rendered from the chapter note (tracks edits; reader paragraph look) with a reference link |
 | `Bible: toggle reading layout (verse-by-verse ⟷ flowing)` | Switch the reader between one-verse-per-line and flowing paragraphs |

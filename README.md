@@ -73,7 +73,7 @@ words of Christ (red)"*, *"…highlight selection"*, or *"…tag selection with 
 red-letter or Strong's where a version doesn't ship them. Verse-by-verse ⟷ flowing-paragraph layouts,
 auto-Reading-view, and a configurable cross-reference count. Scripture and imported commentary (e.g. Matthew
 Henry) are in the semantic index, so `vault:ask` searches God's word. Adding another translation is a paste
-(or the *"get a chapter (ESV / NASB / NKJV)"* command) into the standard note format — the cross-references
+(*"Bible: paste a chapter (new translation)"*) into the standard note format — the cross-references
 and related links then appear automatically. (Copyrighted translations like ESV/NASB/NKJV are used only
 within their terms; WEB is the bundled public-domain base.)
 

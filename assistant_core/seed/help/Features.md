@@ -1,4 +1,4 @@
-<!-- help-version: 43 -->
+<!-- help-version: 44 -->
 ---
 tags: [help, user-guide]
 ---
@@ -96,14 +96,6 @@ paragraph** (inline superscript verse numbers, red-letter, the reader's look), r
 chapter note: it *displays* the text rather than copying it, so if the source verse changes the passage
 updates. A reference link back to the chapter sits below it.
 
-### Get a chapter from a licensed online version (ESV / NASB / NKJV)
-
-The fastest way to add another translation: run the command **"Bible: get a chapter (ESV / NASB / NKJV)"**,
-pick the version, book slug and chapter. LoreMaster fetches it through your local service (your API keys
-stay on the service — set them under *Privacy & Settings → Bible version keys*), **saves it in the vault**,
-and opens it — so it's only ever fetched once and gets the full reader treatment. ESV automatically honours
-its 500-verse caching cap.
-
 ### Add a chapter from another translation (by hand / paste)
 
 The WEB is included; you can add a chapter of any translation **you have legal access to** by pasting
@@ -138,7 +130,7 @@ on); `bible-parastarts` lists the verses that begin a new paragraph. **For poetr
 each poetic line (stich) on its own line, then select them and run *"Bible: format selection as poetry"*
 — it adds the hard breaks and em-space indents the reader renders as poetry, so you don't type them by
 hand. **Copyright:** only add translations you're licensed to store (WEB is public domain;
-ESV/NASB/NKJV are copyrighted — use them only within their terms). Prefer the command
+ESV/NASB/NKJV are copyrighted — use them only within their terms). The easiest way is the command
 *"Bible: paste a chapter (new translation)"* — paste the raw text and LoreMaster splits it into the
 standard verse format for you. For a Psalm or other poetry, turn on the **Poetry** toggle in that dialog
 and the line breaks in what you paste are kept as poetic lines (indented stichs).

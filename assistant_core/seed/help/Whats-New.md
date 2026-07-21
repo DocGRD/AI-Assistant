@@ -1,10 +1,17 @@
-<!-- help-version: 43 -->
+<!-- help-version: 44 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.54**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.55**.*
+
+## Bible: removed the online-version fetch (ESV / NASB / NKJV) (v1.10.55)
+- The *"Bible: get a chapter (ESV / NASB / NKJV)"* command and its `esv_api_key` / `apibible_*` service
+  settings are **gone** — those APIs are aimed at app developers (per-key rate limits, ESV's 500-verse
+  caching cap, per-key bible-ids) rather than personal study. To read another translation you have legal
+  access to, use **"Bible: paste a chapter (new translation)"** and paste the text; it's formatted into
+  the standard layout in your vault. Nothing about scripture leaves your machine.
 
 ## Bible: fuller lexicon definitions — Dodson (Greek) + BDB (Hebrew) (v1.10.54)
 - The Strong's popup and concordance now show a **fuller definition** under the short Strong's gloss:
@@ -88,14 +95,9 @@ tags: [help, user-guide, whats-new]
   (`commentary-ref`); annotated verses get a **✎** you can tap, and your notes are listed under the
   chapter. A study library you build over time.
 
-## Bible: red-letter, online versions, text size, phone fixes (v1.10.38–v1.10.39)
+## Bible: red-letter, text size, phone fixes (v1.10.38–v1.10.39)
 - **Red-letter (words of Christ).** In the Gospels, Acts and Revelation, the words of Jesus render
   in red — automatically, from the source text.
-- **Online versions (ESV / NASB / NKJV).** Command *"Bible: get a chapter (ESV / NASB / NKJV)"*
-  fetches a chapter from a licensed version through your local service and **saves it in the vault**,
-  so it's only ever fetched once and gets the full reader treatment (cross-references, hovercards,
-  layout). Keys live in the service settings — see *Privacy & Settings*. ESV honours its 500-verse
-  caching cap automatically.
 - **Text size.** Settings → Loremaster → Bible reader → **Text size** scales the reader's text
   (80–160%) without changing Obsidian's global font size.
 - **Phone fixes.** Cross-references now render on mobile (a compatibility bug hid them), and tapping
