@@ -1294,6 +1294,13 @@ sup.lm-comm-sup { margin-left: 1px; }
   font-size: 13px; line-height: 1; padding: 0 3px; flex: 0 0 auto;
 }
 .loremaster-bible-allxref-anchor:hover { color: var(--text-accent); }
+/* "Ask the Bible" semantic-search results. */
+.lm-askbible-results { margin-top: 8px; max-height: 50vh; overflow-y: auto; }
+.lm-askbible-row { padding: 7px 0; border-top: 1px solid var(--background-modifier-border); }
+.lm-askbible-ref { font-weight: 600; color: var(--text-accent); cursor: pointer; }
+.lm-askbible-text { color: var(--text-normal); font-size: 0.92em; margin-top: 2px; }
+.lm-askbible-note { display: inline-block; margin-top: 3px; font-size: 0.82em; color: var(--text-muted); cursor: pointer; }
+.lm-askbible-note:hover { color: var(--text-accent); }
 /* "Add your own cross-reference" button in the verse popup. */
 .loremaster-bible-allxref-add {
   margin-top: 8px; width: 100%; cursor: pointer;

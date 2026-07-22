@@ -646,6 +646,77 @@ async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
     }
 }
 
+/** "Ask the Bible" — a natural-language question → the verses closest in MEANING (not keywords),
+ *  from the verse-level embedding index on the service, each shown with its text + your notes. */
+class AskBibleModal extends Modal {
+    constructor(private plugin: Plugin) { super(plugin.app); }
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Ask the Bible" });
+        contentEl.createEl("p", { cls: "setting-item-description",
+            text: "Ask in your own words — LoreMaster finds the verses closest in meaning (not just keyword matches)." });
+        let q = "";
+        const status = contentEl.createEl("p", { cls: "setting-item-description" });
+        const results = contentEl.createDiv("lm-askbible-results");
+        const run = async () => {
+            if (!q.trim()) return;
+            status.setText("Searching…"); results.empty();
+            const s = (this.plugin as any).settings;
+            let data: any;
+            try {
+                const r = await fetch(`http://${s.host}:${s.port}/bible/search?q=${encodeURIComponent(q)}&k=15`,
+                    { headers: s.apiToken ? { "X-API-Key": s.apiToken } : {}, signal: timeoutSignal(15000) });
+                data = await r.json();
+            } catch (e) { status.setText(`Service unreachable: ${e}. (Ask the Bible needs the running service.)`); return; }
+            if (!data || !data.ready) { status.setText("The verse index isn't built yet — run “vault:bible-verse-index” on the service."); return; }
+            const hits = (data.results || []).filter((t: any) => BOOK_NUM[t.b]);
+            if (!hits.length) { status.setText("No verses matched."); return; }
+            status.setText(`${hits.length} verses closest in meaning:`);
+            for (const t of hits) {
+                const num = BOOK_NUM[t.b];
+                const linkbase = `bible/${pad2(num)}-${t.b}/web/${t.b}-${pad3(t.c)}`;
+                const href = `${linkbase}#^v${t.v}`;
+                const row = results.createDiv("lm-askbible-row");
+                const head = row.createEl("a", { text: t.n, cls: "lm-askbible-ref", attr: { href } });
+                head.addEventListener("click", (ev) => {
+                    ev.preventDefault();
+                    this.plugin.app.workspace.openLinkText(href, "", ev.ctrlKey || ev.metaKey);
+                    this.close();
+                });
+                const textEl = row.createDiv("lm-askbible-text");
+                void readVerseText(this.plugin, linkbase, `v${t.v}`).then((vt) => textEl.setText(vt || ""));
+                const notes = commentaryNotesForVerse(t.b, t.c, t.v);
+                if (notes.length) {
+                    const c = row.createEl("a", { text: `📝 your note${notes.length > 1 ? "s" : ""}`, cls: "lm-askbible-note" });
+                    c.addEventListener("click", (ev) => {
+                        ev.preventDefault();
+                        this.plugin.app.workspace.openLinkText(notes[0].path, "", false);
+                        this.close();
+                    });
+                }
+            }
+        };
+        new Setting(contentEl).setName("Question")
+            .addText((tc) => {
+                tc.setPlaceholder("e.g. God's patience with sinners").onChange((v) => q = v);
+                tc.inputEl.style.width = "100%";
+                tc.inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); void run(); } });
+                setTimeout(() => tc.inputEl.focus(), 0);
+            });
+        new Setting(contentEl).addButton((b) => b.setButtonText("Ask").setCta().onClick(() => void run()));
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+/** Register the "Bible: Ask the Bible" command (semantic verse search over the whole Bible). */
+export function registerBibleSearch(plugin: Plugin): void {
+    plugin.addCommand({
+        id: "bible-ask",
+        name: "Bible: Ask the Bible (semantic search)",
+        callback: () => new AskBibleModal(plugin).open(),
+    });
+}
+
 /** Register the cross-reference OVERLAY: cross-refs are stored once (bible/.crossrefs/{book}.json,
  *  version-independent) and injected by the renderer, so every version shares them and adding a
  *  version repeats no cross-reference work. Runs on `cssclasses:[bible]` chapter notes. */

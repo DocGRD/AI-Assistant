@@ -148,3 +148,17 @@ class VerseIndex:
             v = ref.rsplit(".", 1)[1]
             res[v] = self.similar(ref, k=k)
         return res
+
+    def search(self, query: str, k: int = 12) -> list[dict]:
+        """Semantic 'Ask the Bible' — embed a free-text query and return the top-K most similar verses
+        across the whole Bible (each {b, c, v, n, score}), ranked by cosine similarity."""
+        if self.vecs is None or not (query or "").strip():
+            return []
+        q = np.asarray(self.embedder.embed([query]), dtype=np.float32)[0]
+        norm = np.linalg.norm(q)
+        if norm == 0:
+            return []
+        q /= norm
+        scores = self.vecs @ q
+        order = np.argsort(-scores)[: max(1, k)]
+        return [{**self._label(self.refs[j]), "score": float(scores[j])} for j in order]

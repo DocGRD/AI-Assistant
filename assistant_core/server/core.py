@@ -1891,6 +1891,19 @@ class AssistantServer:
                 logger.warning(f"[Server] /bible/chapter-similar failed: {exc}")
                 return {"verses": {}, "ready": False}
 
+        # ── GET /bible/search — "Ask the Bible": semantic verse search over the whole Bible ──
+        @app.get("/bible/search")
+        async def bible_search(q: str, k: int = 12):
+            """Top-K verses most similar in MEANING to a free-text query (verse-level embedding index)."""
+            try:
+                vi = self._verse_index()
+                if not vi or not vi.ready():
+                    return {"results": [], "ready": False}
+                return {"results": vi.search(q, k=int(k)), "ready": True}
+            except Exception as exc:
+                logger.warning(f"[Server] /bible/search failed: {exc}")
+                return {"results": [], "ready": False}
+
         # ── GET /history ────────────────────────────────────────────────────
         @app.get("/history", response_model=HistoryResponse)
         async def history():

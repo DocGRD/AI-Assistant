@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, applyBibleLayout, applyBibleFontScale, applyBibleXrefStyles, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, registerBibleSearch, applyBibleLayout, applyBibleFontScale, applyBibleXrefStyles, BibleLayout } from "./bible";
 import { registerBibleStrongs, registerBibleStrongsHover } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
 
@@ -68,6 +68,8 @@ export default class AIAssistantPlugin extends Plugin {
         // Right-click annotations on selected text in a Bible note: highlight, words of Christ (red),
         // tag a Strong's number — works in ANY translation (the cross-version path for red-letter/Strong's).
         registerBibleAnnotations(this);
+        // "Ask the Bible" — semantic verse search over the whole Bible (verse-embedding index on the service).
+        registerBibleSearch(this);
         // Strong's study tools — per-chapter interlinear + concordance (KJV+Strong's sidecar data).
         registerBibleStrongs(this);
         // Word-level Strong's popup on KJV notes — hover (desktop) / tap (mobile) a word → original
