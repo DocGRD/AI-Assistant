@@ -809,6 +809,16 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             const num = p.firstElementChild as HTMLElement;
             const vnum = (num.textContent || "").trim();
             if (paraStarts.has(vnum)) (p.closest(".el-p") || p).addClass("lm-para-start");
+            // Poetry: a verse with hard-break stichs (multi-line). Give it a CSS hanging indent (works
+            // in both reading + flowing modes, and doesn't depend on the fragile em-space characters
+            // surviving the renderer) and strip any leading em-space indents so they don't double up.
+            if (p.querySelector("br") || / /.test(p.textContent || "")) {
+                p.addClass("lm-poetry");
+                (p.closest(".el-p") || p).addClass("lm-poetry-block");
+                const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+                for (let tn = w.nextNode() as Text | null; tn; tn = w.nextNode() as Text | null)
+                    if (tn.nodeValue && tn.nodeValue.indexOf(" ") >= 0) tn.nodeValue = tn.nodeValue.replace(/ /g, "");
+            }
             const targets = (data[`${book}.${chapter}.${vnum}`] || []).filter((t: any) => BOOK_NUM[t.b]);
             // ── Cross-references YOU connected to a word (bible-xref-anchors) — your deliberate links.
             // They render at the FRONT of the word as distinct dark-purple UPPERCASE superscripts, and
@@ -868,6 +878,14 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
                 void showAllXrefs(plugin, num, `${bookLabel(book)} ${chapter}:${vnum}`,
                     book, chapter, parseInt(vnum, 10), version, targets, sims, hrefFor);
             });
+        }
+        // Nav lines (prev · book · next) — wikilink-only paragraphs. Tag them so the bottom nav keeps to
+        // its own line in flowing-paragraph mode (its block wrapper isn't inlined with the verses).
+        for (const np of paras) {
+            if (!np.querySelector("strong") && np.querySelectorAll("a.internal-link").length >= 2) {
+                np.addClass("lm-bible-nav");
+                (np.closest(".el-p") || np).addClass("lm-bible-nav-block");
+            }
         }
     });
 }
@@ -991,7 +1009,23 @@ function navLine(num: number, book: string, version: string, chapter: number): s
     return parts.join(" · ");
 }
 
-function formatPastedChapter(raw: string, bookSlug: string, chapter: number, version: string, poetry = false) {
+/** Paragraph starts (verse numbers) harvested from the pasted text's BLANK LINES: the first verse
+ *  number in each blank-line-separated block (after the first) begins a new paragraph. Always includes 1. */
+function harvestParaStarts(raw: string): number[] {
+    const starts = new Set<number>([1]);
+    const blocks = cleanPaste(raw ? raw.replace(/[ \t]+\n/g, "\n") : "").split(/\n\s*\n/);
+    // cleanPaste flattens newlines; harvest from the RAW blank-line structure instead:
+    const rawBlocks = (raw || "").split(/\r?\n[ \t]*\r?\n/);
+    for (let i = 1; i < rawBlocks.length; i++) {
+        const m = rawBlocks[i].match(/(?<![\d.])\b(\d{1,3})\b/);
+        if (m) starts.add(parseInt(m[1], 10));
+    }
+    void blocks;
+    return [...starts].sort((a, b) => a - b);
+}
+
+function formatPastedChapter(raw: string, bookSlug: string, chapter: number, version: string,
+                            poetry = false, paraStartsInput = "") {
     bookSlug = bookSlug.toLowerCase().trim();
     const num = BOOK_NUM[bookSlug];
     if (!num) return { error: `Unknown book slug "${bookSlug}" (use e.g. john, 1-corinthians, psalms).` };
@@ -999,21 +1033,26 @@ function formatPastedChapter(raw: string, bookSlug: string, chapter: number, ver
     if (!version) return { error: "Enter a version (e.g. esv, nasb, nkjv)." };
     const verses = splitVerses(raw, poetry);
     if (!verses.size) return { error: "Couldn't find verse numbers in the pasted text." };
+    // Paragraph starts: use the user's list if given, else harvest from the pasted blank lines.
+    const typed = paraStartsInput.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => n > 0);
+    const paraStarts = (typed.length ? Array.from(new Set([1, ...typed])) : harvestParaStarts(raw)).sort((a, b) => a - b);
+    const basename = `${bookSlug}-${pad3(chapter)}`;
+    // Top nav carries a ^nav block id; the bottom nav TRANSCLUDES it, so editing the top updates the
+    // bottom automatically (and the embed renders on its own line).
     const nav = navLine(num, bookSlug, version, chapter);
     const fm = ["---", "cssclasses:", "  - bible", `bible-version: ${version}`,
         `bible-book: ${bookSlug}`, `bible-booknum: ${num}`, `bible-chapter: ${chapter}`,
-        // list form so Obsidian's property editor treats it as a LIST (add verse numbers as items)
-        // rather than a number field that rejects commas.
-        "bible-parastarts:", "  - 1", "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, "", nav, ""];
+        // list form so Obsidian's property editor treats it as a LIST (add verse numbers as items).
+        "bible-parastarts:", ...paraStarts.map(n => `  - ${n}`),
+        "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, "", `${nav} ^nav`, ""];
     const body = [...verses.keys()].sort((a, b) => a - b).map(n => {
         const vt = poetry ? poetryFormat(verses.get(n)!) : (verses.get(n) || "").replace(/\s*\n\s*/g, " ");
         return `**${n}** ${vt} ^v${n}`;
     });
-    // Blank line BETWEEN verses (\n\n) so each renders as its own paragraph — matches the generated
-    // notes and lets the reader's per-verse overlays work. (A single \n was a soft break in one <p>.)
-    // Nav line above the text AND below it.
-    return { path: `bible/${pad2(num)}-${bookSlug}/${version}/${bookSlug}-${pad3(chapter)}.md`,
-             note: fm.concat([body.join("\n\n"), "", nav]).join("\n") + "\n", verses: verses.size };
+    // Blank line BETWEEN verses (\n\n) so each renders as its own paragraph. Bottom nav = a transclusion
+    // of the top's ^nav block (stays in sync when you edit the top).
+    return { path: `bible/${pad2(num)}-${bookSlug}/${version}/${basename}.md`,
+             note: fm.concat([body.join("\n\n"), "", `![[${basename}#^nav]]`]).join("\n") + "\n", verses: verses.size };
 }
 
 class BiblePasteModal extends Modal {
@@ -1024,17 +1063,27 @@ class BiblePasteModal extends Modal {
         contentEl.createEl("p", { cls: "setting-item-description",
             text: "Paste a chapter from a translation you're licensed to use. It's saved in the standard " +
                   "format so cross-references and related-by-meaning appear automatically." });
-        let book = "", version = "", chapter = "", poetry = false;
+        let book = "", version = "", chapter = "", poetry = false, paraStarts = "";
         new Setting(contentEl).setName("Book").setDesc("slug — e.g. john, 1-corinthians, psalms")
             .addText(t => t.onChange(v => book = v));
         new Setting(contentEl).setName("Chapter").addText(t => { t.inputEl.type = "number"; t.onChange(v => chapter = v); });
         new Setting(contentEl).setName("Version").setDesc("e.g. esv, nasb, nkjv").addText(t => t.onChange(v => version = v));
         new Setting(contentEl).setName("Poetry").setDesc("keep the pasted line breaks as poetic lines (for Psalms, Proverbs…)")
             .addToggle(t => t.setValue(false).onChange(v => poetry = v));
+        let paraInput: any = null;
+        new Setting(contentEl).setName("Paragraph breaks")
+            .setDesc("Verse numbers that start a new paragraph — auto-filled from blank lines in the paste; edit if needed.")
+            .addText(t => { paraInput = t; t.setPlaceholder("e.g. 1, 5, 12").onChange(v => paraStarts = v); });
         const ta = contentEl.createEl("textarea", { attr: { rows: "12", placeholder: "Paste the chapter text here…" } });
         ta.style.cssText = "width:100%;font-family:var(--font-monospace);";
+        // Auto-harvest paragraph breaks from the pasted text's blank lines (unless you've typed your own).
+        ta.addEventListener("input", () => {
+            if (paraStarts.trim()) return;
+            const found = harvestParaStarts(ta.value);
+            if (found.length && paraInput) paraInput.setValue(found.join(", "));
+        });
         new Setting(contentEl).addButton(b => b.setButtonText("Format & save").setCta().onClick(async () => {
-            const r = formatPastedChapter(ta.value, book, parseInt(chapter, 10), version.toLowerCase().trim(), poetry);
+            const r = formatPastedChapter(ta.value, book, parseInt(chapter, 10), version.toLowerCase().trim(), poetry, paraStarts || (paraInput?.getValue() ?? ""));
             if ("error" in r) { new Notice(r.error!); return; }
             if (this.plugin.app.vault.getAbstractFileByPath(r.path)) { new Notice(`Already exists: ${r.path}`); return; }
             const folder = r.path.split("/").slice(0, -1).join("/");

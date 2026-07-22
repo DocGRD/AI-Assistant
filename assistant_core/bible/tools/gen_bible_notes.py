@@ -61,7 +61,7 @@ def render_chapter(num, name, ch_blocks, ch, seq, pos):
         pn, pnm, pc = seq[i-1]; nav.insert(0, f"[[{wikilink(pn, pnm, pc)}|← {pnm} {pc}]]")
     if i < len(seq)-1:
         nn, nnm, nc = seq[i+1]; nav.append(f"[[{wikilink(nn, nnm, nc)}|{nnm} {nc} →]]")
-    out += [" · ".join(nav), ""]
+    out += [" · ".join(nav) + " ^nav", ""]   # ^nav block id → the bottom nav transcludes it (stays in sync)
 
     # Red-letter (words of Christ) runs cross verse/stich boundaries, but text was cleaned per line,
     # so {{wj}}/{{/wj}} sentinels arrive split across blocks. Convert them to <span> with a running
@@ -111,6 +111,7 @@ def render_chapter(num, name, ch_blocks, ch, seq, pos):
         elif cur:
             cur[1].append((b["style"], b["t"]))
     flush()
+    out += ["", f"![[{slg}-{ch:03d}#^nav]]"]   # bottom nav = a live transclusion of the top's ^nav block
     return "\n".join(out).rstrip() + "\n"
 
 def main():

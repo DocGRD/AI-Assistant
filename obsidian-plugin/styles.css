@@ -1166,10 +1166,31 @@ body.lm-bible-flow .markdown-preview-view.bible p > strong:first-child {
   font-size: 0.68em;
   margin: 0 0.15em 0 0.2em;
 }
-/* Headings, Psalm titles, poetry verses stay on their own lines even in flow mode. */
+/* Headings, Psalm titles, poetry verses + nav stay on their own lines even in flow mode. */
 body.lm-bible-flow .markdown-preview-view.bible .el-h1,
 body.lm-bible-flow .markdown-preview-view.bible .el-h2,
-body.lm-bible-flow .markdown-preview-view.bible .el-em { display: block; }
+body.lm-bible-flow .markdown-preview-view.bible .el-em,
+body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-poetry-block,
+body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-bible-nav-block { display: block; }
+/* poetry keeps its inner <p> as a BLOCK so the hanging indent survives; nav can stay inline */
+body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-poetry-block p { display: block; }
+body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-bible-nav-block p { display: inline; }
+body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-poetry-block::after,
+body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-bible-nav-block::after { content: none; }
+
+/* Poetry — a verse with hard-break stichs gets a HANGING INDENT so the verse number + first stich sit
+   at the margin and continuation stichs (and wrapped lines) indent, like a printed study Bible. Works
+   in both reading and flowing modes, and doesn't rely on the fragile em-space indent characters. */
+.markdown-preview-view.bible p.lm-poetry {
+  padding-left: 1.7em;
+  text-indent: -1.7em;
+}
+.markdown-preview-view.bible p.lm-poetry br { line-height: 1.7; }
+
+/* Chapter nav (prev · book · next) — quiet, centred, always on its own line. */
+.markdown-preview-view.bible p.lm-bible-nav {
+  text-align: center; color: var(--text-muted); font-size: 0.9em; margin: 0.4em 0;
+}
 
 /* ── Strong's study tools: interlinear + concordance (modals) + verse commentary overlay ── */
 .lm-strongs-modal { max-height: 80vh; overflow-y: auto; }
