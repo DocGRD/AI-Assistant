@@ -86,11 +86,27 @@ export default class AIAssistantPlugin extends Plugin {
         // Bible reader text size (user-adjustable, independent of Obsidian's global font size).
         applyBibleFontScale(this.settings.bibleFontScale);
         // Auto-open Bible chapter notes in Reading view (the cross-ref overlay + hidden ^v anchors
-        // + layout are all reading-view features). Only flips a note that opened in edit mode.
+        // + layout are all reading-view features) — but only on the FIRST open of a note in a given
+        // tab. Once you switch that tab to edit mode it stays there; refocusing the tab (which also
+        // fires file-open) no longer yanks it back to reading. Tracked per leaf so each tab is honoured.
+        const autoPreviewed = new WeakMap<WorkspaceLeaf, Set<string>>();
+        const markSeen = (leaf: WorkspaceLeaf, path: string) => {
+            const seen = autoPreviewed.get(leaf) ?? new Set<string>();
+            seen.add(path); autoPreviewed.set(leaf, seen);
+        };
+        // Bible notes already open when the plugin (re)loads are treated as already-handled, so
+        // refocusing their tab doesn't yank a note you'd left in edit mode back to reading.
+        this.app.workspace.getLeavesOfType("markdown").forEach((leaf) => {
+            const f = (leaf.view as MarkdownView)?.file;
+            if (f?.path.startsWith("bible/")) markSeen(leaf, f.path);
+        });
         this.registerEvent(this.app.workspace.on("file-open", (file) => {
             if (!file || !file.path.startsWith("bible/")) return;
             const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-            if (view && view.file === file && view.getMode() !== "preview") {
+            if (!view || view.file !== file) return;
+            if (autoPreviewed.get(view.leaf)?.has(file.path)) return;   // already opened here → keep your chosen mode
+            markSeen(view.leaf, file.path);
+            if (view.getMode() !== "preview") {
                 view.setState({ ...view.getState(), mode: "preview" }, { history: false });
             }
         }));

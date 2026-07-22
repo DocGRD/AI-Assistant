@@ -1116,6 +1116,18 @@
   opacity: 0.9;
 }
 .markdown-preview-view.bible a.lm-embed-vlink:hover { text-decoration-style: solid; opacity: 1; }
+/* Your own word-connected cross-references — sit at the FRONT of the word, dark-purple UPPERCASE
+   superscript, so your deliberate links stand apart from the quiet auto cross-reference letters. */
+.markdown-preview-view.bible sup.lm-xref-word { margin-right: 1px; }
+.markdown-preview-view.bible a.lm-xref-word-link {
+  color: #6d28d9;                 /* dark purple (light theme) */
+  font-weight: 700;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+.markdown-preview-view.bible a.lm-xref-word-link:hover { text-decoration: underline; }
+.theme-dark .markdown-preview-view.bible a.lm-xref-word-link { color: #c4b5fd; }  /* lighter purple on dark */
 /* 2. Graph relation (LoreMaster graph) — injected in Phase 4; stronger accent, dotted underline. */
 .markdown-preview-view.bible a.lm-graph-link {
   color: var(--color-purple, var(--text-accent));
@@ -1272,6 +1284,13 @@ sup.lm-comm-sup { margin-left: 1px; }
   font-size: 13px; line-height: 1; padding: 0 3px; flex: 0 0 auto;
 }
 .loremaster-bible-allxref-anchor:hover { color: var(--text-accent); }
+/* "Add your own cross-reference" button in the verse popup. */
+.loremaster-bible-allxref-add {
+  margin-top: 8px; width: 100%; cursor: pointer;
+  border: 1px dashed var(--background-modifier-border); border-radius: 6px;
+  background: transparent; color: var(--text-muted); padding: 5px 8px; font-size: 12px;
+}
+.loremaster-bible-allxref-add:hover { color: var(--text-accent); border-color: var(--text-accent); }
 /* Word-level notes: a phrase with an attached note, marked by a 📝 at its front. */
 .markdown-preview-view.bible span.lm-wnote,
 .markdown-reading-view.bible span.lm-wnote {

@@ -41,6 +41,7 @@ export const BOOK_NUM: Record<string, number> = {
     "1-peter":60,"2-peter":61,"1-john":62,"2-john":63,"3-john":64,"jude":65,"revelation":66,
 };
 const SUP_LETTERS = "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻ";
+const UP_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";   // labels for word-connected cross-references (uppercase)
 
 export type BibleLayout = "verses" | "flow";
 
@@ -263,14 +264,13 @@ export function bookLabel(slug: string): string {
 // specific reference right AFTER the word it relates to: the association (verse + target → word index)
 // is stored in the note's `bible-xref-anchors` frontmatter and the reader places that marker inline.
 
-/** Insert `marker` right after the (wordIndex)-th whitespace word inside a verse <p>, skipping the
- *  leading verse-number <strong> and any existing <sup> markers. Returns false if the word isn't found
- *  (caller then appends at the end as usual). Word counting matches readVerseText's whitespace split. */
-function placeMarkerAfterWord(p: HTMLElement, wordIndex: number, marker: HTMLElement): boolean {
-    // Gather the verse's text nodes (skipping the verse-number <strong> and any <sup> markers) and their
-    // CONCATENATION, then tokenise the concatenation — not each node separately — so word boundaries match
-    // readVerseText (which strips spans). Otherwise a <span> (Strong's tag / red-letter) splits a word and
-    // its trailing punctuation into two tokens and the placement drifts.
+/** Find the DOM text-node + local offset at the leading ("before") or trailing ("after") edge of the
+ *  (wordIndex)-th whitespace word inside a verse <p>, skipping the leading verse-number <strong> and any
+ *  existing <sup> markers. Tokenises the CONCATENATION of the accepted text nodes — not each node
+ *  separately — so word boundaries match readVerseText (which strips spans). Otherwise a <span>
+ *  (Strong's tag / red-letter) splits a word and its trailing punctuation into two tokens and drifts. */
+function wordEdgeInsertPoint(p: HTMLElement, wordIndex: number,
+                            edge: "before" | "after"): { node: Text; offset: number } | null {
     const nodes: Text[] = [];
     let combined = "";
     const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, {
@@ -285,35 +285,67 @@ function placeMarkerAfterWord(p: HTMLElement, wordIndex: number, marker: HTMLEle
     for (let tn = walker.nextNode() as Text | null; tn; tn = walker.nextNode() as Text | null) {
         nodes.push(tn); combined += tn.nodeValue || "";
     }
-    // Character offset right after the (wordIndex)-th whitespace word in the combined text.
-    let endOffset = -1, count = 0, m: RegExpExecArray | null;
+    let target = -1, count = 0, m: RegExpExecArray | null;
     const re = /\S+/g;
     while ((m = re.exec(combined))) {
-        if (count === wordIndex) { endOffset = m.index + m[0].length; break; }
+        if (count === wordIndex) { target = edge === "before" ? m.index : m.index + m[0].length; break; }
         count++;
     }
-    if (endOffset < 0) return false;
-    // Map that global offset back to a specific text node + local offset and insert there.
+    if (target < 0) return null;
     let acc = 0;
     for (const node of nodes) {
         const len = (node.nodeValue || "").length;
-        if (endOffset <= acc + len) {
-            const tail = node.splitText(endOffset - acc);
-            node.parentNode!.insertBefore(marker, tail);
-            return true;
-        }
+        if (target <= acc + len) return { node, offset: target - acc };
         acc += len;
     }
-    return false;
+    return null;
 }
 
-/** Parse `bible-xref-anchors` (list of "verse:wordIndex:tb.tc.tv") into a "verse:tb.tc.tv" → wordIndex map. */
-function xrefAnchorMap(fm: any): Map<string, number> {
-    const out = new Map<string, number>();
+/** Insert `marker` right AFTER the (wordIndex)-th word. Returns false if the word isn't found. */
+function placeMarkerAfterWord(p: HTMLElement, wordIndex: number, marker: HTMLElement): boolean {
+    const pt = wordEdgeInsertPoint(p, wordIndex, "after");
+    if (!pt) return false;
+    const tail = pt.node.splitText(pt.offset);
+    tail.parentNode!.insertBefore(marker, tail);
+    return true;
+}
+
+/** Insert `marker` right BEFORE the (wordIndex)-th word (used for user-connected cross-references,
+ *  which sit at the front of the word they explain). Returns false if the word isn't found. */
+function placeMarkerBeforeWord(p: HTMLElement, wordIndex: number, marker: HTMLElement): boolean {
+    const pt = wordEdgeInsertPoint(p, wordIndex, "before");
+    if (!pt) return false;
+    const tail = pt.node.splitText(pt.offset);
+    tail.parentNode!.insertBefore(marker, tail);
+    return true;
+}
+
+/** Split a stored anchor target ("john.3.16" / "1-john.4.7") into { b: slug, c, v }. */
+function splitAnchorTarget(target: string): { b: string; c: number; v: number } | null {
+    const m = target.match(/^(.+)\.(\d+)\.(\d+)$/);
+    return m ? { b: m[1], c: parseInt(m[2], 10), v: parseInt(m[3], 10) } : null;
+}
+
+/** Parse a free-text reference the user types ("John 3:16", "1 John 4:7", "Song of Solomon 2:1")
+ *  into { b: slug, c, v }. Returns null if the book isn't recognised or the chapter/verse is missing. */
+function parseRefInput(text: string): { b: string; c: number; v: number } | null {
+    const m = (text || "").trim().match(/^(.+?)\s+(\d+)\s*[:.]\s*(\d+)$/);
+    if (!m) return null;
+    const slug = m[1].trim().toLowerCase().replace(/\s+/g, "-");
+    if (!BOOK_NUM[slug]) return null;
+    return { b: slug, c: parseInt(m[2], 10), v: parseInt(m[3], 10) };
+}
+
+/** Group the word-connected cross-references by verse: verse-string → [{ target, wordIndex }] in order. */
+function xrefAnchorsByVerse(fm: any): Map<string, { target: string; wordIndex: number }[]> {
+    const out = new Map<string, { target: string; wordIndex: number }[]>();
     const raw = fm?.["bible-xref-anchors"];
     for (const s of Array.isArray(raw) ? raw : []) {
         const m = String(s).match(/^(\d+):(\d+):(.+)$/);
-        if (m) out.set(`${m[1]}:${m[3]}`, parseInt(m[2], 10));
+        if (!m) continue;
+        const list = out.get(m[1]) ?? [];
+        list.push({ target: m[3], wordIndex: parseInt(m[2], 10) });
+        out.set(m[1], list);
     }
     return out;
 }
@@ -338,7 +370,8 @@ function rerenderActivePreview(plugin: Plugin): void {
     (view as any)?.previewMode?.rerender?.(true);
 }
 
-/** Modal: pick which word of a verse a cross-reference marker should sit after. */
+/** Modal: pick (or change) which word of a verse a cross-reference is connected to — its marker sits
+ *  at the front of that word. Also lets you remove the word connection. */
 class WordAnchorModal extends Modal {
     constructor(private plugin: Plugin, private notePath: string, private verse: number,
                 private verseText: string, private target: string, private targetLabel: string) {
@@ -346,25 +379,61 @@ class WordAnchorModal extends Modal {
     }
     onOpen(): void {
         const { contentEl } = this;
-        contentEl.createEl("h3", { text: `Place “${this.targetLabel}” after a word` });
+        contentEl.createEl("h3", { text: `Connect “${this.targetLabel}” to a word` });
         contentEl.createEl("p", { cls: "setting-item-description",
-            text: `Verse ${this.verse}. Click the word this cross-reference relates to — its marker will sit just after it.` });
+            text: `Verse ${this.verse}. Click the word this cross-reference relates to — its marker will sit at the front of it.` });
         const box = contentEl.createDiv("lm-wordpick");
         const words = this.verseText.split(/\s+/).filter(Boolean);
         words.forEach((w, i) => {
             const chip = box.createEl("button", { text: w, cls: "lm-wordpick-chip" });
             chip.addEventListener("click", async () => {
                 await writeXrefAnchor(this.plugin, this.notePath, this.verse, this.target, i);
-                new Notice(`Marker placed after “${w}”.`);
+                new Notice(`Cross-reference placed at “${w}”.`);
                 this.close();
                 rerenderActivePreview(this.plugin);
             });
         });
-        new Setting(contentEl).addButton(b => b.setButtonText("Move back to the end of the verse").onClick(async () => {
+        new Setting(contentEl).addButton(b => b.setButtonText("Remove this word connection").onClick(async () => {
             await writeXrefAnchor(this.plugin, this.notePath, this.verse, this.target, null);
             this.close();
             rerenderActivePreview(this.plugin);
         }));
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+/** Modal: add YOUR OWN cross-reference — any reference, even one not in the list — and connect it to a
+ *  word in the verse. Step 1: type the reference; step 2: click the word it belongs in front of. */
+class AddWordXrefModal extends Modal {
+    constructor(private plugin: Plugin, private notePath: string, private verse: number,
+                private verseText: string) { super(plugin.app); }
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Add your own cross-reference" });
+        contentEl.createEl("p", { cls: "setting-item-description",
+            text: `Verse ${this.verse}. Type the reference this points to (e.g. “John 3:16”, “1 John 4:7”), then choose the word.` });
+        let ref = "";
+        const refInput = new Setting(contentEl).setName("Reference")
+            .addText(t => { t.setPlaceholder("Book chapter:verse").onChange(v => ref = v); });
+        const status = contentEl.createEl("p", { cls: "setting-item-description" });
+        const pickWrap = contentEl.createDiv();
+        const toPick = () => {
+            const parsed = parseRefInput(ref);
+            if (!parsed) { status.setText("Couldn't read that — try like “John 3:16” or “1 John 4:7”."); return; }
+            const target = `${parsed.b}.${parsed.c}.${parsed.v}`;
+            status.setText(`${bookLabel(parsed.b)} ${parsed.c}:${parsed.v} — now click the word it belongs in front of:`);
+            refInput.settingEl.hide();
+            pickWrap.empty();
+            const box = pickWrap.createDiv("lm-wordpick");
+            this.verseText.split(/\s+/).filter(Boolean).forEach((w, i) => {
+                box.createEl("button", { text: w, cls: "lm-wordpick-chip" }).addEventListener("click", async () => {
+                    await writeXrefAnchor(this.plugin, this.notePath, this.verse, target, i);
+                    new Notice(`Cross-reference to ${bookLabel(parsed.b)} ${parsed.c}:${parsed.v} added at “${w}”.`);
+                    this.close(); rerenderActivePreview(this.plugin);
+                });
+            });
+        };
+        new Setting(contentEl).addButton(b => b.setButtonText("Next: choose the word").setCta().onClick(toPick));
     }
     onClose(): void { this.contentEl.empty(); }
 }
@@ -443,7 +512,47 @@ async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
     };
     section(`Cross-references (${xrefs.length})`, xrefs, true);
     section(`Related by meaning (${embeds.length})`, embeds, true);
-    if (!xrefs.length && !embeds.length) panel.createDiv("loremaster-bible-allxref-sub").setText("No cross-references for this verse.");
+
+    // ── Your cross-references (connected to a word) — move, remove, or add one of your own ──
+    const yours = notePath
+        ? (xrefAnchorsByVerse(plugin.app.metadataCache.getCache(notePath)?.frontmatter).get(String(verse)) || [])
+        : [];
+    if (!xrefs.length && !embeds.length && !yours.length)
+        panel.createDiv("loremaster-bible-allxref-sub").setText("No cross-references for this verse.");
+    if (notePath) {
+        panel.createDiv("loremaster-bible-allxref-sub").setText(`Your cross-references (${yours.length})`);
+        const ylist = panel.createDiv("loremaster-bible-allxref-list");
+        for (const anc of yours) {
+            const tr = splitAnchorTarget(anc.target);
+            const lbl = tr ? `${bookLabel(tr.b)} ${tr.c}:${tr.v}` : anc.target;
+            const href = tr ? hrefFor(tr) : "";
+            const row = ylist.createDiv("loremaster-bible-allxref-row");
+            const a = row.createEl("a", { text: lbl, cls: "loremaster-bible-allxref-item", attr: { href } });
+            a.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); if (href) void showBibleHovercard(plugin, a, href); });
+            row.createEl("button", { text: "⚓", cls: "loremaster-bible-allxref-anchor", attr: { "aria-label": "Move to a different word" } })
+                .addEventListener("click", async (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    const vt = await readVerseText(plugin, notePathNoExt, `v${verse}`);
+                    if (!vt) { new Notice("Couldn't read this verse's text."); return; }
+                    close();
+                    new WordAnchorModal(plugin, notePath, verse, vt, anc.target, lbl).open();
+                });
+            row.createEl("button", { text: "×", cls: "loremaster-bible-allxref-anchor", attr: { "aria-label": "Remove this cross-reference" } })
+                .addEventListener("click", async (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    await writeXrefAnchor(plugin, notePath, verse, anc.target, null);
+                    close(); rerenderActivePreview(plugin);
+                });
+        }
+        const addBtn = panel.createEl("button", { text: "＋ Add your own cross-reference", cls: "loremaster-bible-allxref-add" });
+        addBtn.addEventListener("click", async (ev) => {
+            ev.preventDefault(); ev.stopPropagation();
+            const vt = await readVerseText(plugin, notePathNoExt, `v${verse}`);
+            if (!vt) { new Notice("Couldn't read this verse's text."); return; }
+            close();
+            new AddWordXrefModal(plugin, notePath, verse, vt).open();
+        });
+    }
 
     const r = anchor.getBoundingClientRect();
     panel.style.top = `${window.scrollY + r.bottom + 4}px`;
@@ -527,7 +636,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         // Paragraph starts (from the USFM \p boundaries) — mark them so flow layout can break there.
         const fm = plugin.app.metadataCache.getCache(ctx.sourcePath)?.frontmatter;
         const paraStarts = new Set(String(fm?.["bible-parastarts"] ?? "").split(",").filter(Boolean));
-        const anchorMap = xrefAnchorMap(fm);   // verse:tb.tc.tv → wordIndex (custom marker placement)
+        const anchorsByVerse = xrefAnchorsByVerse(fm);   // verse → your word-connected cross-references
         const data = await loadBook(book);
         const sim = await loadSimilar(book, chapter);   // per-verse embedding neighbours
 
@@ -559,48 +668,51 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             const vnum = (num.textContent || "").trim();
             if (paraStarts.has(vnum)) (p.closest(".el-p") || p).addClass("lm-para-start");
             const targets = (data[`${book}.${chapter}.${vnum}`] || []).filter((t: any) => BOOK_NUM[t.b]);
-            // Cross-reference markers (public-domain), quiet superscript letters.
-            // A reference pinned to a word (bible-xref-anchors) ALWAYS renders right after that word —
-            // even when the general "show cross-references" toggle is off — because it's a deliberate
-            // placement. The rest cluster at the end of the verse, only when the toggle is on and up to
-            // the configured count.
+            // ── Cross-references YOU connected to a word (bible-xref-anchors) — your deliberate links.
+            // They render at the FRONT of the word as distinct dark-purple UPPERCASE superscripts, and
+            // always show (independent of the general cross-reference toggle). A target may be a listed
+            // cross-reference, a related-by-meaning passage, or one you typed in yourself.
+            const connected = anchorsByVerse.get(vnum) || [];
+            const anchoredKeys = new Set(connected.map(a => a.target));   // don't also draw these in the clusters
+            connected.forEach((anc, i) => {
+                const t = splitAnchorTarget(anc.target);
+                if (!t || !BOOK_NUM[t.b]) return;
+                const href = hrefFor(t);
+                const sup = createEl("sup", { cls: "lm-xref-word" });
+                const a = sup.createEl("a", { text: UP_LETTERS[i] || "*", cls: "lm-xref-word-link",
+                    attr: { "data-href": href, href, "aria-label": `${bookLabel(t.b)} ${t.c}:${t.v}` } });
+                a.addEventListener("click", onMarkerClick(a, href));
+                if (!placeMarkerBeforeWord(p, anc.wordIndex, sup)) p.insertBefore(sup, num.nextSibling);
+            });
+            // Cross-reference markers (public-domain), quiet superscript letters clustered at the END of
+            // the verse (toggle-gated, capped). Anything connected to a word above is skipped here.
             let endShown = 0;
             for (let i = 0; i < targets.length; i++) {
                 const t = targets[i];
-                const wIdx = anchorMap.get(`${vnum}:${t.b}.${t.c}.${t.v}`);
-                const isAnchored = wIdx != null;
-                if (!isAnchored && (!showXrefs || endShown >= shown)) continue;
+                if (anchoredKeys.has(`${t.b}.${t.c}.${t.v}`)) continue;
+                if (!showXrefs || endShown >= shown) continue;
                 const href = hrefFor(t);
                 const sup = createEl("sup");
                 const a = sup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-xref",
                     attr: { "data-href": href, href, "aria-label": t.n } });
                 a.addEventListener("click", onMarkerClick(a, href));
-                const placedInline = isAnchored && placeMarkerAfterWord(p, wIdx!, sup);
-                if (!placedInline) { sup.insertBefore(document.createTextNode(" "), a); p.appendChild(sup); endShown++; }
+                sup.insertBefore(document.createTextNode(" "), a); p.appendChild(sup); endShown++;
             }
-            // Embedding-similarity markers (verse index), distinct "≈" group, deduped against the
-            // cross-references so a passage already cross-referenced isn't shown twice. (Toggle: settings.)
-            // Like cross-refs, a related-link pinned to a word (bible-xref-anchors) renders as its own
-            // ≈ marker right after that word — even if embeds are toggled off; the rest cluster at the end.
+            // Embedding-similarity markers (verse index), distinct "≈" group at the end, deduped against
+            // the cross-references AND your word-connected links so nothing is shown twice. (Toggle: settings.)
             const xset = new Set(targets.map((t: any) => `${t.b}.${t.c}.${t.v}`));
-            const sims = (sim[vnum] || []).filter((t: any) => BOOK_NUM[t.b] && !xset.has(`${t.b}.${t.c}.${t.v}`));
+            const sims = (sim[vnum] || []).filter((t: any) => BOOK_NUM[t.b]
+                && !xset.has(`${t.b}.${t.c}.${t.v}`) && !anchoredKeys.has(`${t.b}.${t.c}.${t.v}`));
             let esup: HTMLElement | null = null, endSims = 0;
             for (let i = 0; i < sims.length; i++) {
                 const t = sims[i], href = hrefFor(t);
-                const wIdx = anchorMap.get(`${vnum}:${t.b}.${t.c}.${t.v}`);
-                const mkAnchor = (parent: HTMLElement) => {
-                    const a = parent.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-embed-vlink",
-                        attr: { "data-href": href, href, "aria-label": `≈ ${t.n}` } });
-                    a.addEventListener("click", onMarkerClick(a, href));
-                };
-                if (wIdx != null) {
-                    const sup = createEl("sup", { cls: "lm-embed-group" });
-                    sup.appendText("≈"); mkAnchor(sup);
-                    if (placeMarkerAfterWord(p, wIdx, sup)) continue;   // pinned after the word
-                }
                 if (!showEmbeds || endSims >= 2) continue;              // end cluster: capped, toggle-gated
                 if (!esup) { esup = p.createEl("sup", { cls: "lm-embed-group" }); esup.appendText(" ≈"); }
-                esup.appendText(" "); mkAnchor(esup); endSims++;
+                esup.appendText(" ");
+                const a = esup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-embed-vlink",
+                    attr: { "data-href": href, href, "aria-label": `≈ ${t.n}` } });
+                a.addEventListener("click", onMarkerClick(a, href));
+                endSims++;
             }
             // Tap the verse number → study panel: Matthew Henry + your notes at top, then ALL
             // cross-references + related-by-meaning. Always available (Matthew Henry is offered for

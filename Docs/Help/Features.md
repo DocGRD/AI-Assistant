@@ -1,4 +1,4 @@
-<!-- help-version: 44 -->
+<!-- help-version: 45 -->
 ---
 tags: [help, user-guide]
 ---
@@ -22,13 +22,20 @@ Open one in **Reading view** (chapters auto-open there) and you get:
   tap away.
 - **Matthew Henry's Commentary** — a **📖 Matthew Henry on <Book> <Ch>** link sits under each chapter's
   title, and is also in the verse-number popup, so you can reach the commentary from anywhere you read.
-- **Pin a cross-reference (or a related-by-meaning link) to a word.** In the verse-number popup, each
-  cross-reference *and* each related-by-meaning (≈) link has an **⚓** button: click it, then click the
-  word it relates to, and its marker moves to sit right after that word instead of clustering at the end. A pinned marker shows even when you've toggled the general
-  cross-references off — so you can keep a clean page and surface just the links that matter, next to
-  the words they explain. (Stored in the note's `bible-xref-anchors`; "Move back to the end of the
-  verse" undoes it.)
+- **Connect a cross-reference to a word.** In the verse-number popup, each cross-reference *and* each
+  related-by-meaning (≈) link has an **⚓** button: click it, then click the word it relates to. Its
+  marker then sits at the **front of that word** as a distinct **dark-purple UPPERCASE superscript** (A,
+  B, C…), so your deliberate links stand apart from the quiet auto cross-reference letters at the end of
+  the verse. Connected markers show even when you've toggled the general cross-references off.
+- **Add your own cross-reference — even one that isn't in the list.** In the same popup, under **Your
+  cross-references**, click **＋ Add your own cross-reference**, type any reference (e.g. `John 3:16`,
+  `1 John 4:7`), and choose the word — it renders just like the pinned ones. Each of your connections has
+  an **⚓** to **move it to a different word** and an **×** to remove it. (Stored in the note's
+  `bible-xref-anchors`.)
 - **Verse-by-verse or flowing paragraphs** — run the command *"Bible: toggle reading layout"*.
+- **Chapters open in Reading view but stay where you put them** — a chapter auto-opens in Reading view,
+  but once you switch it to edit mode it stays in edit until you switch back; refocusing the tab no
+  longer flips it back to reading.
 - **Poetry** (Psalms, Proverbs) laid out as indented poetry; **prose** grouped into paragraphs.
 - **Red-letter** — the words of Christ (Gospels, Acts, Revelation) render in red.
 - **"Related by meaning"** — a distinct section per chapter with embedding-similar passages, plus a

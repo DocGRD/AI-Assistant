@@ -1,10 +1,22 @@
-<!-- help-version: 44 -->
+<!-- help-version: 45 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.55**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.56**.*
+
+## Bible: your own word-connected cross-references + sticky edit mode (v1.10.56)
+- **Add your own cross-reference to a word — even one not in the list.** Tap a verse number → in the
+  popup, under **Your cross-references**, click **＋ Add your own cross-reference**, type any reference
+  (e.g. `John 3:16`, `1 John 4:7`), and choose the word.
+- **Connected cross-references sit at the front of the word** as a distinct **dark-purple UPPERCASE
+  superscript** (A, B, C…), so your deliberate links stand apart from the quiet auto cross-reference
+  letters at the end of the verse. The ⚓ on a listed reference connects it to a word the same way.
+- **Move or remove** any of your connections — each has an **⚓** (move it to a different word) and an
+  **×** (remove it) in the popup.
+- **Chapters stay in edit mode once you switch.** A chapter still auto-opens in Reading view, but once
+  you switch it to edit it stays there until you switch back — refocusing the tab no longer flips it back.
 
 ## Bible: removed the online-version fetch (ESV / NASB / NKJV) (v1.10.55)
 - The *"Bible: get a chapter (ESV / NASB / NKJV)"* command and its `esv_api_key` / `apibible_*` service

@@ -1,4 +1,4 @@
-<!-- help-version: 44 -->
+<!-- help-version: 45 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -91,11 +91,13 @@ not as `vault:` chat commands. The annotation commands act on the **selected tex
 | `Bible: toggle reading layout (verse-by-verse ⟷ flowing)` | Switch the reader between one-verse-per-line and flowing paragraphs |
 
 *Reader extras that need no command:* tap a **verse number** for a study popup (Matthew Henry + your
-notes + all cross-references); each cross-reference in that popup has an **⚓** to pin its marker right
-after a chosen word in the verse (a pinned marker shows even when cross-references are toggled off);
-**📖 Matthew Henry** is in that popup; a **prev · book · next** nav sits at the top and bottom of every
-chapter; hover/tap a word in a Strong's-tagged chapter for its lexicon entry. See [[Features]] for the
-full walkthrough.
+notes + all cross-references); each cross-reference in that popup has an **⚓** to connect it to a word —
+its marker then sits at the **front of that word** as a dark-purple UPPERCASE superscript; under **Your
+cross-references** you can **＋ add your own reference** (even one not in the list) and move (⚓) or remove
+(×) it; **📖 Matthew Henry** is in that popup; a **prev · book · next** nav sits at the top and bottom of
+every chapter; hover/tap a word in a Strong's-tagged chapter for its lexicon entry. Chapters open in
+Reading view but stay in edit mode once you switch, until you switch back. See [[Features]] for the full
+walkthrough.
 
 ## Obsidian command palette (core + your plugins)
 Loremaster knows your whole Obsidian command palette — core **and every community plugin you install** — so
