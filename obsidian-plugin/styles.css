@@ -1223,6 +1223,12 @@ body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-bible-nav-block::after 
 .lm-interlinear-grk { display: block; font-size: 1.05em; }
 .lm-interlinear-morph { display: block; font-size: 0.62em; color: var(--text-muted); line-height: 1.2; }
 .lm-interlinear-gk .lm-strongs-num { display: block; font-size: 0.72em; }
+/* WLC (Hebrew OT) interlinear: same stacked block, but the Hebrew word is larger and right-to-left. */
+.lm-interlinear-verse:has(.lm-interlinear-heb) { direction: rtl; text-align: right; }
+.lm-interlinear-heb { vertical-align: top; text-align: center; margin: 0 0 0.5em 0.4em; }
+.lm-interlinear-hbo { display: block; font-size: 1.35em; line-height: 1.5; direction: rtl; }
+.lm-interlinear-heb .lm-interlinear-morph { direction: ltr; }
+.lm-interlinear-heb .lm-strongs-num { display: block; font-size: 0.72em; direction: ltr; }
 
 .lm-concordance-results { margin-top: 10px; }
 .lm-concordance-count { font-weight: 600; color: var(--text-accent); margin: 8px 0 4px; }

@@ -16,15 +16,19 @@ type Concordance = Record<string, string[]>;
 type Lexicon = Record<string, { l: string; t: string; g: string; d?: string }>;
 type SblgntWord = { g: string; l: string; m: string; s: string };
 type SblgntInterlinear = Record<string, SblgntWord[]>;
+type WlcWord = { h: string; m: string; s: string };           // Hebrew word, readable morph, Strong's
+type WlcInterlinear = Record<string, WlcWord[]>;
 
 const DIR = "AI/bible-strongs";           // KJV + Strong's (Textus Receptus basis)
 const SBLGNT_DIR = "AI/bible-sblgnt";      // SBLGNT (modern critical text), NT/Greek only
+const WLC_DIR = "AI/bible-wlc";            // WLC + OSHB morphology (Hebrew OT)
 const isGreek = (s: string) => s.charAt(0).toUpperCase() === "G";
 
-/** Which Greek/Hebrew text the study tools sit on: the KJV/Strong's (TR) data or the SBLGNT. */
-type StudySource = "strongs" | "sblgnt";
+/** Which text the study tools sit on: KJV/Strong's (TR), the SBLGNT (Greek NT), or the WLC (Hebrew OT). */
+type StudySource = "strongs" | "sblgnt" | "wlc";
 function getSource(plugin: Plugin): StudySource {
-    return (plugin as any).settings?.bibleStudySource === "sblgnt" ? "sblgnt" : "strongs";
+    const s = (plugin as any).settings?.bibleStudySource;
+    return (s === "sblgnt" || s === "wlc") ? s : "strongs";
 }
 async function setSource(plugin: Plugin, s: StudySource): Promise<void> {
     const st = (plugin as any).settings;
@@ -53,6 +57,12 @@ class StrongsData {
     sblgntConcordance() { return this.read<Concordance>(SBLGNT_DIR, "_concordance-G.json"); }
     async sblgntAvailable(): Promise<boolean> {
         return this.plugin.app.vault.adapter.exists(`${SBLGNT_DIR}/_concordance-G.json`).catch(() => false);
+    }
+    // WLC + OSHB morphology (Hebrew OT) — the OT counterpart to SBLGNT, keyed to the same Strong's.
+    wlc(book: string) { return this.read<WlcInterlinear>(WLC_DIR, `${book}.json`); }
+    wlcConcordance() { return this.read<Concordance>(WLC_DIR, "_concordance-H.json"); }
+    async wlcAvailable(): Promise<boolean> {
+        return this.plugin.app.vault.adapter.exists(`${WLC_DIR}/_concordance-H.json`).catch(() => false);
     }
     async available(): Promise<boolean> {
         return this.plugin.app.vault.adapter.exists(`${DIR}/_words.json`).catch(() => false);
@@ -111,9 +121,12 @@ class InterlinearModal extends Modal {
         const { contentEl } = this;
         contentEl.addClass("lm-strongs-modal");
         contentEl.createEl("h3", { text: `${bookLabel(this.book)} ${this.chapter} — interlinear` });
-        const sblgntOK = (BOOK_NUM[this.book] || 0) >= 40 && await this.data.sblgntAvailable();
+        const isNT = (BOOK_NUM[this.book] || 0) >= 40;
+        const origKey: StudySource = isNT ? "sblgnt" : "wlc";
+        const origAvail = isNT ? await this.data.sblgntAvailable() : await this.data.wlcAvailable();
         let source: StudySource = getSource(this.plugin);
-        if (source === "sblgnt" && !sblgntOK) source = "strongs";
+        // an "original text" source only applies to its own testament (SBLGNT=NT, WLC=OT)
+        if ((source === "sblgnt" || source === "wlc") && (!origAvail || source !== origKey)) source = "strongs";
 
         const toolbar = contentEl.createDiv();                    // source switch sits at the top
         const desc = contentEl.createEl("p", { cls: "setting-item-description" });
@@ -122,7 +135,24 @@ class InterlinearModal extends Modal {
 
         const render = async () => {
             body.empty();
-            if (source === "sblgnt") {
+            if (source === "wlc") {
+                desc.setText("WLC — the Hebrew Old Testament (Westminster Leningrad Codex) with OSHB morphology, "
+                    + "word-by-word + Strong's. Tap a number for its meaning and every verse that uses it.");
+                const inter = await this.data.wlc(this.book);
+                for (let v = 1; v < 400; v++) {
+                    const cells = inter[`${this.book}.${this.chapter}.${v}`];
+                    if (!cells) continue;
+                    const line = body.createDiv("lm-interlinear-verse");
+                    line.createSpan({ cls: "lm-interlinear-vnum", text: `${v} ` });
+                    for (const w of cells) {
+                        const wd = line.createSpan("lm-interlinear-word lm-interlinear-heb");
+                        wd.createSpan({ cls: "lm-interlinear-hbo", text: w.h + " " });
+                        if (w.m) wd.createSpan({ cls: "lm-interlinear-morph", text: w.m });
+                        if (w.s) wd.createEl("a", { text: " " + w.s, cls: "lm-strongs-num", href: "#" })
+                            .addEventListener("click", (e) => { e.preventDefault(); openConc(w.s); });
+                    }
+                }
+            } else if (source === "sblgnt") {
                 desc.setText("SBLGNT — the modern critical Greek text, word-by-word with morphology + Strong's. "
                     + "Tap a number for its meaning and every verse that uses it.");
                 const inter = await this.data.sblgnt(this.book);
@@ -159,10 +189,11 @@ class InterlinearModal extends Modal {
             }
         };
 
-        if (sblgntOK) {
+        if (origAvail) {
+            const origLabel = isNT ? "SBLGNT (Greek)" : "WLC (Hebrew)";
             new Setting(toolbar).setName("Text")
-                .setDesc("Base the interlinear on the KJV/Textus Receptus or the modern SBLGNT critical text.")
-                .addDropdown(d => d.addOption("strongs", "KJV / Strong's (TR)").addOption("sblgnt", "SBLGNT (critical)")
+                .setDesc(`Base the interlinear on the KJV/Textus Receptus or the original ${isNT ? "Greek (SBLGNT)" : "Hebrew (WLC)"} text.`)
+                .addDropdown(d => d.addOption("strongs", "KJV / Strong's (TR)").addOption(origKey, origLabel)
                     .setValue(source).onChange(async (v) => { source = v as StudySource; await setSource(this.plugin, source); await render(); }));
         }
         await render();
@@ -180,17 +211,19 @@ class ConcordanceModal extends Modal {
         const { contentEl } = this;
         contentEl.addClass("lm-strongs-modal");
         contentEl.createEl("h3", { text: "Concordance" });
-        const sblgntOK = await this.data.sblgntAvailable();
+        const origOK = (await this.data.sblgntAvailable()) || (await this.data.wlcAvailable());
         this.source = getSource(this.plugin);
-        if (this.source === "sblgnt" && !sblgntOK) this.source = "strongs";
         let query = this.initial;
         const results = contentEl.createDiv("lm-concordance-results");
-        if (sblgntOK) {
+        if (origOK) {
+            // One switch for both testaments: "original" counts Greek numbers over the SBLGNT and Hebrew
+            // numbers over the WLC. (Stored as a non-"strongs" source; interpreted per number type below.)
             new Setting(contentEl).setName("Text")
-                .setDesc("For Greek (G) numbers, count verses over the KJV/TR or the modern SBLGNT text.")
-                .addDropdown(d => d.addOption("strongs", "KJV / Strong's (TR)").addOption("sblgnt", "SBLGNT (critical)")
-                    .setValue(this.source).onChange(async (v) => {
-                        this.source = v as StudySource; await setSource(this.plugin, this.source);
+                .setDesc("Count verses over the KJV/Textus Receptus, or over the original SBLGNT (Greek) / WLC (Hebrew) text.")
+                .addDropdown(d => d.addOption("strongs", "KJV / Strong's (TR)").addOption("orig", "Original (SBLGNT / WLC)")
+                    .setValue(this.source === "strongs" ? "strongs" : "orig").onChange(async (v) => {
+                        this.source = (v === "orig" ? "sblgnt" : "strongs") as StudySource;
+                        await setSource(this.plugin, this.source);
                         if (/^[hg]\d+$/i.test(query.trim())) await this.showStrong(results, query.trim().toUpperCase());
                     }));
         }
@@ -217,13 +250,16 @@ class ConcordanceModal extends Modal {
     private async showStrong(el: HTMLElement, strong: string): Promise<void> {
         el.empty();
         await lexiconLine(el, this.data, strong, (s) => this.showStrong(el, s));
-        // For Greek numbers the SBLGNT concordance counts over the modern text; Hebrew always uses
-        // the KJV/Strong's data (SBLGNT is the Greek NT only).
-        const useSblgnt = this.source === "sblgnt" && isGreek(strong) && await this.data.sblgntAvailable();
+        // "Original" counts Greek over the SBLGNT and Hebrew over the WLC; otherwise the KJV/Strong's data.
+        const useOrig = this.source !== "strongs";
+        const useSblgnt = useOrig && isGreek(strong) && await this.data.sblgntAvailable();
+        const useWlc = useOrig && !isGreek(strong) && await this.data.wlcAvailable();
         const refs = useSblgnt ? ((await this.data.sblgntConcordance())[strong] || [])
-                               : ((await this.data.concordance(strong))[strong] || []);
+                   : useWlc ? ((await this.data.wlcConcordance())[strong] || [])
+                   : ((await this.data.concordance(strong))[strong] || []);
         el.createEl("div", { cls: "lm-concordance-count",
-            text: `${refs.length} verse${refs.length === 1 ? "" : "s"}` + (useSblgnt ? " · SBLGNT" : "")
+            text: `${refs.length} verse${refs.length === 1 ? "" : "s"}`
+                  + (useSblgnt ? " · SBLGNT" : useWlc ? " · WLC" : "")
                   + (refs.length > 400 ? " (showing first 400)" : "") });
         const list = el.createDiv("lm-concordance-list");
         for (const ref of refs.slice(0, 400)) {
