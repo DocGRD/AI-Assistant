@@ -1098,36 +1098,46 @@
 .markdown-source-view.bible .metadata-container { display: none; }
 
 /* Link layers — three visually distinct kinds of study link. */
-/* 1. Cross-reference (public-domain): the overlay superscript markers (class lm-xref). Quiet. */
+/* 1. Cross-reference (public-domain): the overlay superscript markers (class lm-xref). Quiet.
+   Colour + relative size are user-configurable via the --lm-xref-* vars (Settings → Bible reader). */
 .markdown-preview-view.bible a.lm-xref {
   text-decoration: none;
-  color: var(--text-accent);
+  color: var(--lm-xref-color, var(--text-accent));
+  font-size: calc(1em * var(--lm-xref-scale, 1));
   opacity: 0.85;
   cursor: pointer;
 }
 .markdown-preview-view.bible a.lm-xref:hover { text-decoration: underline; opacity: 1; }
-/* Embedding-similarity markers — a distinct "≈" group in teal with a dotted underline, so they
-   never read like the quiet cross-reference letters. */
-.markdown-preview-view.bible .lm-embed-group { color: var(--color-cyan, var(--text-muted)); opacity: 0.7; }
+/* Embedding-similarity markers — a distinct teal group with a dotted underline, so they never read
+   like the quiet cross-reference letters. Colour + size via --lm-embed-*. */
+.markdown-preview-view.bible .lm-embed-group { opacity: 0.7; }
 .markdown-preview-view.bible a.lm-embed-vlink {
-  color: var(--color-cyan, var(--text-accent));
+  color: var(--lm-embed-color, var(--color-cyan, var(--text-accent)));
+  font-size: calc(1em * var(--lm-embed-scale, 1));
   text-decoration: underline dotted;
   text-underline-offset: 2px;
   opacity: 0.9;
 }
 .markdown-preview-view.bible a.lm-embed-vlink:hover { text-decoration-style: solid; opacity: 1; }
 /* Your own word-connected cross-references — sit at the FRONT of the word, dark-purple UPPERCASE
-   superscript, so your deliberate links stand apart from the quiet auto cross-reference letters. */
+   superscript, so your deliberate links stand apart from the quiet auto cross-reference letters.
+   Colour + size via --lm-wordxref-* (a user colour overrides the theme-aware default in both themes). */
 .markdown-preview-view.bible sup.lm-xref-word { margin-right: 1px; }
 .markdown-preview-view.bible a.lm-xref-word-link {
-  color: #6d28d9;                 /* dark purple (light theme) */
+  color: var(--lm-wordxref-color, #6d28d9);            /* dark purple (light theme) */
+  font-size: calc(1em * var(--lm-wordxref-scale, 1));
   font-weight: 700;
   text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
 }
 .markdown-preview-view.bible a.lm-xref-word-link:hover { text-decoration: underline; }
-.theme-dark .markdown-preview-view.bible a.lm-xref-word-link { color: #c4b5fd; }  /* lighter purple on dark */
+.theme-dark .markdown-preview-view.bible a.lm-xref-word-link { color: var(--lm-wordxref-color, #c4b5fd); }
+/* A reference you've hidden (removed) still lists in the verse popup — dimmed + struck through, with
+   the × becoming a ↺ restore. */
+.loremaster-bible-allxref-row.lm-allxref-hidden .loremaster-bible-allxref-item {
+  opacity: 0.45; text-decoration: line-through;
+}
 /* 2. Graph relation (LoreMaster graph) — injected in Phase 4; stronger accent, dotted underline. */
 .markdown-preview-view.bible a.lm-graph-link {
   color: var(--color-purple, var(--text-accent));

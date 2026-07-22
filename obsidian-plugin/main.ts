@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, applyBibleLayout, applyBibleFontScale, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, applyBibleLayout, applyBibleFontScale, applyBibleXrefStyles, BibleLayout } from "./bible";
 import { registerBibleStrongs, registerBibleStrongsHover } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
 
@@ -19,8 +19,12 @@ export interface AIAssistantSettings {
     bibleXrefCount: number; // how many cross-reference markers to show inline per verse (1–20)
     bibleFontScale: number; // Bible reader text size, percent of normal (80–160)
     bibleShowXrefs: boolean;  // show inline cross-reference markers
-    bibleShowEmbeds: boolean; // show inline related-by-meaning (≈) markers
+    bibleShowEmbeds: boolean; // show inline related-by-meaning markers
     bibleStudySource: "strongs" | "sblgnt"; // interlinear/concordance basis: KJV+Strong's (TR) or SBLGNT
+    // Per-type marker styling (colour "" = theme default; scale = percent of normal marker size, 60–200):
+    bibleXrefColor: string;      bibleXrefScale: number;      // auto cross-references
+    bibleEmbedColor: string;     bibleEmbedScale: number;     // related-by-meaning
+    bibleWordXrefColor: string;  bibleWordXrefScale: number;  // your word-connected cross-references
 }
 
 const DEFAULT_SETTINGS: AIAssistantSettings = {
@@ -35,6 +39,9 @@ const DEFAULT_SETTINGS: AIAssistantSettings = {
     bibleShowXrefs: true,
     bibleShowEmbeds: true,
     bibleStudySource: "strongs",
+    bibleXrefColor: "",      bibleXrefScale: 100,
+    bibleEmbedColor: "",     bibleEmbedScale: 100,
+    bibleWordXrefColor: "",  bibleWordXrefScale: 100,
 };
 
 // ---------------------------------------------------------------------------
@@ -85,6 +92,8 @@ export default class AIAssistantPlugin extends Plugin {
         applyBibleLayout(this.settings.bibleLayout);
         // Bible reader text size (user-adjustable, independent of Obsidian's global font size).
         applyBibleFontScale(this.settings.bibleFontScale);
+        // Per-type cross-reference marker styling (colour + relative size).
+        applyBibleXrefStyles(this.settings);
         // Auto-open Bible chapter notes in Reading view (the cross-ref overlay + hidden ^v anchors
         // + layout are all reading-view features) — but only on the FIRST open of a note in a given
         // tab. Once you switch that tab to edit mode it stays there; refocusing the tab (which also
@@ -563,13 +572,55 @@ class AIAssistantSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName("Show related-by-meaning markers")
-            .setDesc("The ≈ links from embeddings. Turn off to hide them. Re-open a chapter to apply.")
+            .setDesc("The related-by-meaning links from embeddings. Turn off to hide them. Re-open a chapter to apply.")
             .addToggle((t) =>
                 t.setValue(this.plugin.settings.bibleShowEmbeds).onChange(async (v) => {
                     this.plugin.settings.bibleShowEmbeds = v;
                     await this.plugin.saveSettings();
                 })
             );
+
+        // ── Cross-reference styling (colour + relative size per type) ──
+        containerEl.createEl("h4", { text: "Cross-reference styling" });
+        const styleRow = (name: string, desc: string, sample: string,
+                          colorKey: "bibleXrefColor" | "bibleEmbedColor" | "bibleWordXrefColor",
+                          scaleKey: "bibleXrefScale" | "bibleEmbedScale" | "bibleWordXrefScale") => {
+            new Setting(containerEl)
+                .setName(name)
+                .setDesc(desc)
+                .addColorPicker((c) => c
+                    .setValue(this.plugin.settings[colorKey] || sample)
+                    .onChange(async (v) => {
+                        this.plugin.settings[colorKey] = v;
+                        applyBibleXrefStyles(this.plugin.settings);
+                        await this.plugin.saveSettings();
+                    }))
+                .addSlider((s) => s
+                    .setLimits(60, 200, 5)
+                    .setValue(this.plugin.settings[scaleKey] || 100)
+                    .setDynamicTooltip()
+                    .onChange(async (v) => {
+                        this.plugin.settings[scaleKey] = v;
+                        applyBibleXrefStyles(this.plugin.settings);
+                        await this.plugin.saveSettings();
+                    }));
+        };
+        styleRow("Cross-references", "The quiet auto cross-reference letters at the end of a verse.",
+                 "#5a7ae0", "bibleXrefColor", "bibleXrefScale");
+        styleRow("Related by meaning", "The embedding-similarity links.",
+                 "#2eb8b8", "bibleEmbedColor", "bibleEmbedScale");
+        styleRow("Your word-connected", "Cross-references you attach to a word (front of the word).",
+                 "#6d28d9", "bibleWordXrefColor", "bibleWordXrefScale");
+        new Setting(containerEl)
+            .setDesc("Colour + relative size for each marker type. Re-open a chapter to see colour changes on existing markers.")
+            .addButton((b) => b.setButtonText("Reset styling to defaults").onClick(async () => {
+                const s = this.plugin.settings;
+                s.bibleXrefColor = ""; s.bibleXrefScale = 100;
+                s.bibleEmbedColor = ""; s.bibleEmbedScale = 100;
+                s.bibleWordXrefColor = ""; s.bibleWordXrefScale = 100;
+                applyBibleXrefStyles(s); await this.plugin.saveSettings();
+                this.display();
+            }));
 
         // Status check
         containerEl.createEl("h3", { text: "Connection check" });

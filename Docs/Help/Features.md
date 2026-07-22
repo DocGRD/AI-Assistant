@@ -1,4 +1,4 @@
-<!-- help-version: 45 -->
+<!-- help-version: 46 -->
 ---
 tags: [help, user-guide]
 ---
@@ -32,6 +32,12 @@ Open one in **Reading view** (chapters auto-open there) and you get:
   `1 John 4:7`), and choose the word — it renders just like the pinned ones. Each of your connections has
   an **⚓** to **move it to a different word** and an **×** to remove it. (Stored in the note's
   `bible-xref-anchors`.)
+- **Remove any cross-reference — of any kind.** Every reference in the popup (auto cross-reference *and*
+  related-by-meaning) has an **×** to remove it from that verse in the reader; a removed one stays listed
+  (dimmed, struck through) with a **↺** to restore it. (Stored in the note's `bible-xref-hidden`.)
+- **Style each kind of marker.** Settings → Loremaster → **Bible reader → Cross-reference styling** gives
+  each of the three marker types — cross-references, related-by-meaning, and your word-connected ones — a
+  **colour** and a **relative size**. (Re-open a chapter to see colour changes on existing markers.)
 - **Verse-by-verse or flowing paragraphs** — run the command *"Bible: toggle reading layout"*.
 - **Chapters open in Reading view but stay where you put them** — a chapter auto-opens in Reading view,
   but once you switch it to edit mode it stays in edit until you switch back; refocusing the tab no

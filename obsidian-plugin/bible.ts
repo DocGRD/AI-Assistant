@@ -364,10 +364,61 @@ async function writeXrefAnchor(plugin: Plugin, notePath: string, verse: number,
     });
 }
 
+/** Parse `bible-xref-hidden` (list of "verse:tb.tc.tv") into a Set of "verse:tb.tc.tv" keys. A hidden
+ *  reference (auto cross-reference or related-by-meaning link) is dropped from the inline markers. */
+function xrefHiddenSet(fm: any): Set<string> {
+    const out = new Set<string>();
+    for (const s of Array.isArray(fm?.["bible-xref-hidden"]) ? fm["bible-xref-hidden"] : []) out.add(String(s));
+    return out;
+}
+
+/** Hide (or restore) a reference for a verse — writes/removes its "verse:tb.tc.tv" key in the note's
+ *  `bible-xref-hidden` frontmatter. Used to remove auto cross-references and related-by-meaning links. */
+async function writeXrefHidden(plugin: Plugin, notePath: string, key: string, hide: boolean): Promise<void> {
+    const file = plugin.app.vault.getAbstractFileByPath(notePath);
+    if (!(file instanceof TFile)) return;
+    await plugin.app.fileManager.processFrontMatter(file, (fm: any) => {
+        const arr: string[] = Array.isArray(fm["bible-xref-hidden"]) ? fm["bible-xref-hidden"].map(String) : [];
+        const kept = arr.filter(s => s !== key);
+        if (hide) kept.push(key);
+        if (kept.length) fm["bible-xref-hidden"] = kept;
+        else delete fm["bible-xref-hidden"];
+    });
+}
+
 /** Force the active reading view to re-run post-processors so a placement change shows immediately. */
 function rerenderActivePreview(plugin: Plugin): void {
     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
     (view as any)?.previewMode?.rerender?.(true);
+}
+
+/** Re-render the reader AFTER the note's metadata cache reflects a frontmatter write, so anchor/hide
+ *  changes show on the first render (writing frontmatter updates the cache asynchronously, so an
+ *  immediate re-render would read the stale cache). Falls back to a short timeout if no event fires. */
+function rerenderAfterMetadata(plugin: Plugin, notePath: string): void {
+    const file = plugin.app.vault.getAbstractFileByPath(notePath);
+    if (!(file instanceof TFile)) { rerenderActivePreview(plugin); return; }
+    let fired = false;
+    const finish = () => { if (fired) return; fired = true; plugin.app.metadataCache.offref(ref); rerenderActivePreview(plugin); };
+    const ref = plugin.app.metadataCache.on("changed", (f) => { if (f.path === file.path) finish(); });
+    setTimeout(finish, 500);
+}
+
+/** Apply the user's per-type cross-reference styling (colour + relative size) as CSS variables on
+ *  <body>, so the reader's markers pick them up. Empty colour → the theme default (CSS fallback). */
+export function applyBibleXrefStyles(s: any): void {
+    const body = document.body.style;
+    const setCol = (name: string, v: any) => {
+        if (typeof v === "string" && v.trim()) body.setProperty(name, v.trim());
+        else body.removeProperty(name);
+    };
+    const setScale = (name: string, v: any) => body.setProperty(name, String((Number(v) || 100) / 100));
+    setCol("--lm-xref-color", s?.bibleXrefColor);
+    setCol("--lm-embed-color", s?.bibleEmbedColor);
+    setCol("--lm-wordxref-color", s?.bibleWordXrefColor);
+    setScale("--lm-xref-scale", s?.bibleXrefScale);
+    setScale("--lm-embed-scale", s?.bibleEmbedScale);
+    setScale("--lm-wordxref-scale", s?.bibleWordXrefScale);
 }
 
 /** Modal: pick (or change) which word of a verse a cross-reference is connected to — its marker sits
@@ -390,13 +441,13 @@ class WordAnchorModal extends Modal {
                 await writeXrefAnchor(this.plugin, this.notePath, this.verse, this.target, i);
                 new Notice(`Cross-reference placed at “${w}”.`);
                 this.close();
-                rerenderActivePreview(this.plugin);
+                rerenderAfterMetadata(this.plugin, this.notePath);
             });
         });
         new Setting(contentEl).addButton(b => b.setButtonText("Remove this word connection").onClick(async () => {
             await writeXrefAnchor(this.plugin, this.notePath, this.verse, this.target, null);
             this.close();
-            rerenderActivePreview(this.plugin);
+            rerenderAfterMetadata(this.plugin, this.notePath);
         }));
     }
     onClose(): void { this.contentEl.empty(); }
@@ -429,7 +480,7 @@ class AddWordXrefModal extends Modal {
                 box.createEl("button", { text: w, cls: "lm-wordpick-chip" }).addEventListener("click", async () => {
                     await writeXrefAnchor(this.plugin, this.notePath, this.verse, target, i);
                     new Notice(`Cross-reference to ${bookLabel(parsed.b)} ${parsed.c}:${parsed.v} added at “${w}”.`);
-                    this.close(); rerenderActivePreview(this.plugin);
+                    this.close(); rerenderAfterMetadata(this.plugin, this.notePath);
                 });
             });
         };
@@ -486,12 +537,14 @@ async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
     const booknum = BOOK_NUM[book];
     const notePath = booknum ? `bible/${pad2(booknum)}-${book}/${version}/${book}-${pad3(chapter)}.md` : "";
     const notePathNoExt = notePath.replace(/\.md$/, "");
+    const hidden = xrefHiddenSet(notePath ? plugin.app.metadataCache.getCache(notePath)?.frontmatter : null);
     const section = (title: string, items: any[], anchorable: boolean) => {
         if (!items.length) return;
         panel.createDiv("loremaster-bible-allxref-sub").setText(title);
         const list = panel.createDiv("loremaster-bible-allxref-list");
         for (const t of items) {
             const href = hrefFor(t);
+            const key = `${verse}:${t.b}.${t.c}.${t.v}`;
             const row = list.createDiv("loremaster-bible-allxref-row");
             const a = row.createEl("a", { text: t.n, cls: "loremaster-bible-allxref-item", attr: { href } });
             // Tap a listed reference → the same read-card (verse text + Open) as the inline markers.
@@ -507,6 +560,23 @@ async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
                         close();
                         new WordAnchorModal(plugin, notePath, verse, vt, `${t.b}.${t.c}.${t.v}`, t.n).open();
                     });
+            }
+            // Remove (hide) this reference from the reader — or restore it if already hidden.
+            if (notePath) {
+                let isHidden = hidden.has(key);
+                const btn = row.createEl("button", { cls: "loremaster-bible-allxref-anchor" });
+                const paint = () => {
+                    btn.setText(isHidden ? "↺" : "×");
+                    btn.setAttr("aria-label", isHidden ? "Restore this cross-reference" : "Remove this cross-reference");
+                    row.toggleClass("lm-allxref-hidden", isHidden);
+                };
+                paint();
+                btn.addEventListener("click", async (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    isHidden = !isHidden;
+                    await writeXrefHidden(plugin, notePath, key, isHidden);
+                    paint(); rerenderAfterMetadata(plugin, notePath);
+                });
             }
         }
     };
@@ -541,7 +611,7 @@ async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
                 .addEventListener("click", async (ev) => {
                     ev.preventDefault(); ev.stopPropagation();
                     await writeXrefAnchor(plugin, notePath, verse, anc.target, null);
-                    close(); rerenderActivePreview(plugin);
+                    close(); rerenderAfterMetadata(plugin, notePath);
                 });
         }
         const addBtn = panel.createEl("button", { text: "＋ Add your own cross-reference", cls: "loremaster-bible-allxref-add" });
@@ -637,6 +707,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         const fm = plugin.app.metadataCache.getCache(ctx.sourcePath)?.frontmatter;
         const paraStarts = new Set(String(fm?.["bible-parastarts"] ?? "").split(",").filter(Boolean));
         const anchorsByVerse = xrefAnchorsByVerse(fm);   // verse → your word-connected cross-references
+        const hidden = xrefHiddenSet(fm);                // "verse:tb.tc.tv" refs you've removed from this note
         const data = await loadBook(book);
         const sim = await loadSimilar(book, chapter);   // per-verse embedding neighbours
 
@@ -690,6 +761,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             for (let i = 0; i < targets.length; i++) {
                 const t = targets[i];
                 if (anchoredKeys.has(`${t.b}.${t.c}.${t.v}`)) continue;
+                if (hidden.has(`${vnum}:${t.b}.${t.c}.${t.v}`)) continue;   // you removed this one
                 if (!showXrefs || endShown >= shown) continue;
                 const href = hrefFor(t);
                 const sup = createEl("sup");
@@ -702,15 +774,16 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             // the cross-references AND your word-connected links so nothing is shown twice. (Toggle: settings.)
             const xset = new Set(targets.map((t: any) => `${t.b}.${t.c}.${t.v}`));
             const sims = (sim[vnum] || []).filter((t: any) => BOOK_NUM[t.b]
-                && !xset.has(`${t.b}.${t.c}.${t.v}`) && !anchoredKeys.has(`${t.b}.${t.c}.${t.v}`));
+                && !xset.has(`${t.b}.${t.c}.${t.v}`) && !anchoredKeys.has(`${t.b}.${t.c}.${t.v}`)
+                && !hidden.has(`${vnum}:${t.b}.${t.c}.${t.v}`));
             let esup: HTMLElement | null = null, endSims = 0;
             for (let i = 0; i < sims.length; i++) {
                 const t = sims[i], href = hrefFor(t);
                 if (!showEmbeds || endSims >= 2) continue;              // end cluster: capped, toggle-gated
-                if (!esup) { esup = p.createEl("sup", { cls: "lm-embed-group" }); esup.appendText(" ≈"); }
+                if (!esup) esup = p.createEl("sup", { cls: "lm-embed-group" });
                 esup.appendText(" ");
                 const a = esup.createEl("a", { text: SUP_LETTERS[i] || "*", cls: "lm-embed-vlink",
-                    attr: { "data-href": href, href, "aria-label": `≈ ${t.n}` } });
+                    attr: { "data-href": href, href, "aria-label": `Related: ${t.n}` } });
                 a.addEventListener("click", onMarkerClick(a, href));
                 endSims++;
             }

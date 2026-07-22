@@ -1,10 +1,21 @@
-<!-- help-version: 45 -->
+<!-- help-version: 46 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.56**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.57**.*
+
+## Bible: remove any cross-reference + per-type marker styling (v1.10.57)
+- **Remove a cross-reference of any kind.** The verse-number popup now has an **×** on *every* reference
+  — auto cross-references and related-by-meaning alike — to drop it from that verse in the reader. A
+  removed reference stays listed (dimmed, struck through) with a **↺** to restore it. (Stored per note in
+  `bible-xref-hidden`.)
+- **Style each marker type.** Settings → Loremaster → **Bible reader → Cross-reference styling** lets you
+  set a **colour** and a **relative size** for each of the three kinds — cross-references, related-by-meaning,
+  and your word-connected ones — with a **Reset styling to defaults** button.
+- **Cleaner related-by-meaning markers** — the leading **≈** symbol is gone; they're now just their
+  (teal, dotted-underline) letters, distinct from the plain cross-reference letters without the clutter.
 
 ## Bible: your own word-connected cross-references + sticky edit mode (v1.10.56)
 - **Add your own cross-reference to a word — even one not in the list.** Tap a verse number → in the
