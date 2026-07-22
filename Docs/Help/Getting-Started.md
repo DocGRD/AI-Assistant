@@ -1,4 +1,4 @@
-<!-- help-version: 48 -->
+<!-- help-version: 49 -->
 ---
 tags: [help, user-guide]
 ---
@@ -38,5 +38,20 @@ Type a message and **Send**. Try:
 | **Plugin sidebar** | Everyday live chat | Type + Send; buttons for Selection, Vault QA, Graph, Prompts |
 | **Vault watcher** | Async / from your phone | Add `assistant-status: pending` + `assistant-request: <question>` to a note; it writes the answer back |
 | **Terminal** | Setup, tests, admin commands | `python -m assistant_core --terminal` |
+
+## Across devices (phone + desktop)
+LoreMaster runs wherever Obsidian syncs your vault, but the two ends play different roles:
+
+- **Desktop = the full workshop.** The Python **service** (chat routing, semantic Vault QA, "Ask the Bible",
+  the knowledge graph, OCR/transcription, autonomous research) runs here or on a home box. Point the plugin
+  at it under *Settings → Loremaster → Service connection* (over your LAN or a private tailnet).
+- **Phone = read + light study.** The Bible reader, cross-references, your commentary notes, interlinear/
+  concordance, and reading plans all work **offline from the synced vault** — no service needed. Features
+  that need the service (live chat, Ask the Bible, related-by-meaning) simply fall back gracefully when it's
+  unreachable: the reader still renders, markers still work, and a tap opens the read-card instead of erroring.
+- **New to it?** Run **LoreMaster: getting started (create a tour note)** for a short, tick-through tour.
+
+For the reader to show cross-references/related links on the phone, make sure the plugin is up to date there
+and the `AI/bible-crossrefs/` (and `AI/bible-*`) folders have synced.
 
 Next: [[Commands]] and [[Features]].

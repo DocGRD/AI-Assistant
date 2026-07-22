@@ -1,10 +1,24 @@
-<!-- help-version: 48 -->
+<!-- help-version: 49 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.61**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.62**.*
+
+## Bible: reading plans, topical study notes, textual variants + onboarding (v1.10.62)
+- **Reading plans.** *"Bible: create a reading plan"* builds a dated, tick-as-you-go plan dividing a scope
+  (Whole Bible / OT / NT / Gospels / Psalms & Proverbs) evenly across the days you choose, each day linking
+  the chapters to read.
+- **Topical study notes.** In **Ask the Bible**, a **Save as study note** button turns the semantic results
+  into a persistent topical note (an auto-built Map-of-Content from the embeddings) under `bible/topical/`.
+- **Textual variants.** Verses that differ between the KJV/Textus Receptus and the SBLGNT critical text
+  (Matt 17:21, John 5:4, the pericope adulterae, 1 John 5:7 …) now show a quiet **†** and a textual note in
+  the verse popup. Computed from the two datasets you already have.
+- **Getting-started tour.** *"LoreMaster: getting started (create a tour note)"* drops a short tick-through
+  tour into your vault; the Getting-Started help now explains the phone-vs-desktop story.
+- **Reload command.** *"Reload LoreMaster"* reloads the plugin from disk (Obsidian's Ctrl+R often keeps the
+  old code — this is the reliable way after a BRAT update or rebuild).
 
 ## Bible: real Hebrew Old Testament layer — WLC + morphology (v1.10.61)
 - The interlinear and concordance now work on the **actual Hebrew Old Testament**. Open any OT chapter,

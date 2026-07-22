@@ -1,8 +1,8 @@
-import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor, Menu, MarkdownView } from "obsidian";
+import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, Editor, Menu, MarkdownView, TFile } from "obsidian";
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, registerBibleSearch, applyBibleLayout, applyBibleFontScale, applyBibleXrefStyles, BibleLayout } from "./bible";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, registerBibleSearch, registerBibleReadingPlan, applyBibleLayout, applyBibleFontScale, applyBibleXrefStyles, BibleLayout } from "./bible";
 import { registerBibleStrongs, registerBibleStrongsHover } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
 
@@ -70,6 +70,8 @@ export default class AIAssistantPlugin extends Plugin {
         registerBibleAnnotations(this);
         // "Ask the Bible" — semantic verse search over the whole Bible (verse-embedding index on the service).
         registerBibleSearch(this);
+        // Bible reading plans — a dated, tick-as-you-go plan note dividing a scope across N days.
+        registerBibleReadingPlan(this);
         // Strong's study tools — per-chapter interlinear + concordance (KJV+Strong's sidecar data).
         registerBibleStrongs(this);
         // Word-level Strong's popup on KJV notes — hover (desktop) / tap (mobile) a word → original
@@ -136,6 +138,56 @@ export default class AIAssistantPlugin extends Plugin {
             id: "open-ai-assistant",
             name: "Open chat sidebar",
             callback: () => this.activateChatView(),
+        });
+        // Reliable in-app reload — Obsidian's Ctrl+R reloads the WINDOW but often keeps the old plugin
+        // code; disabling then re-enabling the plugin loads a fresh build from disk. Handy after a BRAT
+        // update or a local rebuild.
+        this.addCommand({
+            id: "reload-plugin",
+            name: "Reload LoreMaster (reload this plugin)",
+            callback: async () => {
+                const id = this.manifest.id;
+                new Notice("Reloading LoreMaster…");
+                const plugins = (this.app as any).plugins;
+                await plugins.disablePlugin(id);
+                await plugins.enablePlugin(id);
+                new Notice("LoreMaster reloaded.");
+            },
+        });
+        // Guided onboarding — a short "start here" tour note you can tick through.
+        this.addCommand({
+            id: "getting-started",
+            name: "LoreMaster: getting started (create a tour note)",
+            callback: async () => {
+                const path = "LoreMaster — Start Here.md";
+                const body = [
+                    "---", "tags:", "  - loremaster", "---",
+                    "# Welcome to LoreMaster 👋", "",
+                    "A local-first **study Bible** + a zero-cost **AI assistant over your vault**. Tick these as you try them:",
+                    "",
+                    "## Study the Bible",
+                    "- [ ] Open a chapter — expand **bible/** in the file list and open, say, `bible/43-john/web/john-003`. It opens in Reading view with cross-references.",
+                    "- [ ] Tap a **verse number** for the study popup (Matthew Henry + your notes + all cross-references).",
+                    "- [ ] Run **Bible: Ask the Bible (semantic search)** — ask a question in plain words (e.g. *God's patience with sinners*).",
+                    "- [ ] Run **Bible: interlinear (this chapter)** on an OT chapter → switch **Text** to **WLC (Hebrew)**; on an NT chapter → **SBLGNT (Greek)**.",
+                    "- [ ] Run **Bible: create a reading plan** to build a dated, tick-as-you-go plan.",
+                    "",
+                    "## Your AI assistant",
+                    "- [ ] Open the **chat sidebar** (ribbon icon or *Open chat sidebar*). Ask about your notes — answers cite sources.",
+                    "- [ ] Type `vault:ask <question>` for semantic Q&A across the whole vault.",
+                    "- [ ] Toggle **🔒 Private** for a turn that never leaves no-train providers.",
+                    "",
+                    "## Good to know",
+                    "- The **⚙ gear** (Settings → Loremaster) has the service connection, Bible reader options, and cross-reference styling.",
+                    "- After updating the plugin, run **Reload LoreMaster** (Obsidian's Ctrl+R often keeps the old code).",
+                    "- Full docs: search your vault for **Features**, **Commands**, and **How-To-Use** (synced from the service).",
+                    "",
+                ].join("\n");
+                const existing = this.app.vault.getAbstractFileByPath(path);
+                if (existing instanceof TFile) { await this.app.workspace.openLinkText(path, "", false); return; }
+                await this.app.vault.create(path, body);
+                await this.app.workspace.openLinkText(path, "", false);
+            },
         });
         this.addCommand({
             id: "toggle-bible-layout",

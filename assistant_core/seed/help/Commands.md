@@ -1,4 +1,4 @@
-<!-- help-version: 48 -->
+<!-- help-version: 49 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -88,6 +88,9 @@ not as `vault:` chat commands. The annotation commands act on the **selected tex
 | `Bible: concordance (Strong's number or word)` | Every verse using a Strong's number (`H430`) or English word (`love`) |
 | `Bible: Ask the Bible (semantic search)` | Ask a question in plain words → the verses closest in **meaning** (not keywords), each with its text + your notes. Needs the running service. |
 | `Bible: morphology search (SBLGNT Greek)` | Find NT Greek words by Strong's/lemma **filtered by grammatical form** (e.g. "aorist active", "genitive plural") |
+| `Bible: create a reading plan` | Build a dated, tick-as-you-go **reading plan** dividing a scope (Whole Bible / OT / NT / Gospels / Psalms & Proverbs) across N days |
+| `LoreMaster: getting started (create a tour note)` | Create a short "start here" tour note to try the main features |
+| `Reload LoreMaster (reload this plugin)` | Reliably reload the plugin from disk (after a BRAT update or rebuild) — Obsidian's Ctrl+R often keeps the old code |
 | `Bible: paste a chapter (new translation)` | Paste raw chapter text → LoreMaster formats it into the standard verse layout |
 | `Bible: insert a passage (into this note)` | Insert several verses (choose version + range like `1-5`) into the note you're editing, as one **live, flowing passage** rendered from the chapter note (tracks edits; reader paragraph look) with a reference link |
 | `Bible: toggle reading layout (verse-by-verse ⟷ flowing)` | Switch the reader between one-verse-per-line and flowing paragraphs |

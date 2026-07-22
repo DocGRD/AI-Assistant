@@ -489,6 +489,22 @@ class AddWordXrefModal extends Modal {
     onClose(): void { this.contentEl.empty(); }
 }
 
+// Textual variants (TR/KJV vs the SBLGNT critical text) — a small shared JSON, loaded once. Maps
+// "book.ch.v" → "tr-only" (in the KJV/Textus Receptus, omitted by the critical text) or "crit-only".
+let variantsCache: Promise<Record<string, string>> | null = null;
+function loadVariants(plugin: Plugin): Promise<Record<string, string>> {
+    if (!variantsCache) {
+        variantsCache = plugin.app.vault.adapter.read("AI/bible-variants/_variants.json")
+            .then(s => JSON.parse(s)).catch(() => ({}));
+    }
+    return variantsCache;
+}
+function variantNote(kind: string): string {
+    return kind === "tr-only"
+        ? "This verse is in the Textus Receptus (KJV) but omitted by the modern critical text (SBLGNT) — a known textual variant."
+        : "This verse is in the modern critical text (SBLGNT) but not in the KJV/Textus Receptus versification.";
+}
+
 /** Click/tap a verse number → a "study" panel for that verse: at the TOP, a link to Matthew Henry's
  *  commentary for the chapter and links to YOUR personal commentary notes on the verse; below,
  *  ALL cross-references and all related-by-meaning links. Tapping a reference opens the same read-card
@@ -533,6 +549,15 @@ async function showAllXrefs(plugin: Plugin, anchor: HTMLElement, label: string,
         }
     }
     const mhcSlot = study.createDiv("loremaster-bible-allxref-mhc");   // filled async below
+    // Textual note — flag verses that differ between the TR/KJV and the SBLGNT critical text.
+    void loadVariants(plugin).then((vs) => {
+        const kind = vs[`${book}.${chapter}.${verse}`];
+        if (kind && allXrefPanel === panel) {
+            const n = study.createDiv("loremaster-bible-allxref-variant");
+            n.createSpan({ cls: "loremaster-bible-allxref-variant-tag", text: "†" });
+            n.createSpan({ text: " " + variantNote(kind) });
+        }
+    });
 
     const booknum = BOOK_NUM[book];
     const notePath = booknum ? `bible/${pad2(booknum)}-${book}/${version}/${book}-${pad3(chapter)}.md` : "";
@@ -656,11 +681,12 @@ class AskBibleModal extends Modal {
         contentEl.createEl("p", { cls: "setting-item-description",
             text: "Ask in your own words — LoreMaster finds the verses closest in meaning (not just keyword matches)." });
         let q = "";
+        let lastHits: any[] = [], lastQ = "";
         const status = contentEl.createEl("p", { cls: "setting-item-description" });
         const results = contentEl.createDiv("lm-askbible-results");
         const run = async () => {
             if (!q.trim()) return;
-            status.setText("Searching…"); results.empty();
+            status.setText("Searching…"); results.empty(); lastHits = [];
             const s = (this.plugin as any).settings;
             let data: any;
             try {
@@ -671,6 +697,7 @@ class AskBibleModal extends Modal {
             if (!data || !data.ready) { status.setText("The verse index isn't built yet — run “vault:bible-verse-index” on the service."); return; }
             const hits = (data.results || []).filter((t: any) => BOOK_NUM[t.b]);
             if (!hits.length) { status.setText("No verses matched."); return; }
+            lastHits = hits; lastQ = q.trim();
             status.setText(`${hits.length} verses closest in meaning:`);
             for (const t of hits) {
                 const num = BOOK_NUM[t.b];
@@ -703,7 +730,31 @@ class AskBibleModal extends Modal {
                 tc.inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); void run(); } });
                 setTimeout(() => tc.inputEl.focus(), 0);
             });
-        new Setting(contentEl).addButton((b) => b.setButtonText("Ask").setCta().onClick(() => void run()));
+        new Setting(contentEl)
+            .addButton((b) => b.setButtonText("Ask").setCta().onClick(() => void run()))
+            // Save the results as a persistent topical study note (an auto-built Map-of-Content from the
+            // embedding search) under bible/topical/.
+            .addButton((b) => b.setButtonText("Save as study note").onClick(async () => {
+                if (!lastHits.length) { new Notice("Search first, then save the results."); return; }
+                const slug = lastQ.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "topic";
+                const path = `bible/topical/${slug}.md`;
+                const lines = ["---", "tags:", "  - bible", "  - topical-study", "---",
+                    `# Topical study — ${lastQ}`, "",
+                    "Verses closest in meaning (LoreMaster semantic search). Tick as you study.", ""];
+                for (const t of lastHits) {
+                    const num = BOOK_NUM[t.b];
+                    const linkbase = `bible/${pad2(num)}-${t.b}/web/${t.b}-${pad3(t.c)}`;
+                    const vt = await readVerseText(this.plugin, linkbase, `v${t.v}`);
+                    lines.push(`- [ ] [[${linkbase}#^v${t.v}|${t.n}]] — ${vt || ""}`);
+                }
+                try { await this.plugin.app.vault.createFolder("bible/topical"); } catch { /* exists */ }
+                const existing = this.plugin.app.vault.getAbstractFileByPath(path);
+                if (existing instanceof TFile) await this.plugin.app.vault.modify(existing, lines.join("\n") + "\n");
+                else await this.plugin.app.vault.create(path, lines.join("\n") + "\n");
+                new Notice(`Saved ${path}`);
+                this.close();
+                this.plugin.app.workspace.openLinkText(path, "", false);
+            }));
     }
     onClose(): void { this.contentEl.empty(); }
 }
@@ -779,6 +830,7 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         const paraStarts = new Set(String(fm?.["bible-parastarts"] ?? "").split(",").filter(Boolean));
         const anchorsByVerse = xrefAnchorsByVerse(fm);   // verse → your word-connected cross-references
         const hidden = xrefHiddenSet(fm);                // "verse:tb.tc.tv" refs you've removed from this note
+        const variants = await loadVariants(plugin);     // TR/KJV vs SBLGNT textual-variant verses
         const data = await loadBook(book);
         const sim = await loadSimilar(book, chapter);   // per-verse embedding neighbours
 
@@ -872,6 +924,10 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             // cross-references + related-by-meaning. Always available (Matthew Henry is offered for
             // every verse), even if a verse has no cross-references or inline markers are toggled off.
             num.addClass("lm-verse-num");
+            if (variants[`${book}.${chapter}.${vnum}`]) {   // textual-variant verse → a quiet † dagger
+                const dag = createEl("sup", { cls: "lm-variant-dagger", text: "†", attr: { "aria-label": "Textual variant — tap the verse number" } });
+                num.insertAdjacentElement("afterend", dag);
+            }
             num.setAttribute("aria-label", `Study ${bookLabel(book)} ${chapter}:${vnum}`);
             num.addEventListener("click", (ev) => {
                 ev.preventDefault(); ev.stopPropagation();
@@ -1260,6 +1316,99 @@ export function registerBiblePaste(plugin: Plugin): void {
         id: "bible-insert-passage",
         name: "Bible: insert a passage (into this note)",
         editorCallback: (editor: Editor) => new InsertPassageModal(plugin, editor).open(),
+    });
+}
+
+// ── Reading plans ────────────────────────────────────────────────────────────
+// Chapters per book (canonical, 66 books) — used to build an evenly-divided reading plan.
+const CHAPTERS: Record<string, number> = {
+    genesis: 50, exodus: 40, leviticus: 27, numbers: 36, deuteronomy: 34, joshua: 24, judges: 21, ruth: 4,
+    "1-samuel": 31, "2-samuel": 24, "1-kings": 22, "2-kings": 25, "1-chronicles": 29, "2-chronicles": 36,
+    ezra: 10, nehemiah: 13, esther: 10, job: 42, psalms: 150, proverbs: 31, ecclesiastes: 12, "song-of-solomon": 8,
+    isaiah: 66, jeremiah: 52, lamentations: 5, ezekiel: 48, daniel: 12, hosea: 14, joel: 3, amos: 9, obadiah: 1,
+    jonah: 4, micah: 7, nahum: 3, habakkuk: 3, zephaniah: 3, haggai: 2, zechariah: 14, malachi: 4,
+    matthew: 28, mark: 16, luke: 24, john: 21, acts: 28, romans: 16, "1-corinthians": 16, "2-corinthians": 13,
+    galatians: 6, ephesians: 6, philippians: 4, colossians: 4, "1-thessalonians": 5, "2-thessalonians": 3,
+    "1-timothy": 6, "2-timothy": 4, titus: 3, philemon: 1, hebrews: 13, james: 5, "1-peter": 5, "2-peter": 3,
+    "1-john": 5, "2-john": 1, "3-john": 1, jude: 1, revelation: 22,
+};
+const PLAN_SCOPES: Record<string, (num: number) => boolean> = {
+    "Whole Bible": () => true,
+    "Old Testament": (n) => n < 40,
+    "New Testament": (n) => n >= 40,
+    "Gospels": (n) => n >= 40 && n <= 43,
+    "Psalms & Proverbs": (n) => n === 19 || n === 20,
+};
+
+/** Ordered [book, chapter] list for a scope, in canonical order. */
+function scopeChapters(scope: string): [string, number][] {
+    const inScope = PLAN_SCOPES[scope] || (() => true);
+    const out: [string, number][] = [];
+    for (const slug of Object.keys(CHAPTERS)) {
+        const num = BOOK_NUM[slug];
+        if (!num || !inScope(num)) continue;
+        for (let c = 1; c <= CHAPTERS[slug]; c++) out.push([slug, c]);
+    }
+    return out;
+}
+
+/** Build a dated, checkbox reading-plan note that divides a scope evenly across `days` days. */
+function buildReadingPlan(scope: string, days: number, start: Date): { path: string; note: string } {
+    const chapters = scopeChapters(scope);
+    const perDay = chapters.length / days;
+    const slugName = scope.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "");
+    const fmt = (d: Date) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    const lines: string[] = ["---", "tags:", "  - bible", "  - reading-plan", "---",
+        `# Reading plan — ${scope} (${days} days)`, "",
+        `Started ${start.toLocaleDateString()}. Tick a day as you finish it.`, ""];
+    let idx = 0;
+    for (let d = 0; d < days; d++) {
+        const upto = Math.round((d + 1) * perDay);
+        const todays = chapters.slice(idx, upto);
+        idx = upto;
+        if (!todays.length) continue;
+        const date = new Date(start); date.setDate(start.getDate() + d);
+        const links = todays.map(([slug, c]) => {
+            const n = BOOK_NUM[slug];
+            return `[[bible/${pad2(n)}-${slug}/web/${slug}-${pad3(c)}|${bookLabel(slug)} ${c}]]`;
+        });
+        lines.push(`- [ ] **Day ${d + 1}** · ${fmt(date)} — ${links.join(", ")}`);
+    }
+    return { path: `bible/reading-plans/${slugName}-${days}day.md`, note: lines.join("\n") + "\n" };
+}
+
+class ReadingPlanModal extends Modal {
+    constructor(private plugin: Plugin) { super(plugin.app); }
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Create a Bible reading plan" });
+        contentEl.createEl("p", { cls: "setting-item-description",
+            text: "A dated, tick-as-you-go plan that divides your chosen scope evenly across the days you pick." });
+        let scope = "Whole Bible", days = 365;
+        new Setting(contentEl).setName("Scope")
+            .addDropdown(d => { for (const k of Object.keys(PLAN_SCOPES)) d.addOption(k, k); d.setValue(scope).onChange(v => scope = v); });
+        new Setting(contentEl).setName("Days")
+            .setDesc("How many days to spread it over (e.g. 365 for a year, 90 for a season).")
+            .addText(t => { t.inputEl.type = "number"; t.setValue("365").onChange(v => days = Math.max(1, parseInt(v, 10) || 365)); });
+        new Setting(contentEl).addButton(b => b.setButtonText("Create plan").setCta().onClick(async () => {
+            const { path, note } = buildReadingPlan(scope, days, new Date());
+            if (this.plugin.app.vault.getAbstractFileByPath(path)) { new Notice(`Already exists: ${path}`); return; }
+            try { await this.plugin.app.vault.createFolder("bible/reading-plans"); } catch { /* exists */ }
+            await this.plugin.app.vault.create(path, note);
+            new Notice(`Created ${path}`);
+            this.close();
+            this.plugin.app.workspace.openLinkText(path, "", false);
+        }));
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+/** Register the "Bible: create a reading plan" command. */
+export function registerBibleReadingPlan(plugin: Plugin): void {
+    plugin.addCommand({
+        id: "bible-reading-plan",
+        name: "Bible: create a reading plan",
+        callback: () => new ReadingPlanModal(plugin).open(),
     });
 }
 

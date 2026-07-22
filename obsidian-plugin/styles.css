@@ -1328,6 +1328,10 @@ sup.lm-comm-sup { margin-left: 1px; }
 .lm-askbible-text { color: var(--text-normal); font-size: 0.92em; margin-top: 2px; }
 .lm-askbible-note { display: inline-block; margin-top: 3px; font-size: 0.82em; color: var(--text-muted); cursor: pointer; }
 .lm-askbible-note:hover { color: var(--text-accent); }
+/* Textual-variant note in the verse popup + the quiet † dagger on variant verses in the reader. */
+.loremaster-bible-allxref-variant { margin: 5px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+.loremaster-bible-allxref-variant-tag { color: var(--text-accent); font-weight: 700; }
+.markdown-preview-view.bible sup.lm-variant-dagger { color: var(--text-muted); font-size: 0.7em; margin-left: 1px; opacity: 0.75; }
 /* "Add your own cross-reference" button in the verse popup. */
 .loremaster-bible-allxref-add {
   margin-top: 8px; width: 100%; cursor: pointer;
