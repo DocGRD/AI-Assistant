@@ -13,32 +13,26 @@ Inputs (place beside this script, or point at them with env vars):
 
 Run:  python -m assistant_core.bible.tools.gen_bible_notes   (with the two data files in BIBLE_SRC)
 """
-import json, os, pathlib, zipfile, re
+import json, os, pathlib, zipfile, re, sys
 from usfm_parse import parse_book
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))  # repo root, for the shared table
+from assistant_core.bible import books
 
 SC = pathlib.Path(os.environ.get("BIBLE_SRC", pathlib.Path(__file__).parent))
 VAULT = pathlib.Path(os.environ.get("BIBLE_VAULT", r"C:/development/echo-test-vault"))
 BIBLE = VAULT / "bible"
 VERSION = "web"
 
-# (USFM 3-letter code, book number, display name)
-BOOKS = [
- ("GEN",1,"Genesis"),("EXO",2,"Exodus"),("LEV",3,"Leviticus"),("NUM",4,"Numbers"),("DEU",5,"Deuteronomy"),
- ("JOS",6,"Joshua"),("JDG",7,"Judges"),("RUT",8,"Ruth"),("1SA",9,"1 Samuel"),("2SA",10,"2 Samuel"),
- ("1KI",11,"1 Kings"),("2KI",12,"2 Kings"),("1CH",13,"1 Chronicles"),("2CH",14,"2 Chronicles"),
- ("EZR",15,"Ezra"),("NEH",16,"Nehemiah"),("EST",17,"Esther"),("JOB",18,"Job"),("PSA",19,"Psalms"),
- ("PRO",20,"Proverbs"),("ECC",21,"Ecclesiastes"),("SNG",22,"Song of Solomon"),("ISA",23,"Isaiah"),
- ("JER",24,"Jeremiah"),("LAM",25,"Lamentations"),("EZK",26,"Ezekiel"),("DAN",27,"Daniel"),("HOS",28,"Hosea"),
- ("JOL",29,"Joel"),("AMO",30,"Amos"),("OBA",31,"Obadiah"),("JON",32,"Jonah"),("MIC",33,"Micah"),
- ("NAM",34,"Nahum"),("HAB",35,"Habakkuk"),("ZEP",36,"Zephaniah"),("HAG",37,"Haggai"),("ZEC",38,"Zechariah"),
- ("MAL",39,"Malachi"),("MAT",40,"Matthew"),("MRK",41,"Mark"),("LUK",42,"Luke"),("JHN",43,"John"),
- ("ACT",44,"Acts"),("ROM",45,"Romans"),("1CO",46,"1 Corinthians"),("2CO",47,"2 Corinthians"),
- ("GAL",48,"Galatians"),("EPH",49,"Ephesians"),("PHP",50,"Philippians"),("COL",51,"Colossians"),
- ("1TH",52,"1 Thessalonians"),("2TH",53,"2 Thessalonians"),("1TI",54,"1 Timothy"),("2TI",55,"2 Timothy"),
- ("TIT",56,"Titus"),("PHM",57,"Philemon"),("HEB",58,"Hebrews"),("JAS",59,"James"),("1PE",60,"1 Peter"),
- ("2PE",61,"2 Peter"),("1JN",62,"1 John"),("2JN",63,"2 John"),("3JN",64,"3 John"),("JUD",65,"Jude"),
- ("REV",66,"Revelation"),
+# USFM 3-letter codes (the zip's book files), in canonical order. Book number + display name come
+# from the shared canonical table; only the USFM code is source-specific.
+USFM_ABBRS = [
+ "GEN","EXO","LEV","NUM","DEU","JOS","JDG","RUT","1SA","2SA","1KI","2KI","1CH","2CH","EZR","NEH","EST",
+ "JOB","PSA","PRO","ECC","SNG","ISA","JER","LAM","EZK","DAN","HOS","JOL","AMO","OBA","JON","MIC","NAM",
+ "HAB","ZEP","HAG","ZEC","MAL","MAT","MRK","LUK","JHN","ACT","ROM","1CO","2CO","GAL","EPH","PHP","COL",
+ "1TH","2TH","1TI","2TI","TIT","PHM","HEB","JAS","1PE","2PE","1JN","2JN","3JN","JUD","REV",
 ]
+BOOKS = [(ab, n, t) for ab, (n, _s, t) in zip(USFM_ABBRS, books.BOOKS)]   # (USFM code, number, name)
 def slug(n): return n.lower().replace(" ", "-")
 INDENT = "  "   # em-spaces per poetry level (renders as indent in any viewer)
 

@@ -20,31 +20,25 @@ Inputs via env (default: this script's dir / the WEB test vault):
 """
 from __future__ import annotations
 
-import json, os, pathlib, re
+import json, os, pathlib, re, sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))  # repo root, for the shared table
+from assistant_core.bible import books
 
 SC = pathlib.Path(os.environ.get("BIBLE_SRC", pathlib.Path(__file__).parent))
 VAULT = pathlib.Path(os.environ.get("BIBLE_VAULT", r"C:/development/echo-test-vault"))
 OUT = VAULT / "AI" / "bible-strongs"
 
-# kaiserlik abbreviation -> (book number, slug), canonical order
-BOOKS = [
- ("Gen",1,"genesis"),("Exo",2,"exodus"),("Lev",3,"leviticus"),("Num",4,"numbers"),("Deu",5,"deuteronomy"),
- ("Jos",6,"joshua"),("Jdg",7,"judges"),("Rth",8,"ruth"),("1Sa",9,"1-samuel"),("2Sa",10,"2-samuel"),
- ("1Ki",11,"1-kings"),("2Ki",12,"2-kings"),("1Ch",13,"1-chronicles"),("2Ch",14,"2-chronicles"),
- ("Ezr",15,"ezra"),("Neh",16,"nehemiah"),("Est",17,"esther"),("Job",18,"job"),("Psa",19,"psalms"),
- ("Pro",20,"proverbs"),("Ecc",21,"ecclesiastes"),("Sng",22,"song-of-solomon"),("Isa",23,"isaiah"),
- ("Jer",24,"jeremiah"),("Lam",25,"lamentations"),("Eze",26,"ezekiel"),("Dan",27,"daniel"),("Hos",28,"hosea"),
- ("Joe",29,"joel"),("Amo",30,"amos"),("Oba",31,"obadiah"),("Jon",32,"jonah"),("Mic",33,"micah"),
- ("Nah",34,"nahum"),("Hab",35,"habakkuk"),("Zep",36,"zephaniah"),("Hag",37,"haggai"),("Zec",38,"zechariah"),
- ("Mal",39,"malachi"),("Mat",40,"matthew"),("Mar",41,"mark"),("Luk",42,"luke"),("Jhn",43,"john"),
- ("Act",44,"acts"),("Rom",45,"romans"),("1Co",46,"1-corinthians"),("2Co",47,"2-corinthians"),
- ("Gal",48,"galatians"),("Eph",49,"ephesians"),("Phl",50,"philippians"),("Col",51,"colossians"),
- ("1Th",52,"1-thessalonians"),("2Th",53,"2-thessalonians"),("1Ti",54,"1-timothy"),("2Ti",55,"2-timothy"),
- ("Tit",56,"titus"),("Phm",57,"philemon"),("Heb",58,"hebrews"),("Jas",59,"james"),("1Pe",60,"1-peter"),
- ("2Pe",61,"2-peter"),("1Jo",62,"1-john"),("2Jo",63,"2-john"),("3Jo",64,"3-john"),("Jde",65,"jude"),
- ("Rev",66,"revelation"),
+# kaiserlik/KJV source-file abbreviations, in canonical order (gen_strongs reads kjv/<Abbr>.json).
+# The book number + slug come from the shared canonical table; only the abbreviation is source-specific.
+KJV_ABBRS = [
+ "Gen","Exo","Lev","Num","Deu","Jos","Jdg","Rth","1Sa","2Sa","1Ki","2Ki","1Ch","2Ch","Ezr","Neh","Est",
+ "Job","Psa","Pro","Ecc","Sng","Isa","Jer","Lam","Eze","Dan","Hos","Joe","Amo","Oba","Jon","Mic","Nah",
+ "Hab","Zep","Hag","Zec","Mal","Mat","Mar","Luk","Jhn","Act","Rom","1Co","2Co","Gal","Eph","Phl","Col",
+ "1Th","2Th","1Ti","2Ti","Tit","Phm","Heb","Jas","1Pe","2Pe","1Jo","2Jo","3Jo","Jde","Rev",
 ]
-NUM = {slug: n for _, n, slug in BOOKS}
+BOOKS = [(ab, n, s) for ab, (n, s, _t) in zip(KJV_ABBRS, books.BOOKS)]   # (abbr, number, slug)
+NUM = books.NUM_BY_SLUG
 CODES = re.compile(r"\[([HG]\d+)\]")
 SEG = re.compile(r"((?:\[[HG]\d+\])+)")
 TAGS = re.compile(r"<[^>]+>")

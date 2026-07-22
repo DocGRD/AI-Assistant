@@ -13,12 +13,10 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root, for the shared table
+from assistant_core.bible.books import book_label   # slug -> Title (canonical, e.g. "Song of Solomon")
+
 CHAPTER_RE = re.compile(r"^(?P<slug>.+)-(?P<ch>\d+)\.md$")
-
-
-def book_label(slug: str) -> str:
-    return " ".join(w if (len(w) <= 2 and w[:1].isdigit()) else w.capitalize()
-                    for w in slug.split("-"))
 
 
 def nav_line(booknum: str, slug: str, version: str, chapter: int, has_next: bool) -> str:

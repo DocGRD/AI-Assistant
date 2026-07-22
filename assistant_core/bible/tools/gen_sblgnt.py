@@ -28,17 +28,15 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root, for the shared table
+from assistant_core.bible import books
+
 # SBLGNT editorial/apparatus marks (marginal-reading diamonds, half-brackets, double brackets) — strip
 # them from the displayed word so the interlinear reads cleanly.
 _APPARATUS = re.compile(r"[⸀-⹏⟦⟧]")
 
 # index 0 = Matthew (booknum 40); MorphGNT ref book 01=Matthew … 27=Revelation → +39.
-NT_SLUGS = [
-    "matthew", "mark", "luke", "john", "acts", "romans", "1-corinthians", "2-corinthians",
-    "galatians", "ephesians", "philippians", "colossians", "1-thessalonians", "2-thessalonians",
-    "1-timothy", "2-timothy", "titus", "philemon", "hebrews", "james", "1-peter", "2-peter",
-    "1-john", "2-john", "3-john", "jude", "revelation",
-]
+NT_SLUGS = books.NT_SLUGS
 
 _POS = {"A-": "adj", "C-": "conj", "D-": "adv", "I-": "interj", "N-": "noun", "P-": "prep",
         "RA": "art", "RD": "dem", "RI": "int", "RP": "pron", "RR": "rel", "V-": "verb", "X-": "ptcl"}
