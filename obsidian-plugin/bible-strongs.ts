@@ -315,6 +315,81 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
     });
 }
 
+// Full grammatical terms → the compact abbreviations the SBLGNT morphology uses (so a user can type
+// "aorist active participle" instead of "aor act ptcp").
+const MORPH_ALIASES: Record<string, string> = {
+    aorist: "aor", present: "pres", imperfect: "impf", future: "fut", perfect: "perf", pluperfect: "plup",
+    active: "act", middle: "mid", passive: "pass",
+    indicative: "ind", imperative: "impv", subjunctive: "subj", optative: "opt", infinitive: "inf",
+    participle: "ptcp", participial: "ptcp",
+    nominative: "nom", genitive: "gen", dative: "dat", accusative: "acc",
+    singular: "sg", plural: "pl", masculine: "masc", feminine: "fem", neuter: "neut",
+    adjective: "adj", adverb: "adv", first: "1", second: "2", third: "3",
+};
+const normMorph = (t: string): string => { const l = t.toLowerCase(); return MORPH_ALIASES[l] || l; };
+
+/** Search the SBLGNT for a lemma / Strong's number, optionally filtered by grammatical form — the
+ *  "find every aorist passive of ἀγαπάω" search that paid Bible software is known for. NT/Greek only. */
+class MorphSearchModal extends Modal {
+    constructor(private plugin: Plugin, private data: StrongsData) { super(plugin.app); }
+    async onOpen(): Promise<void> {
+        const { contentEl } = this;
+        contentEl.createEl("h3", { text: "Morphology search (SBLGNT)" });
+        if (!(await this.data.sblgntAvailable())) {
+            contentEl.createEl("p", { cls: "setting-item-description",
+                text: "The SBLGNT data isn't in this vault yet, so morphology search is unavailable." });
+            return;
+        }
+        contentEl.createEl("p", { cls: "setting-item-description",
+            text: "Find New-Testament Greek words by Strong's number or lemma, filtered by grammatical form." });
+        let key = "", morph = "";
+        new Setting(contentEl).setName("Strong's or Greek lemma")
+            .addText((t) => { t.setPlaceholder("e.g. G25 or ἀγαπάω").onChange((v) => key = v); setTimeout(() => t.inputEl.focus(), 0); });
+        new Setting(contentEl).setName("Form (optional)")
+            .setDesc("Tense / voice / mood / case / number — e.g. “aorist active”, “present participle”, “genitive plural”.")
+            .addText((t) => { t.setPlaceholder("aorist active…").onChange((v) => morph = v); });
+        const status = contentEl.createEl("p", { cls: "setting-item-description" });
+        const results = contentEl.createDiv("lm-askbible-results");
+        const run = async () => {
+            const k = key.trim();
+            if (!k) { status.setText("Enter a Strong's number (e.g. G25) or a Greek lemma."); return; }
+            const strong = /^g?\d+$/i.test(k) ? "G" + k.replace(/^g/i, "") : "";
+            const lemma = strong ? "" : k.toLowerCase();
+            const filters = morph.trim().split(/\s+/).filter(Boolean).map(normMorph);
+            status.setText("Searching…"); results.empty();
+            const ntSlugs = Object.keys(BOOK_NUM).filter((s) => BOOK_NUM[s] >= 40).sort((a, b) => BOOK_NUM[a] - BOOK_NUM[b]);
+            const hits: { slug: string; c: number; v: number; g: string; m: string }[] = [];
+            for (const slug of ntSlugs) {
+                const book = await this.data.sblgnt(slug);
+                for (const [refKey, words] of Object.entries(book || {})) {
+                    const parts = refKey.split("."); const v = +(parts.pop() || 0), c = +(parts.pop() || 0);
+                    for (const w of words) {
+                        const matchKey = strong ? w.s === strong : (w.l || "").toLowerCase().includes(lemma);
+                        if (!matchKey) continue;
+                        const mset = new Set((w.m || "").toLowerCase().split(" "));   // whole-token match ("pl" ≠ "plup")
+                        if (filters.every((f) => mset.has(f))) hits.push({ slug, c, v, g: w.g, m: w.m });
+                    }
+                }
+                if (hits.length > 600) break;
+            }
+            if (!hits.length) { status.setText("No matches — check the Strong's number/lemma and the form terms."); return; }
+            status.setText(`${hits.length}${hits.length > 600 ? "+" : ""} occurrence${hits.length > 1 ? "s" : ""}:`);
+            for (const h of hits.slice(0, 600)) {
+                const num = BOOK_NUM[h.slug];
+                const href = `bible/${pad2(num)}-${h.slug}/web/${h.slug}-${pad3(h.c)}#^v${h.v}`;
+                const row = results.createDiv("lm-askbible-row");
+                const a = row.createEl("a", { text: `${bookLabel(h.slug)} ${h.c}:${h.v}`, cls: "lm-askbible-ref", attr: { href } });
+                a.addEventListener("click", (ev) => { ev.preventDefault(); this.plugin.app.workspace.openLinkText(href, "", ev.ctrlKey || ev.metaKey); this.close(); });
+                const d = row.createDiv("lm-askbible-text");
+                d.createSpan({ cls: "lm-interlinear-grk", text: h.g + "  " });
+                d.createSpan({ cls: "lm-interlinear-morph", text: h.m });
+            }
+        };
+        new Setting(contentEl).addButton((b) => b.setButtonText("Search").setCta().onClick(() => void run()));
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
 /** Register the interlinear + concordance commands. */
 export function registerBibleStrongs(plugin: Plugin): void {
     const data = new StrongsData(plugin);
@@ -332,5 +407,10 @@ export function registerBibleStrongs(plugin: Plugin): void {
         id: "bible-concordance",
         name: "Bible: concordance (Strong's number or word)",
         callback: () => new ConcordanceModal(plugin, data).open(),
+    });
+    plugin.addCommand({
+        id: "bible-morph-search",
+        name: "Bible: morphology search (SBLGNT Greek)",
+        callback: () => new MorphSearchModal(plugin, data).open(),
     });
 }
