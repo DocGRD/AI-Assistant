@@ -1,10 +1,18 @@
-<!-- help-version: 47 -->
+<!-- help-version: 48 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.60**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.61**.*
+
+## Bible: real Hebrew Old Testament layer — WLC + morphology (v1.10.61)
+- The interlinear and concordance now work on the **actual Hebrew Old Testament**. Open any OT chapter,
+  run *"Bible: interlinear (this chapter)"*, and the **Text** switch offers **WLC (Hebrew)** — the
+  Westminster Leningrad Codex with **OSHB morphology** (e.g. "verb qal perf 3 masc sg"), rendered
+  right-to-left and keyed to Strong's. The concordance then counts verses over the Hebrew text ("· WLC").
+  This is the Old-Testament counterpart to the SBLGNT Greek New Testament — so both testaments now have a
+  real original-language layer with morphology. Sources in `AI/bible-wlc/_CREDITS.md` (OpenScriptures, CC-BY).
 
 ## Bible: Ask the Bible, morphology search, poetry + nav polish (v1.10.58–v1.10.60)
 - **Ask the Bible.** Command *"Bible: Ask the Bible (semantic search)"* — ask a question in your own

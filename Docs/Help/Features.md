@@ -1,4 +1,4 @@
-<!-- help-version: 47 -->
+<!-- help-version: 48 -->
 ---
 tags: [help, user-guide]
 ---
@@ -79,11 +79,13 @@ and a selection — they won't appear when the note is in Reading view.)
   public-domain **KJV + Strong's** (the basis of Strong's Concordance) plus the openscriptures
   lexicon. It lives in `AI/bible-strongs/` (see its `_CREDITS.md` for lexicon sources); the WEB stays
   your reading text.
-- **Modern critical text (SBLGNT).** Both the interlinear and the concordance have a **Text** switch —
-  *KJV / Strong's (TR)* or **SBLGNT (critical)**. The SBLGNT basis shows the actual modern-critical Greek
-  New Testament word-by-word with **morphology** (e.g. "verb aor act ind"), still keyed to Strong's
-  numbers, and the concordance then counts verses over the SBLGNT text. (SBLGNT is the Greek NT; OT
-  stays on KJV/Strong's.) Data in `AI/bible-sblgnt/` — see its `_CREDITS.md` for sources/licenses.
+- **Original-language texts (SBLGNT Greek + WLC Hebrew).** Both the interlinear and the concordance have
+  a **Text** switch. On a **New Testament** chapter it offers **SBLGNT (Greek)** — the modern-critical
+  Greek NT word-by-word with **morphology** (e.g. "verb aor act ind"). On an **Old Testament** chapter it
+  offers **WLC (Hebrew)** — the Hebrew OT (Westminster Leningrad Codex) with **OSHB morphology** (e.g.
+  "verb qal perf 3 masc sg"), rendered right-to-left. Both stay keyed to Strong's numbers (so the lexicon
+  works), and the concordance counts verses over whichever original text applies. Data in `AI/bible-sblgnt/`
+  and `AI/bible-wlc/` — see each `_CREDITS.md` for sources/licenses.
 
 ### Your own commentary
 
