@@ -1,10 +1,24 @@
-<!-- help-version: 46 -->
+<!-- help-version: 47 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.57**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.60**.*
+
+## Bible: Ask the Bible, morphology search, poetry + nav polish (v1.10.58–v1.10.60)
+- **Ask the Bible.** Command *"Bible: Ask the Bible (semantic search)"* — ask a question in your own
+  words and get the verses closest in **meaning** (not just keyword matches), each with its text, a link,
+  and your commentary notes on it. (Needs the running service — it uses the verse-embedding index.)
+- **Morphology search.** *"Bible: morphology search (SBLGNT Greek)"* — find New-Testament Greek words by
+  Strong's number or lemma, filtered by grammatical form ("aorist active", "present participle",
+  "genitive plural") — the search paid Bible software is known for.
+- **Poetry renders properly.** Psalms/Proverbs now show a **hanging indent** — the verse number and first
+  line at the margin, continuation lines indented — in **both** verse-by-verse and flowing-paragraph modes,
+  like a printed study Bible.
+- **Linked chapter nav.** The bottom nav is now a live copy of the top one, so editing the top updates the
+  bottom automatically, and it always sits on its own line.
+- **Paste a chapter** gains a **Paragraph breaks** field, auto-filled from the blank lines in what you paste.
 
 ## Bible: remove any cross-reference + per-type marker styling (v1.10.57)
 - **Remove a cross-reference of any kind.** The verse-number popup now has an **×** on *every* reference
