@@ -92,7 +92,9 @@ def write_book(slug: str, num: int, chapters: dict, inter: dict):
         (bdir / f"{base}.md").write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
     INTER.mkdir(parents=True, exist_ok=True)
     import json
-    (INTER / f"{slug}.json").write_text(json.dumps(inter, ensure_ascii=False), encoding="utf-8")
+    # sort each verse's words into ORIGINAL-language order (Heb/Greek sort), dropping the sort key
+    ordered = {k: [w for _s, w in sorted(v, key=lambda x: x[0])] for k, v in inter.items()}
+    (INTER / f"{slug}.json").write_text(json.dumps(ordered, ensure_ascii=False), encoding="utf-8")
 
 
 def main() -> int:
@@ -148,9 +150,13 @@ def main() -> int:
             if row[C_PAR].strip():
                 ver["para"] = True
             key = f"{slug}.{ref_ch}.{ref_v}"
-            inter.setdefault(key, []).append({
+            try:
+                osort = int((row[C_HEBSORT] if lang == "Hebrew" else row[C_GRKSORT]) or 0)
+            except ValueError:
+                osort = 0
+            inter.setdefault(key, []).append((osort, {
                 "o": row[C_ORIG].strip(), "e": gloss.strip(), "s": strong,
-                "m": row[C_MORPH].strip(), "t": row[C_TRANSLIT].strip()})
+                "m": row[C_MORPH].strip(), "t": row[C_TRANSLIT].strip()}))
             words += 1
     if cur_slug:
         write_book(cur_slug, cur_num, chapters, inter)
