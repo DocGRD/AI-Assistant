@@ -1242,6 +1242,9 @@ body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-bible-nav-block::after 
 .lm-interlinear-hbo { display: block; font-size: 1.35em; line-height: 1.5; direction: rtl; }
 .lm-interlinear-heb .lm-interlinear-morph { direction: ltr; }
 .lm-interlinear-heb .lm-strongs-num { display: block; font-size: 0.72em; direction: ltr; }
+/* Reverse interlinear (BSB): the English gloss under each original word. */
+.lm-interlinear-en-gloss { display: block; font-size: 0.82em; color: var(--text-normal); direction: ltr; }
+.lm-interlinear-heb .lm-interlinear-en-gloss { direction: ltr; }
 
 .lm-concordance-results { margin-top: 10px; }
 .lm-concordance-count { font-weight: 600; color: var(--text-accent); margin: 8px 0 4px; }

@@ -18,17 +18,21 @@ type SblgntWord = { g: string; l: string; m: string; s: string };
 type SblgntInterlinear = Record<string, SblgntWord[]>;
 type WlcWord = { h: string; m: string; s: string };           // Hebrew word, readable morph, Strong's
 type WlcInterlinear = Record<string, WlcWord[]>;
+type BsbWord = { o: string; e: string; s: string; m: string; t: string };  // orig, English gloss, Strong's, morph, translit
+type BsbInterlinear = Record<string, BsbWord[]>;
 
 const DIR = "AI/bible-strongs";           // KJV + Strong's (Textus Receptus basis)
 const SBLGNT_DIR = "AI/bible-sblgnt";      // SBLGNT (modern critical text), NT/Greek only
 const WLC_DIR = "AI/bible-wlc";            // WLC + OSHB morphology (Hebrew OT)
+const BSB_DIR = "AI/bible-bsb";            // BSB reverse interlinear (English glosses in original order), whole Bible
 const isGreek = (s: string) => s.charAt(0).toUpperCase() === "G";
 
-/** Which text the study tools sit on: KJV/Strong's (TR), the SBLGNT (Greek NT), or the WLC (Hebrew OT). */
-type StudySource = "strongs" | "sblgnt" | "wlc";
+/** Which text the study tools sit on: KJV/Strong's (TR), SBLGNT (Greek NT), WLC (Hebrew OT), or the BSB
+ *  reverse interlinear (English glosses in original word order, whole Bible). */
+type StudySource = "strongs" | "sblgnt" | "wlc" | "bsb";
 function getSource(plugin: Plugin): StudySource {
     const s = (plugin as any).settings?.bibleStudySource;
-    return (s === "sblgnt" || s === "wlc") ? s : "strongs";
+    return (s === "sblgnt" || s === "wlc" || s === "bsb") ? s : "strongs";
 }
 async function setSource(plugin: Plugin, s: StudySource): Promise<void> {
     const st = (plugin as any).settings;
@@ -63,6 +67,11 @@ class StrongsData {
     wlcConcordance() { return this.read<Concordance>(WLC_DIR, "_concordance-H.json"); }
     async wlcAvailable(): Promise<boolean> {
         return this.plugin.app.vault.adapter.exists(`${WLC_DIR}/_concordance-H.json`).catch(() => false);
+    }
+    // BSB reverse interlinear — English glosses in ORIGINAL word order, keyed to Strong's (whole Bible).
+    bsb(book: string) { return this.read<BsbInterlinear>(BSB_DIR, `${book}.json`); }
+    async bsbAvailable(book: string): Promise<boolean> {
+        return this.plugin.app.vault.adapter.exists(`${BSB_DIR}/${book}.json`).catch(() => false);
     }
     async available(): Promise<boolean> {
         return this.plugin.app.vault.adapter.exists(`${DIR}/_words.json`).catch(() => false);
@@ -124,9 +133,11 @@ class InterlinearModal extends Modal {
         const isNT = (BOOK_NUM[this.book] || 0) >= 40;
         const origKey: StudySource = isNT ? "sblgnt" : "wlc";
         const origAvail = isNT ? await this.data.sblgntAvailable() : await this.data.wlcAvailable();
+        const bsbAvail = await this.data.bsbAvailable(this.book);
         let source: StudySource = getSource(this.plugin);
         // an "original text" source only applies to its own testament (SBLGNT=NT, WLC=OT)
         if ((source === "sblgnt" || source === "wlc") && (!origAvail || source !== origKey)) source = "strongs";
+        if (source === "bsb" && !bsbAvail) source = "strongs";
 
         const toolbar = contentEl.createDiv();                    // source switch sits at the top
         const desc = contentEl.createEl("p", { cls: "setting-item-description" });
@@ -135,7 +146,25 @@ class InterlinearModal extends Modal {
 
         const render = async () => {
             body.empty();
-            if (source === "wlc") {
+            if (source === "bsb") {
+                desc.setText("English glosses in ORIGINAL word order (Berean Standard Bible), each tagged with its "
+                    + "Strong's number. Tap a number for its meaning + every verse that uses it.");
+                const inter = await this.data.bsb(this.book);
+                for (let v = 1; v < 400; v++) {
+                    const cells = inter[`${this.book}.${this.chapter}.${v}`];
+                    if (!cells) continue;
+                    const line = body.createDiv("lm-interlinear-verse");
+                    line.createSpan({ cls: "lm-interlinear-vnum", text: `${v} ` });
+                    for (const w of cells) {
+                        const wd = line.createSpan("lm-interlinear-word " + (isNT ? "lm-interlinear-gk" : "lm-interlinear-heb"));
+                        if (w.o) wd.createSpan({ cls: isNT ? "lm-interlinear-grk" : "lm-interlinear-hbo", text: w.o + " " });
+                        if (w.e) wd.createSpan({ cls: "lm-interlinear-en-gloss", text: w.e });
+                        if (w.m) wd.createSpan({ cls: "lm-interlinear-morph", text: w.m });
+                        if (w.s) wd.createEl("a", { text: " " + w.s, cls: "lm-strongs-num", href: "#" })
+                            .addEventListener("click", (e) => { e.preventDefault(); openConc(w.s); });
+                    }
+                }
+            } else if (source === "wlc") {
                 desc.setText("WLC — the Hebrew Old Testament (Westminster Leningrad Codex) with OSHB morphology, "
                     + "word-by-word + Strong's. Tap a number for its meaning and every verse that uses it.");
                 const inter = await this.data.wlc(this.book);
@@ -189,12 +218,16 @@ class InterlinearModal extends Modal {
             }
         };
 
-        if (origAvail) {
+        if (origAvail || bsbAvail) {
             const origLabel = isNT ? "SBLGNT (Greek)" : "WLC (Hebrew)";
             new Setting(toolbar).setName("Text")
-                .setDesc(`Base the interlinear on the KJV/Textus Receptus or the original ${isNT ? "Greek (SBLGNT)" : "Hebrew (WLC)"} text.`)
-                .addDropdown(d => d.addOption("strongs", "KJV / Strong's (TR)").addOption(origKey, origLabel)
-                    .setValue(source).onChange(async (v) => { source = v as StudySource; await setSource(this.plugin, source); await render(); }));
+                .setDesc("Choose the basis: KJV/Strong's, the original text, or English glosses laid out in original word order.")
+                .addDropdown(d => {
+                    d.addOption("strongs", "KJV / Strong's (TR)");
+                    if (origAvail) d.addOption(origKey, origLabel);
+                    if (bsbAvail) d.addOption("bsb", "English ⟶ original order (BSB)");
+                    d.setValue(source).onChange(async (v) => { source = v as StudySource; await setSource(this.plugin, source); await render(); });
+                });
         }
         await render();
     }
