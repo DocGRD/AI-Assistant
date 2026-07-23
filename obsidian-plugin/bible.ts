@@ -157,6 +157,30 @@ function hcScheduleHide(): void {
     hcHideTimer = window.setTimeout(() => { if (!hcOverCard) hcDestroy(); }, 180);
 }
 
+/** A small popup listing several cross-references pinned to the SAME word — shown when a collapsed
+ *  multi-marker is tapped/hovered. Each item opens its read-card. Reuses the single-card slot. */
+function showWordRefList(plugin: Plugin, anchor: HTMLElement,
+                        refs: { b: string; c: number; v: number }[], hrefFor: (t: any) => string): void {
+    hcDestroy();
+    const card = document.body.createDiv("lm-bible-hovercard lm-wordref-list");
+    hcCard = card; hcActiveAnchor = anchor;
+    card.createDiv("lm-wordref-list-head").setText(`${refs.length} cross-references`);
+    for (const t of refs) {
+        const href = hrefFor(t);
+        const a = card.createEl("a", { text: `${bookLabel(t.b)} ${t.c}:${t.v}`, cls: "lm-wordref-item", attr: { href } });
+        a.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); hcDestroy(); void showBibleHovercard(plugin, anchor, href); });
+    }
+    const r = anchor.getBoundingClientRect();
+    card.style.top = `${window.scrollY + r.bottom + 4}px`;
+    card.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 240)}px`;
+    card.addEventListener("mouseenter", () => { hcOverCard = true; });
+    card.addEventListener("mouseleave", () => { hcOverCard = false; hcScheduleHide(); });
+    setTimeout(() => {
+        const off = (ev: Event) => { if (!card.contains(ev.target as Node)) { hcDestroy(); document.removeEventListener("pointerdown", off, true); } };
+        document.addEventListener("pointerdown", off, true);
+    }, 0);
+}
+
 /** Build + position the hovercard for a marker anchor. `target` is the verse link (data-href). */
 async function showBibleHovercard(plugin: Plugin, anchor: HTMLElement, target: string): Promise<void> {
     const ref = parseBibleRef(target);
@@ -816,6 +840,23 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
         const chapter = parseInt((parts[parts.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
         if (!book || !version || !chapter) return;
 
+        // Version switcher — a small dropdown at the top-right of the chapter, listing the translations of
+        // THIS chapter you have in the vault. Selecting one opens that version's note.
+        const h1 = el.querySelector("h1");
+        const bnum = BOOK_NUM[book];
+        if (h1 && bnum && !h1.querySelector(".lm-bible-version-switch")) {
+            void plugin.app.vault.adapter.list(`bible/${pad2(bnum)}-${book}`).then((listing) => {
+                const versions = (listing.folders || []).map(f => f.split("/").pop() || "")
+                    .filter(v => v && plugin.app.vault.getAbstractFileByPath(`bible/${pad2(bnum)}-${book}/${v}/${book}-${pad3(chapter)}.md`));
+                if (versions.length < 2 || h1.querySelector(".lm-bible-version-switch")) return;
+                const sw = h1.createEl("select", { cls: "lm-bible-version-switch", attr: { "aria-label": "Switch translation" } });
+                for (const v of versions) sw.createEl("option", { text: v.toUpperCase(), value: v });
+                sw.value = version;
+                sw.addEventListener("change", () =>
+                    plugin.app.workspace.openLinkText(`bible/${pad2(bnum)}-${book}/${sw.value}/${book}-${pad3(chapter)}`, "", false));
+            }).catch(() => { /* no listing — skip */ });
+        }
+
         // Obsidian may hand us the container OR a bare <p>; collect both so we never miss a verse.
         const paras = Array.from(el.querySelectorAll("p")) as HTMLParagraphElement[];
         if (el.tagName === "P") paras.push(el as HTMLParagraphElement);
@@ -878,16 +919,29 @@ export function registerBibleCrossrefs(plugin: Plugin): void {
             // cross-reference, a related-by-meaning passage, or one you typed in yourself.
             const connected = anchorsByVerse.get(vnum) || [];
             const anchoredKeys = new Set(connected.map(a => a.target));   // don't also draw these in the clusters
-            connected.forEach((anc, i) => {
-                const t = splitAnchorTarget(anc.target);
-                if (!t || !BOOK_NUM[t.b]) return;
-                const href = hrefFor(t);
+            // Group by the word they sit on: several references on one word collapse to a SINGLE letter
+            // whose tap/hover opens the list, instead of a run of letters.
+            const byWord = new Map<number, string[]>();
+            for (const anc of connected) { const g = byWord.get(anc.wordIndex) ?? []; g.push(anc.target); byWord.set(anc.wordIndex, g); }
+            let gi = 0;
+            for (const [wordIndex, targets] of byWord) {
+                const refs = targets.map(splitAnchorTarget).filter((t): t is { b: string; c: number; v: number } => !!t && !!BOOK_NUM[t.b]);
+                if (!refs.length) continue;
+                const label = UP_LETTERS[gi] || "*"; gi++;
                 const sup = createEl("sup", { cls: "lm-xref-word" });
-                const a = sup.createEl("a", { text: UP_LETTERS[i] || "*", cls: "lm-xref-word-link",
-                    attr: { "data-href": href, href, "aria-label": `${bookLabel(t.b)} ${t.c}:${t.v}` } });
-                a.addEventListener("click", onMarkerClick(a, href));
-                if (!placeMarkerBeforeWord(p, anc.wordIndex, sup)) p.insertBefore(sup, num.nextSibling);
-            });
+                if (refs.length === 1) {
+                    const href = hrefFor(refs[0]);
+                    const a = sup.createEl("a", { text: label, cls: "lm-xref-word-link",
+                        attr: { "data-href": href, href, "aria-label": `${bookLabel(refs[0].b)} ${refs[0].c}:${refs[0].v}` } });
+                    a.addEventListener("click", onMarkerClick(a, href));
+                } else {
+                    const a = sup.createEl("a", { text: label, cls: "lm-xref-word-link lm-xref-word-multi",
+                        attr: { href: "#", "aria-label": `${refs.length} cross-references` } });
+                    a.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); showWordRefList(plugin, a, refs, hrefFor); });
+                    a.addEventListener("mouseenter", () => showWordRefList(plugin, a, refs, hrefFor));
+                }
+                if (!placeMarkerBeforeWord(p, wordIndex, sup)) p.insertBefore(sup, num.nextSibling);
+            }
             // Cross-reference markers (public-domain), quiet superscript letters clustered at the END of
             // the verse (toggle-gated, capped). Anything connected to a word above is skipped here.
             let endShown = 0;
@@ -1081,13 +1135,17 @@ function harvestParaStarts(raw: string): number[] {
 }
 
 function formatPastedChapter(raw: string, bookSlug: string, chapter: number, version: string,
-                            poetry = false, paraStartsInput = "") {
+                            poetry = false, paraStartsInput = "", poetryVersesInput = "") {
     bookSlug = bookSlug.toLowerCase().trim();
     const num = BOOK_NUM[bookSlug];
     if (!num) return { error: `Unknown book slug "${bookSlug}" (use e.g. john, 1-corinthians, psalms).` };
     if (!chapter) return { error: "Enter a chapter number." };
     if (!version) return { error: "Enter a version (e.g. esv, nasb, nkjv)." };
-    const verses = splitVerses(raw, poetry);
+    // Which verses are poetry: the whole-chapter toggle, or a specific list/range (e.g. "12-14"). Poetry
+    // verses keep the pasted line breaks as stichs; prose verses flatten to one line. So always split
+    // keeping the newlines, then decide per verse.
+    const poetryVerses = new Set(poetry ? [] : parseVerseRange(poetryVersesInput));
+    const verses = splitVerses(raw, poetry || poetryVerses.size > 0);
     if (!verses.size) return { error: "Couldn't find verse numbers in the pasted text." };
     // Paragraph starts: use the user's list if given, else harvest from the pasted blank lines.
     const typed = paraStartsInput.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => n > 0);
@@ -1102,7 +1160,8 @@ function formatPastedChapter(raw: string, bookSlug: string, chapter: number, ver
         "bible-parastarts:", ...paraStarts.map(n => `  - ${n}`),
         "---", "", `# ${bookLabel(bookSlug)} ${chapter}`, "", `${nav} ^nav`, ""];
     const body = [...verses.keys()].sort((a, b) => a - b).map(n => {
-        const vt = poetry ? poetryFormat(verses.get(n)!) : (verses.get(n) || "").replace(/\s*\n\s*/g, " ");
+        const isPoetry = poetry || poetryVerses.has(n);
+        const vt = isPoetry ? poetryFormat(verses.get(n)!) : (verses.get(n) || "").replace(/\s*\n\s*/g, " ");
         return `**${n}** ${vt} ^v${n}`;
     });
     // Blank line BETWEEN verses (\n\n) so each renders as its own paragraph. Bottom nav = a transclusion
@@ -1124,8 +1183,11 @@ class BiblePasteModal extends Modal {
             .addText(t => t.onChange(v => book = v));
         new Setting(contentEl).setName("Chapter").addText(t => { t.inputEl.type = "number"; t.onChange(v => chapter = v); });
         new Setting(contentEl).setName("Version").setDesc("e.g. esv, nasb, nkjv").addText(t => t.onChange(v => version = v));
-        new Setting(contentEl).setName("Poetry").setDesc("keep the pasted line breaks as poetic lines (for Psalms, Proverbs…)")
+        let poetryVerses = "";
+        new Setting(contentEl).setName("Poetry (whole chapter)").setDesc("keep ALL the pasted line breaks as poetic lines (for Psalms, Proverbs…)")
             .addToggle(t => t.setValue(false).onChange(v => poetry = v));
+        new Setting(contentEl).setName("Poetry verses").setDesc("Or mark just a SECTION as poetry — verse numbers/ranges, e.g. “12-14”. Those verses keep the pasted line breaks; the rest flow as prose.")
+            .addText(t => { t.setPlaceholder("e.g. 12-14").onChange(v => poetryVerses = v); });
         let paraInput: any = null;
         new Setting(contentEl).setName("Paragraph breaks")
             .setDesc("Verse numbers that start a new paragraph — auto-filled from blank lines in the paste; edit if needed.")
@@ -1139,7 +1201,7 @@ class BiblePasteModal extends Modal {
             if (found.length && paraInput) paraInput.setValue(found.join(", "));
         });
         new Setting(contentEl).addButton(b => b.setButtonText("Format & save").setCta().onClick(async () => {
-            const r = formatPastedChapter(ta.value, book, parseInt(chapter, 10), version.toLowerCase().trim(), poetry, paraStarts || (paraInput?.getValue() ?? ""));
+            const r = formatPastedChapter(ta.value, book, parseInt(chapter, 10), version.toLowerCase().trim(), poetry, paraStarts || (paraInput?.getValue() ?? ""), poetryVerses);
             if ("error" in r) { new Notice(r.error!); return; }
             if (this.plugin.app.vault.getAbstractFileByPath(r.path)) { new Notice(`Already exists: ${r.path}`); return; }
             const folder = r.path.split("/").slice(0, -1).join("/");

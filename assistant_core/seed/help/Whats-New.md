@@ -1,10 +1,22 @@
-<!-- help-version: 49 -->
+<!-- help-version: 50 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.62**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.63**.*
+
+## Bible: version switcher, poetry sections on paste, collapsed word cross-references (v1.10.63)
+- **Switch translation from the chapter.** A small **version dropdown** sits at the **top-right** of every
+  chapter — it lists the translations of that chapter you have in the vault (e.g. WEB / KJV / ESV) and
+  jumps straight to the one you pick.
+- **Mark just a section as poetry when pasting.** The *"Bible: paste a chapter"* dialog has a new **Poetry
+  verses** field — enter a verse or range (e.g. `12-14`) and only those verses keep the pasted line breaks
+  as poetic stichs (hanging indent), while the rest flow as prose. (The whole-chapter Poetry toggle still
+  exists for Psalms/Proverbs.)
+- **Several cross-references on one word collapse to one letter.** When you connect more than one
+  cross-reference to the same word, they now show a **single** letter with a small **⁺**; tap or hover it
+  to open the list.
 
 ## Bible: reading plans, topical study notes, textual variants + onboarding (v1.10.62)
 - **Reading plans.** *"Bible: create a reading plan"* builds a dated, tick-as-you-go plan dividing a scope

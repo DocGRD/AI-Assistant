@@ -1133,6 +1133,12 @@
 }
 .markdown-preview-view.bible a.lm-xref-word-link:hover { text-decoration: underline; }
 .theme-dark .markdown-preview-view.bible a.lm-xref-word-link { color: var(--lm-wordxref-color, #c4b5fd); }
+/* Several cross-references on one word collapse to a single letter with a small ⁺ (tap/hover → list). */
+.markdown-preview-view.bible a.lm-xref-word-multi::after { content: "⁺"; font-size: 0.85em; opacity: 0.8; }
+.lm-wordref-list { padding: 6px 8px; min-width: 140px; }
+.lm-wordref-list-head { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+.lm-wordref-item { display: block; padding: 2px 0; color: var(--text-accent); cursor: pointer; font-size: 13px; }
+.lm-wordref-item:hover { text-decoration: underline; }
 /* A reference you've hidden (removed) still lists in the verse popup — dimmed + struck through, with
    the × becoming a ↺ restore. */
 .loremaster-bible-allxref-row.lm-allxref-hidden .loremaster-bible-allxref-item {
@@ -1187,6 +1193,13 @@ body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-bible-nav-block::after 
 }
 .markdown-preview-view.bible p.lm-poetry br { line-height: 1.7; }
 
+/* Version switcher — a small dropdown floated to the top-right of the chapter heading. */
+.markdown-preview-view.bible h1 { position: relative; }
+.markdown-preview-view.bible select.lm-bible-version-switch {
+  position: absolute; top: 0; right: 0; font-size: 0.5em; padding: 2px 4px;
+  color: var(--text-muted); background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border); border-radius: 5px; cursor: pointer;
+}
 /* Chapter nav (prev · book · next) — quiet, centred, always on its own line. */
 .markdown-preview-view.bible p.lm-bible-nav {
   text-align: center; color: var(--text-muted); font-size: 0.9em; margin: 0.4em 0;
