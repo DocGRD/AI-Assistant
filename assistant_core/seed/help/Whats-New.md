@@ -1,10 +1,16 @@
-<!-- help-version: 53 -->
+<!-- help-version: 54 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.66**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.67**.*
+
+## Bible: the approximation engine now aligns poetry too (v1.10.67)
+- **Psalms, Proverbs and other poetry now get their approximate Strong's links.** The alignment engine
+  read a verse as a single line, so a poetic verse whose lines (stichs) wrap across the page was skipped.
+  It now gathers a verse's stichs together before aligning, so poetry chapters are connected to the
+  original languages just like prose — and it tolerates either line-ending style in a pasted chapter.
 
 ## Bible: inserted poetry passages keep their shape (v1.10.66)
 - **A Psalm (or any poetry) inserted into a note now renders as poetry**, not a run-on paragraph. Each

@@ -40,6 +40,26 @@ const STOP = new Set(["the", "a", "an", "of", "and", "to", "in", "is", "was", "f
 function tokenizeVerse(body: string): string[] {
     return decodeEntities(body.replace(/<[^>]+>/g, "")).split(/\s+/).filter(Boolean);
 }
+
+/** Extract each verse of a chapter note as { verse, body } — MULTI-LINE aware. A poetry verse whose stichs
+ *  span several lines (`**1** …rage⏎ and …vain? ^v1`) is gathered into one body, so it aligns like prose.
+ *  The reader renders those stichs into a single verse <p> (with <br>s), so a whitespace tokenise of `body`
+ *  yields the same words + indices the overlay uses. */
+function versesFromMd(md: string): { verse: string; body: string }[] {
+    const out: { verse: string; body: string }[] = [];
+    let cur: { verse: string; parts: string[] } | null = null;
+    for (const line of md.split(/\r?\n/)) {   // tolerate CRLF — a stray \r breaks the `(.*)$` start match
+        const start = line.match(/^\*\*(\d+)\*\*[ \t]*(.*)$/);
+        if (start) cur = { verse: start[1], parts: [start[2]] };
+        else if (cur) cur.parts.push(line);
+        if (cur && new RegExp(`\\^v${cur.verse}\\b`).test(line)) {
+            const body = cur.parts.join(" ").replace(new RegExp(`[ \\t]*\\^v${cur.verse}\\b.*$`), "").trim();
+            out.push({ verse: cur.verse, body });
+            cur = null;
+        }
+    }
+    return out;
+}
 function decodeEntities(s: string): string {
     return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;|&rsquo;|&apos;/g, "'");
 }
@@ -164,13 +184,9 @@ export async function alignChapter(plugin: Plugin, book: string, version: string
     const ultVerse = (key: string): RefVerse => (ult[key] || []).map(x => ({ w: x.e, s: x.s }));
 
     const result: GuessChapter = {};
-    for (const line of md.split("\n")) {
-        const m = line.match(/^\*\*(\d+)\*\*\s+(.*?)\s*\^v\1\s*$/);
-        if (!m) continue;
-        const verse = m[1];
+    for (const { verse, body } of versesFromMd(md)) {
         const key = `${book}.${chapter}.${verse}`;
-        const rawTokens = tokenizeVerse(m[2]);
-        const X = rawTokens.map(clean);
+        const X = tokenizeVerse(body).map(clean);
         if (!X.some(Boolean)) continue;
 
         // Each anchor projects a Strong's onto each pasted word; collect the votes.
@@ -276,10 +292,7 @@ export async function mergedTagsForChapter(plugin: Plugin, book: string, version
     const dec = readDecisions(fm);
 
     const tokensByVerse: Record<string, string[]> = {};
-    for (const line of md.split("\n")) {
-        const m = line.match(/^\*\*(\d+)\*\*\s+(.*?)\s*\^v\1\s*$/);
-        if (m) tokensByVerse[`${book}.${chapter}.${m[1]}`] = tokenizeVerse(m[2]);
-    }
+    for (const { verse, body } of versesFromMd(md)) tokensByVerse[`${book}.${chapter}.${verse}`] = tokenizeVerse(body);
 
     const out: Record<string, MergedTag[]> = {};
     const verseKeys = new Set<string>([...Object.keys(tokensByVerse)]);
@@ -385,7 +398,7 @@ class ReviewGuessesModal extends Modal {
         ]);
         const dec = readDecisions(this.plugin.app.metadataCache.getCache(notePath)?.frontmatter);
         const tokensByVerse: Record<number, string[]> = {};
-        for (const line of md.split("\n")) { const m = line.match(/^\*\*(\d+)\*\*\s+(.*?)\s*\^v\1\s*$/); if (m) tokensByVerse[+m[1]] = tokenizeVerse(m[2]); }
+        for (const { verse, body } of versesFromMd(md)) tokensByVerse[+verse] = tokenizeVerse(body);
         const decided = (v: number, w: number) => dec.confirmed.has(`${v}:${w}`) || dec.edited.has(`${v}:${w}`) || dec.rejected.has(`${v}:${w}`);
         // Only the UNCERTAIN guesses need review — high-confidence links (multi-anchor exact matches) are
         // almost always right, so reviewing them would bury the ~dozen that actually need a decision.
