@@ -1404,6 +1404,9 @@ sup.lm-comm-sup { margin-left: 1px; }
   font-family: var(--font-text);
 }
 .lm-passage-text { margin: 0; line-height: 1.75; }
+/* Poetry passage: each verse a hanging-indent block (first stich at the margin, continuation stichs
+   indented) — the reader's poetic look inside an inserted passage. */
+.lm-passage-poetry { padding-left: 1.7em; text-indent: -1.7em; margin: 0.1em 0; }
 .lm-passage-vnum {
   font-size: 0.68em; font-weight: 600; color: var(--text-accent);
   vertical-align: super; line-height: 0; margin: 0 1px 0 2px;

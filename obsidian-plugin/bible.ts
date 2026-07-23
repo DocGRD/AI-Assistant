@@ -1576,7 +1576,10 @@ function appendVerseInline(p: HTMLElement, raw: string): void {
     const emit = (parent: HTMLElement, text: string) => {
         text.split("\n").forEach((seg, i) => {
             if (i > 0) parent.createEl("br");
-            if (seg) parent.appendText(seg);
+            // A continuation stich (after a <br>) gets its leading indent from the CSS hanging indent, so
+            // drop any leading spaces/em-spaces in the source so they don't add a stray gap.
+            const s = i > 0 ? seg.replace(/^\s+/, "") : seg;
+            if (s) parent.appendText(s);
         });
     };
     const re = /<span class="(lm-wj|lm-s)"(?:\s+data-s="([^"]*)")?>([\s\S]*?)<\/span>/g;
@@ -1611,16 +1614,31 @@ export function registerBiblePassageEmbed(plugin: Plugin): void {
         }
         const nums = parseVerseRange(cfg.verses);
         const linkbase = `bible/${pad2(num)}-${book}/${version}/${book}-${pad3(chapter)}`;
-        const para = box.createEl("p", { cls: "lm-passage-text" });
-        let got = 0;
+        // Read every verse first, so we can tell POETRY (a verse carries stich line-breaks) from prose.
+        const verses: { v: number; raw: string }[] = [];
         for (const v of nums) {
             const raw = await readVerseRaw(plugin, linkbase, `v${v}`);
-            if (!raw) continue;
-            para.createEl("sup", { cls: "lm-passage-vnum", text: String(v) });
-            para.appendText(" ");
-            appendVerseInline(para, raw);
-            para.appendText(" ");
-            got++;
+            if (raw) verses.push({ v, raw });
+        }
+        const got = verses.length;
+        if (verses.some(x => x.raw.includes("\n"))) {
+            // Poetry — each verse is its OWN hanging-indent block (verse number + first stich at the
+            // margin, continuation stichs indented), like the reader; not one flowing blob.
+            for (const { v, raw } of verses) {
+                const line = box.createEl("p", { cls: "lm-passage-text lm-passage-poetry" });
+                line.createEl("sup", { cls: "lm-passage-vnum", text: String(v) });
+                line.appendText(" ");
+                appendVerseInline(line, raw);
+            }
+        } else {
+            // Prose — one flowing quoted paragraph with inline superscript verse numbers.
+            const para = box.createEl("p", { cls: "lm-passage-text" });
+            for (const { v, raw } of verses) {
+                para.createEl("sup", { cls: "lm-passage-vnum", text: String(v) });
+                para.appendText(" ");
+                appendVerseInline(para, raw);
+                para.appendText(" ");
+            }
         }
         if (!got) {
             box.empty();

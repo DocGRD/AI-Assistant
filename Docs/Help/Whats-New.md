@@ -1,10 +1,16 @@
-<!-- help-version: 52 -->
+<!-- help-version: 53 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.65**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.66**.*
+
+## Bible: inserted poetry passages keep their shape (v1.10.66)
+- **A Psalm (or any poetry) inserted into a note now renders as poetry**, not a run-on paragraph. Each
+  verse of an inserted `bible-passage` sits on its own line with a **hanging indent** — the verse number
+  and first line at the margin, continuation lines indented — exactly like the reading view. Prose
+  passages still flow as one quoted paragraph.
 
 ## Bible: connect ANY translation to the original languages — the approximation engine (v1.10.65)
 - **Every version gets Strong's, lexicon, concordance and interlinear — even ones you paste.** When you
