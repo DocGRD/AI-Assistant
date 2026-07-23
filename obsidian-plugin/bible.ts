@@ -1621,23 +1621,23 @@ export function registerBiblePassageEmbed(plugin: Plugin): void {
             if (raw) verses.push({ v, raw });
         }
         const got = verses.length;
-        if (verses.some(x => x.raw.includes("\n"))) {
-            // Poetry — each verse is its OWN hanging-indent block (verse number + first stich at the
-            // margin, continuation stichs indented), like the reader; not one flowing blob.
-            for (const { v, raw } of verses) {
+        // Render each verse by its OWN type, so a mixed passage reads right: a POETRY verse (its raw
+        // carries stich line-breaks) becomes its own hanging-indent block; consecutive PROSE verses flow
+        // together in one quoted paragraph.
+        let prose: HTMLElement | null = null;
+        for (const { v, raw } of verses) {
+            if (raw.includes("\n")) {
+                prose = null;
                 const line = box.createEl("p", { cls: "lm-passage-text lm-passage-poetry" });
                 line.createEl("sup", { cls: "lm-passage-vnum", text: String(v) });
                 line.appendText(" ");
                 appendVerseInline(line, raw);
-            }
-        } else {
-            // Prose — one flowing quoted paragraph with inline superscript verse numbers.
-            const para = box.createEl("p", { cls: "lm-passage-text" });
-            for (const { v, raw } of verses) {
-                para.createEl("sup", { cls: "lm-passage-vnum", text: String(v) });
-                para.appendText(" ");
-                appendVerseInline(para, raw);
-                para.appendText(" ");
+            } else {
+                if (!prose) prose = box.createEl("p", { cls: "lm-passage-text" });
+                prose.createEl("sup", { cls: "lm-passage-vnum", text: String(v) });
+                prose.appendText(" ");
+                appendVerseInline(prose, raw);
+                prose.appendText(" ");
             }
         }
         if (!got) {

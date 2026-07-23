@@ -1,10 +1,17 @@
-<!-- help-version: 54 -->
+<!-- help-version: 55 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.67**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.68**.*
+
+## Bible: inserted passages that mix prose and poetry render right (v1.10.68)
+- **A passage that is part prose and part poetry** (many Prophets, Job, a Gospel quoting a hymn) now
+  renders each verse by its own kind: prose verses flow together in a paragraph, and a poetry verse breaks
+  out onto its own hanging-indent lines — instead of forcing the whole passage into one style. (Alignment
+  and the reading view already handled mixed chapters verse-by-verse; this fixes inserted `bible-passage`
+  blocks.)
 
 ## Bible: the approximation engine now aligns poetry too (v1.10.67)
 - **Psalms, Proverbs and other poetry now get their approximate Strong's links.** The alignment engine
