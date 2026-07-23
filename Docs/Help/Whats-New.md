@@ -1,10 +1,20 @@
-<!-- help-version: 50 -->
+<!-- help-version: 51 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.63**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.64**.*
+
+## Bible: Berean Standard Bible (BSB) — a Strong's-tagged English version + reverse interlinear (v1.10.64)
+- **A modern English translation, fully connected to the lexicon.** The **BSB** (Berean Standard Bible)
+  now ships as a reading version — open it from the **version switcher** (top-right of any chapter), and
+  every word/phrase is tagged with its **Strong's number**, so hover/tap gives you the Hebrew/Greek word,
+  meaning, and concordance, natively — just like the KJV. (Free text; nothing leaves your machine.)
+- **Reverse interlinear — English in original word order.** The interlinear **Text** switch gains
+  **"English ⟶ original order (BSB)"** for any chapter: the English glosses laid out in the Hebrew/Greek
+  word order (right-to-left for the OT), each with its parsing + Strong's. Genesis 1:1 reads
+  *In-the-beginning · created · God · the-heavens · and · the-earth*.
 
 ## Bible: version switcher, poetry sections on paste, collapsed word cross-references (v1.10.63)
 - **Switch translation from the chapter.** A small **version dropdown** sits at the **top-right** of every
