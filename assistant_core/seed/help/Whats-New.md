@@ -1,10 +1,28 @@
-<!-- help-version: 51 -->
+<!-- help-version: 52 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.64**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.65**.*
+
+## Bible: connect ANY translation to the original languages — the approximation engine (v1.10.65)
+- **Every version gets Strong's, lexicon, concordance and interlinear — even ones you paste.** When you
+  paste a translation (ESV, NASB, WEB…), LoreMaster now **guesses** each word's original-language
+  (Strong's) connection by comparing your text to the translations it already has tagged — the **BSB**,
+  the **unfoldingWord ULT**, and the **KJV**. It runs automatically after a paste (and via *"Bible: align
+  this version to the original (approximate)"* or the right-click menu), entirely on your machine.
+- **Guesses are marked approximate — and you're in control.** Approximate links show a quiet dotted amber
+  underline. Tap/hover any word to see the Hebrew/Greek word + meaning and **Confirm**, **Change…**, or
+  **Not a match**. *"Bible: review Strong's guesses"* steps through the uncertain ones (lowest-confidence
+  first) so you can clean up a chapter quickly. Your decisions are saved in the note.
+- **Reverse interlinear for your version.** Once aligned, the interlinear **Text** switch gains
+  *"English ⟶ original order (<your version>)"* — your translation's words laid out in Hebrew/Greek order.
+- **A LoreMaster right-click menu.** Right-click in any chapter (reading or edit) for a **LoreMaster**
+  menu; inside a Bible chapter it carries a submenu of the study commands (interlinear, concordance,
+  align, review, morphology, Ask the Bible, paste, reading plan…).
+- **Fixes:** collapsed multi cross-references on a word now open a proper **list** (not a bare count); on
+  phones a focused text box no longer hides **behind the keyboard**.
 
 ## Bible: Berean Standard Bible (BSB) — a Strong's-tagged English version + reverse interlinear (v1.10.64)
 - **A modern English translation, fully connected to the lexicon.** The **BSB** (Berean Standard Bible)

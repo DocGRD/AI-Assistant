@@ -1298,6 +1298,33 @@ body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-bible-nav-block::after 
 .lm-strongs-pop-open { display: inline-block; margin-top: 4px; color: var(--text-accent); text-decoration: none; font-size: 0.9em; }
 .lm-strongs-pop-open:hover { text-decoration: underline; }
 
+/* Approximate Strong's tags (the alignment engine's guesses on a pasted translation) — a quiet dotted
+   amber underline so they read as APPROXIMATE, distinct from the solid confirmed/native tags. */
+.markdown-preview-view.bible span.lm-s-guess {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--text-accent) 45%, #d08a2e);
+}
+/* confirm / change / reject controls in the Strong's popup */
+.lm-strongs-approx { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--background-modifier-border); }
+.lm-strongs-approx-label { color: var(--text-muted); font-size: 0.85em; margin-bottom: 4px; }
+.lm-strongs-approx-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+.lm-strongs-approx-btns button { font-size: 0.82em; padding: 2px 8px; }
+/* interlinear: a dimmed BSB gloss where the pasted version has no linked word yet */
+.lm-interlinear-en-fallback { color: var(--text-faint); font-style: italic; }
+
+/* Mobile: while a field is focused, top-align the modal so the on-screen keyboard can't cover it. */
+.is-mobile .modal-container.lm-modal-kbd { align-items: flex-start; }
+.is-mobile .modal-container.lm-modal-kbd .modal { margin-top: 10px; max-height: 62vh; }
+
+/* Review-guesses modal */
+.lm-review-verse { margin: 6px 0 10px; line-height: 1.6; }
+.lm-review-verse mark { padding: 0 2px; border-radius: 3px; }
+.lm-review-card { padding: 8px 10px; margin-bottom: 10px; background: var(--background-secondary); border-radius: 8px; }
+.lm-review-card .lm-review-strong { color: var(--text-accent); font-weight: 600; }
+.lm-review-card .lm-review-conf { color: var(--text-muted); font-size: 0.85em; margin-top: 4px; }
+.lm-review-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+
 /* Hide the filename (inline title) in reading mode for Bible chapters — the note has its own
    centered "# Book N" heading, so the "john-003" filename above it is redundant. */
 .markdown-preview-view.bible .inline-title,

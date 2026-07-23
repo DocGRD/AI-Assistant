@@ -1,4 +1,4 @@
-<!-- help-version: 51 -->
+<!-- help-version: 52 -->
 ---
 tags: [help, user-guide]
 ---
@@ -86,6 +86,29 @@ and a selection — they won't appear when the note is in Reading view.)
   "verb qal perf 3 masc sg"), rendered right-to-left. Both stay keyed to Strong's numbers (so the lexicon
   works), and the concordance counts verses over whichever original text applies. Data in `AI/bible-sblgnt/`
   and `AI/bible-wlc/` — see each `_CREDITS.md` for sources/licenses.
+
+### Connect a pasted translation to the original languages (approximation engine)
+
+A translation you **paste** (ESV, NASB, WEB…) has no Strong's tags of its own. The approximation engine
+supplies them so it can join the lexicon, concordance and interlinear like the KJV/BSB do:
+
+- **How it guesses.** It lines your text up, verse by verse, against the translations it already has tagged
+  — the **BSB** reverse-interlinear, the **unfoldingWord ULT** (`AI/bible-ult/`, CC-BY-SA), and the
+  **KJV + Strong's** — and projects the Strong's number each anchor agrees on. It's a local, offline
+  word-alignment (no cloud, no model); agreement across anchors + match quality set a confidence.
+- **Runs automatically** after *"Bible: paste a chapter"*, or on demand via *"Bible: align this version to
+  the original (approximate)"* (this chapter or the whole book) and the right-click LoreMaster menu.
+- **Marked approximate, and yours to correct.** Guessed links get a quiet dotted amber underline; the
+  word-hover popup offers **Confirm / Change… / Not a match**. *"Bible: review Strong's guesses"* walks the
+  uncertain ones lowest-confidence first. Decisions are stored in the note's frontmatter.
+- **Reverse interlinear.** Once aligned, the interlinear **Text** switch offers *"English ⟶ original order
+  (<your version>)"* — your words in Hebrew/Greek order. Guesses live in `AI/bible-guess/<version>/`.
+
+### Right-click menu
+
+Right-click in any note (reading view or edit) for a **LoreMaster** menu. Inside a Bible chapter it carries
+a submenu of the study commands — interlinear, concordance, morphology search, connect-this-version,
+review guesses, write a note, Ask the Bible, paste a chapter, create a reading plan.
 
 ### Your own commentary
 

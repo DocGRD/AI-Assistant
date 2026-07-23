@@ -2,9 +2,10 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, Notice, Modal, E
 import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_TYPE } from "./ChatView";
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
-import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, registerBibleSearch, registerBibleReadingPlan, applyBibleLayout, applyBibleFontScale, applyBibleXrefStyles, BibleLayout } from "./bible";
-import { registerBibleStrongs, registerBibleStrongsHover } from "./bible-strongs";
+import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, registerBibleContextMenu, registerMobileModalKeyboardFix, registerBibleSearch, registerBibleReadingPlan, applyBibleLayout, applyBibleFontScale, applyBibleXrefStyles, BibleLayout } from "./bible";
+import { registerBibleStrongs, registerBibleStrongsHover, registerBibleStrongsOverlay } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
+import { registerBibleAlign } from "./bible-align";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -68,6 +69,10 @@ export default class AIAssistantPlugin extends Plugin {
         // Right-click annotations on selected text in a Bible note: highlight, words of Christ (red),
         // tag a Strong's number — works in ANY translation (the cross-version path for red-letter/Strong's).
         registerBibleAnnotations(this);
+        // LoreMaster right-click menu (reading view + edit) with a Bible study submenu in Bible chapters.
+        registerBibleContextMenu(this);
+        // Mobile: keep a focused modal input above the on-screen keyboard.
+        registerMobileModalKeyboardFix(this);
         // "Ask the Bible" — semantic verse search over the whole Bible (verse-embedding index on the service).
         registerBibleSearch(this);
         // Bible reading plans — a dated, tick-as-you-go plan note dividing a scope across N days.
@@ -77,6 +82,11 @@ export default class AIAssistantPlugin extends Plugin {
         // Word-level Strong's popup on KJV notes — hover (desktop) / tap (mobile) a word → original
         // Hebrew/Greek word + number + gloss, with a link to the full Strong's entry.
         registerBibleStrongsHover(this);
+        // Approximation engine — connect a PASTED translation (ESV/NASB/WEB…) to the original languages by
+        // projecting it onto the tagged BSB/ULT/KJV. The overlay marks the guessed Strong's tags (so hover +
+        // concordance work); the command (re)runs the alignment; confirm/edit lives in the hover popup.
+        registerBibleStrongsOverlay(this);
+        registerBibleAlign(this);
         // Personal commentary — your own verse-attached notes, marked + listed in the reader.
         registerBibleCommentary(this);
         // Register Bible frontmatter property TYPES so Obsidian's Properties editor treats them right:
@@ -87,6 +97,9 @@ export default class AIAssistantPlugin extends Plugin {
             if (mtm?.setType) {
                 mtm.setType("bible-parastarts", "multitext");
                 mtm.setType("bible-xref-anchors", "multitext");
+                mtm.setType("bible-strongs-confirmed", "multitext");
+                mtm.setType("bible-strongs-edited", "multitext");
+                mtm.setType("bible-strongs-rejected", "multitext");
                 mtm.setType("commentary-ref", "text");
                 mtm.setType("bible-version", "text");
                 mtm.setType("bible-book", "text");

@@ -26,7 +26,8 @@ logger = logging.getLogger("assistant")
 # of cross-reference JSON is skipped (it isn't prose and would add noise).
 DEFAULT_EXCLUDES = ("AI/System", "AI/Memory/Episodes", "AI/Memory/proposed",
                     "AI/Graph", "AI/Chat", "AI/bible-crossrefs", "AI/bible-strongs",
-                    "AI/bible-sblgnt", "AI/bible-wlc", "AI/bible-bsb", "AI/bible-variants", "AI/bible-mhc")
+                    "AI/bible-sblgnt", "AI/bible-wlc", "AI/bible-bsb", "AI/bible-variants", "AI/bible-mhc",
+                    "AI/bible-ult", "AI/bible-guess")
 
 
 def _truthy(v) -> bool:

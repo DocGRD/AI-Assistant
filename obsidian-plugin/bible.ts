@@ -10,6 +10,7 @@
 
 import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Notice, Platform, Menu, Editor } from "obsidian";
 import { commentaryNotesForVerse, mhcNoteFor } from "./bible-commentary";
+import { alignAfterPaste, isNativelyTagged } from "./bible-align";
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -162,7 +163,10 @@ function hcScheduleHide(): void {
 function showWordRefList(plugin: Plugin, anchor: HTMLElement,
                         refs: { b: string; c: number; v: number }[], hrefFor: (t: any) => string): void {
     hcDestroy();
-    const card = document.body.createDiv("lm-bible-hovercard lm-wordref-list");
+    // Use the styled hovercard base (`loremaster-bible-hovercard` — position/background/border/shadow);
+    // the old `lm-bible-hovercard` class had NO CSS, so the list flowed unstyled to the page bottom and
+    // only its heading showed (looked like a bare "N cross-references" notice).
+    const card = document.body.createDiv("loremaster-bible-hovercard lm-wordref-list");
     hcCard = card; hcActiveAnchor = anchor;
     card.createDiv("lm-wordref-list-head").setText(`${refs.length} cross-references`);
     for (const t of refs) {
@@ -293,7 +297,7 @@ export function bookLabel(slug: string): string {
  *  existing <sup> markers. Tokenises the CONCATENATION of the accepted text nodes — not each node
  *  separately — so word boundaries match readVerseText (which strips spans). Otherwise a <span>
  *  (Strong's tag / red-letter) splits a word and its trailing punctuation into two tokens and drifts. */
-function wordEdgeInsertPoint(p: HTMLElement, wordIndex: number,
+export function wordEdgeInsertPoint(p: HTMLElement, wordIndex: number,
                             edge: "before" | "after"): { node: Text; offset: number } | null {
     const nodes: Text[] = [];
     let combined = "";
@@ -419,7 +423,7 @@ function rerenderActivePreview(plugin: Plugin): void {
 /** Re-render the reader AFTER the note's metadata cache reflects a frontmatter write, so anchor/hide
  *  changes show on the first render (writing frontmatter updates the cache asynchronously, so an
  *  immediate re-render would read the stale cache). Falls back to a short timeout if no event fires. */
-function rerenderAfterMetadata(plugin: Plugin, notePath: string): void {
+export function rerenderAfterMetadata(plugin: Plugin, notePath: string): void {
     const file = plugin.app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile)) { rerenderActivePreview(plugin); return; }
     let fired = false;
@@ -1210,6 +1214,8 @@ class BiblePasteModal extends Modal {
             new Notice(`Saved ${r.verses} verses → ${r.path}`);
             this.close();
             this.plugin.app.workspace.openLinkText(r.path, "", false);
+            // Auto-approximate the Strong's links for the freshly-pasted (untagged) chapter.
+            alignAfterPaste(this.plugin, book.toLowerCase().trim(), version.toLowerCase().trim(), parseInt(chapter, 10));
         }));
     }
     onClose(): void { this.contentEl.empty(); }
@@ -1220,7 +1226,7 @@ class BiblePasteModal extends Modal {
 // words of Christ (red), or tag a word with a Strong's number. These wrap the selection in the same
 // markup the reader already renders (==highlight==, <span class="lm-wj">, <span class="lm-s" data-s>),
 // so red-letter, highlighting and Strong's hover work in KJV, ESV, pasted chapters — anything.
-class StrongsInputModal extends Modal {
+export class StrongsInputModal extends Modal {
     constructor(private plugin: Plugin, private onSubmit: (n: string) => void) { super(plugin.app); }
     onOpen(): void {
         const { contentEl } = this;
@@ -1297,6 +1303,95 @@ export function registerBibleAnnotations(plugin: Plugin): void {
     };
     plugin.addCommand({ id: "bible-format-poetry", name: "Bible: format selection as poetry (indent stich lines)",
         editorCallback: formatPoetry });
+}
+
+// ── LoreMaster right-click menu ─────────────────────────────────────────────
+/** A LoreMaster section in the right-click menu across views. Reading view has no native editor menu, so
+ *  we build one on contextmenu (inside a Bible chapter, so we don't hijack right-click elsewhere); edit /
+ *  Live-Preview gets the same section appended to the native editor menu. The Bible study commands appear
+ *  in the submenu ONLY when a Bible chapter is open. */
+export function registerBibleContextMenu(plugin: Plugin): void {
+    const bibleFromPath = (path?: string): { book: string; chapter: number; version: string } | null => {
+        if (!path || !path.startsWith("bible/")) return null;
+        const pp = path.split("/");
+        if (pp.length < 4) return null;
+        const book = pp[pp.length - 3].replace(/^\d+-/, "");
+        const version = pp[pp.length - 2];
+        const chapter = parseInt((pp[pp.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
+        return chapter && BOOK_NUM[book] ? { book, chapter, version } : null;
+    };
+    const run = (id: string) => (plugin.app as any).commands?.executeCommandById(`loremaster:${id}`);
+
+    const fill = (m: Menu, bible: { book: string; chapter: number; version: string } | null, editMode: boolean) => {
+        if (bible) {
+            m.addItem(i => i.setTitle("Interlinear (this chapter)").setIcon("table-columns").onClick(() => run("bible-interlinear")));
+            m.addItem(i => i.setTitle("Concordance…").setIcon("search").onClick(() => run("bible-concordance")));
+            m.addItem(i => i.setTitle("Morphology search…").setIcon("scan-search").onClick(() => run("bible-morph-search")));
+            if (!isNativelyTagged(bible.version)) {
+                m.addItem(i => i.setTitle("Connect this version to the original (approximate)").setIcon("link").onClick(() => run("bible-align-version")));
+                m.addItem(i => i.setTitle("Review Strong's guesses").setIcon("list-checks").onClick(() => run("bible-review-guesses")));
+            }
+            m.addItem(i => i.setTitle("Write a note on this verse").setIcon("pencil").onClick(() => run("bible-write-commentary")));
+            m.addSeparator();
+        }
+        m.addItem(i => i.setTitle("Ask the Bible…").setIcon("sparkles").onClick(() => run("bible-ask")));
+        m.addItem(i => i.setTitle("Paste a chapter (new translation)…").setIcon("clipboard-paste").onClick(() => run("bible-paste-chapter")));
+        if (editMode) m.addItem(i => i.setTitle("Insert a passage…").setIcon("book-open").onClick(() => run("bible-insert-passage")));
+        m.addItem(i => i.setTitle("Create a reading plan…").setIcon("calendar-days").onClick(() => run("bible-reading-plan")));
+    };
+
+    // Parent "LoreMaster" item with the commands as a SUBMENU; fall back to a flat section on Obsidian
+    // builds without submenu support.
+    const addLoreMasterMenu = (menu: Menu, bible: { book: string; chapter: number; version: string } | null, editMode: boolean) => {
+        let parent: any = null;
+        menu.addItem(i => { parent = i; i.setTitle("LoreMaster").setIcon("book-open"); });
+        const sub = parent?.setSubmenu?.();
+        if (sub) fill(sub as Menu, bible, editMode);
+        else fill(menu, bible, editMode);
+    };
+
+    // Reading view — no native editor menu fires there, so build one ourselves (Bible chapters only).
+    // Capture phase: Obsidian handles `contextmenu` on the preview element and stops it before it would
+    // bubble to document, so we intercept first.
+    plugin.registerDomEvent(document, "contextmenu", (evt: MouseEvent) => {
+        const el = evt.target as HTMLElement;
+        if (!el?.closest?.(".markdown-reading-view, .markdown-preview-view")) return;
+        if (el.closest(".markdown-source-view")) return;                 // Live Preview → editor-menu handles it
+        const bible = bibleFromPath(plugin.app.workspace.getActiveFile()?.path);
+        if (!bible) return;                                              // only take over inside a Bible chapter
+        evt.preventDefault();
+        evt.stopPropagation();
+        const menu = new Menu();
+        const sel = window.getSelection()?.toString();
+        if (sel) menu.addItem(i => i.setTitle("Copy").setIcon("copy").onClick(() => { void navigator.clipboard?.writeText(sel); }));
+        addLoreMasterMenu(menu, bible, false);
+        menu.showAtMouseEvent(evt);
+    }, { capture: true });
+
+    // Edit / Live-Preview — append the same LoreMaster section to the native editor menu (all notes; the
+    // Bible commands only populate when the note is a Bible chapter).
+    plugin.registerEvent(plugin.app.workspace.on("editor-menu", (menu: Menu, _editor: Editor, view: any) => {
+        addLoreMasterMenu(menu, bibleFromPath(view?.file?.path), true);
+    }));
+}
+
+// ── Mobile: keep a focused input above the on-screen keyboard ────────────────
+/** On phones the on-screen keyboard covers the lower half of the screen, hiding a centered modal's text
+ *  input (reported on "Ask the Bible", but it happens in every modal). While an input/textarea is focused,
+ *  top-align its modal and scroll the field into view so the keyboard can't cover it. General (any modal),
+ *  active only on mobile and only while typing. */
+export function registerMobileModalKeyboardFix(plugin: Plugin): void {
+    if (!Platform.isMobile) return;
+    const isField = (el: any): boolean => el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+    plugin.registerDomEvent(document, "focusin", (e: FocusEvent) => {
+        const el = e.target as HTMLElement;
+        if (!isField(el)) return;
+        el.closest(".modal-container")?.addClass("lm-modal-kbd");
+        window.setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
+    });
+    plugin.registerDomEvent(document, "focusout", (e: FocusEvent) => {
+        (e.target as HTMLElement)?.closest?.(".modal-container")?.removeClass("lm-modal-kbd");
+    });
 }
 
 // ── Insert a passage into the current note ──────────────────────────────────

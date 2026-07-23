@@ -8,8 +8,9 @@
 //   _words.json          KJV head-word -> [strongs]   (word-based concordance search)
 //   _lexicon-H/G.json    {strong: {l: lemma, t: translit, g: gloss}}
 
-import { Plugin, TFile, MarkdownView, Modal, Setting, Platform } from "obsidian";
-import { BOOK_NUM, pad2, pad3, bookLabel } from "./bible";
+import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Platform } from "obsidian";
+import { BOOK_NUM, pad2, pad3, bookLabel, wordEdgeInsertPoint, StrongsInputModal, rerenderAfterMetadata } from "./bible";
+import { mergedTagsForChapter, writeDecision, isNativelyTagged } from "./bible-align";
 
 type Interlinear = Record<string, [string, string[]][]>;
 type Concordance = Record<string, string[]>;
@@ -73,6 +74,10 @@ class StrongsData {
     async bsbAvailable(book: string): Promise<boolean> {
         return this.plugin.app.vault.adapter.exists(`${BSB_DIR}/${book}.json`).catch(() => false);
     }
+    // A pasted version that has been aligned (approximate Strong's) → its own reverse interlinear.
+    async guessAvailable(version: string, book: string): Promise<boolean> {
+        return this.plugin.app.vault.adapter.exists(`AI/bible-guess/${version}/${book}.json`).catch(() => false);
+    }
     async available(): Promise<boolean> {
         return this.plugin.app.vault.adapter.exists(`${DIR}/_words.json`).catch(() => false);
     }
@@ -134,7 +139,9 @@ class InterlinearModal extends Modal {
         const origKey: StudySource = isNT ? "sblgnt" : "wlc";
         const origAvail = isNT ? await this.data.sblgntAvailable() : await this.data.wlcAvailable();
         const bsbAvail = await this.data.bsbAvailable(this.book);
-        let source: StudySource = getSource(this.plugin);
+        // This version's own approximate reverse interlinear (pasted + aligned; needs BSB for original order).
+        const alignedAvail = !isNativelyTagged(this.version) && bsbAvail && await this.data.guessAvailable(this.version, this.book);
+        let source: StudySource | "aligned" = getSource(this.plugin);
         // an "original text" source only applies to its own testament (SBLGNT=NT, WLC=OT)
         if ((source === "sblgnt" || source === "wlc") && (!origAvail || source !== origKey)) source = "strongs";
         if (source === "bsb" && !bsbAvail) source = "strongs";
@@ -159,6 +166,33 @@ class InterlinearModal extends Modal {
                         const wd = line.createSpan("lm-interlinear-word " + (isNT ? "lm-interlinear-gk" : "lm-interlinear-heb"));
                         if (w.o) wd.createSpan({ cls: isNT ? "lm-interlinear-grk" : "lm-interlinear-hbo", text: w.o + " " });
                         if (w.e) wd.createSpan({ cls: "lm-interlinear-en-gloss", text: w.e });
+                        if (w.m) wd.createSpan({ cls: "lm-interlinear-morph", text: w.m });
+                        if (w.s) wd.createEl("a", { text: " " + w.s, cls: "lm-strongs-num", href: "#" })
+                            .addEventListener("click", (e) => { e.preventDefault(); openConc(w.s); });
+                    }
+                }
+            } else if (source === "aligned") {
+                desc.setText(`Your ${this.version.toUpperCase()} words laid out in ORIGINAL word order — the approximate `
+                    + "connections (confirm or edit each in the reader). Dimmed = the BSB gloss where no "
+                    + `${this.version.toUpperCase()} word is linked yet. Tap a number for its meaning and every verse that uses it.`);
+                const inter = await this.data.bsb(this.book);                                  // original word order + Strong's
+                const merged = await mergedTagsForChapter(this.plugin, this.book, this.version, this.chapter);
+                for (let v = 1; v < 400; v++) {
+                    const cells = inter[`${this.book}.${this.chapter}.${v}`];
+                    if (!cells) continue;
+                    const q = new Map<string, string[]>();                                     // Strong's → this version's word(s)
+                    for (const t of merged[`${this.book}.${this.chapter}.${v}`] || []) {
+                        if (!t.s || !t.text) continue;
+                        if (!q.has(t.s)) q.set(t.s, []);
+                        q.get(t.s)!.push(t.text);
+                    }
+                    const line = body.createDiv("lm-interlinear-verse");
+                    line.createSpan({ cls: "lm-interlinear-vnum", text: `${v} ` });
+                    for (const w of cells) {
+                        const wd = line.createSpan("lm-interlinear-word " + (isNT ? "lm-interlinear-gk" : "lm-interlinear-heb"));
+                        if (w.o) wd.createSpan({ cls: isNT ? "lm-interlinear-grk" : "lm-interlinear-hbo", text: w.o + " " });
+                        const eng = q.get(w.s)?.shift();
+                        wd.createSpan({ cls: eng ? "lm-interlinear-en-gloss" : "lm-interlinear-en-gloss lm-interlinear-en-fallback", text: eng || w.e });
                         if (w.m) wd.createSpan({ cls: "lm-interlinear-morph", text: w.m });
                         if (w.s) wd.createEl("a", { text: " " + w.s, cls: "lm-strongs-num", href: "#" })
                             .addEventListener("click", (e) => { e.preventDefault(); openConc(w.s); });
@@ -218,7 +252,7 @@ class InterlinearModal extends Modal {
             }
         };
 
-        if (origAvail || bsbAvail) {
+        if (origAvail || bsbAvail || alignedAvail) {
             const origLabel = isNT ? "SBLGNT (Greek)" : "WLC (Hebrew)";
             new Setting(toolbar).setName("Text")
                 .setDesc("Choose the basis: KJV/Strong's, the original text, or English glosses laid out in original word order.")
@@ -226,7 +260,12 @@ class InterlinearModal extends Modal {
                     d.addOption("strongs", "KJV / Strong's (TR)");
                     if (origAvail) d.addOption(origKey, origLabel);
                     if (bsbAvail) d.addOption("bsb", "English ⟶ original order (BSB)");
-                    d.setValue(source).onChange(async (v) => { source = v as StudySource; await setSource(this.plugin, source); await render(); });
+                    if (alignedAvail) d.addOption("aligned", `English ⟶ original order (${this.version.toUpperCase()})`);
+                    d.setValue(source).onChange(async (v) => {
+                        source = v as StudySource | "aligned";
+                        if (v !== "aligned") await setSource(this.plugin, source as StudySource);   // "aligned" is version-specific, not a global default
+                        await render();
+                    });
                 });
         }
         await render();
@@ -352,6 +391,35 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
         }
         c.createEl("a", { text: "Open Strong's entry →", cls: "lm-strongs-pop-open", href: "#" })
             .addEventListener("click", (e) => { e.preventDefault(); const s = codes[0]; destroy(); new ConcordanceModal(plugin, data, s).open(); });
+
+        // Approximation controls — for guessed tags (overlay) and the user's own confirmed/edited ones,
+        // let them confirm / change / reject the connection right from the popup.
+        const guess = span.getAttribute("data-guess") === "1";
+        const approx = guess || span.getAttribute("data-approx") === "1";
+        if (approx) {
+            const verse = parseInt(span.getAttribute("data-lm-verse") || "0", 10);
+            const widx = parseInt(span.getAttribute("data-lm-widx") || "-1", 10);
+            const notePath = plugin.app.workspace.getActiveFile()?.path || "";
+            const foot = c.createDiv("lm-strongs-approx");
+            foot.createDiv({ cls: "lm-strongs-approx-label", text: guess ? "≈ approximate — is this right?" : "✓ your confirmed link" });
+            const btns = foot.createDiv("lm-strongs-approx-btns");
+            const act = (fn: () => Promise<void>) => { destroy(); void (async () => { await fn(); rerenderAfterMetadata(plugin, notePath); })(); };
+            if (verse && widx >= 0 && notePath) {
+                if (guess) btns.createEl("button", { text: "Confirm" })
+                    .addEventListener("click", () => act(() => writeDecision(plugin, notePath, verse, widx, "confirm", codes[0])));
+                btns.createEl("button", { text: "Change…" }).addEventListener("click", () => {
+                    destroy();
+                    new StrongsInputModal(plugin, (n) => { void (async () => {
+                        await writeDecision(plugin, notePath, verse, widx, "edit", n);
+                        rerenderAfterMetadata(plugin, notePath);
+                    })(); }).open();
+                });
+                btns.createEl("button", { text: "Not a match" })
+                    .addEventListener("click", () => act(() => writeDecision(plugin, notePath, verse, widx, "reject")));
+                if (!guess) btns.createEl("button", { text: "Revert to guess" })
+                    .addEventListener("click", () => act(() => writeDecision(plugin, notePath, verse, widx, "clear")));
+            }
+        }
         const r = span.getBoundingClientRect();
         c.style.top = `${window.scrollY + r.bottom + 4}px`;
         c.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 320)}px`;
@@ -381,6 +449,60 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
         if (dwell) window.clearTimeout(dwell);
         dwell = window.setTimeout(() => void build(s), 220);
         s.addEventListener("mouseleave", () => { if (dwell) { window.clearTimeout(dwell); dwell = null; } scheduleHide(); }, { once: true });
+    });
+}
+
+/** Wrap the (wordIndex)-th word of a verse <p> in a Strong's span (used by the overlay for pasted
+ *  versions that have no baked tags). Uses the reader's word tokeniser so indices match the guess data.
+ *  Wrapping doesn't change the verse's visible text, so processing words in any order stays consistent. */
+function wrapWordSpan(p: HTMLElement, wordIndex: number, strong: string, guess: boolean, verse: number): boolean {
+    const b = wordEdgeInsertPoint(p, wordIndex, "before");
+    const a = wordEdgeInsertPoint(p, wordIndex, "after");
+    if (!b || !a || b.node !== a.node || a.offset <= b.offset) return false;   // word split across nodes — skip
+    const mid = b.node.splitText(b.offset);
+    mid.splitText(a.offset - b.offset);
+    const span = document.createElement("span");
+    span.className = guess ? "lm-s lm-s-guess" : "lm-s";
+    span.setAttribute("data-s", strong);
+    span.setAttribute("data-lm-verse", String(verse));
+    span.setAttribute("data-lm-widx", String(wordIndex));
+    span.setAttribute(guess ? "data-guess" : "data-approx", "1");
+    mid.parentNode!.insertBefore(span, mid);
+    span.appendChild(mid);
+    return true;
+}
+
+/** Reader overlay: for a pasted (non-natively-tagged) version, wrap each word that the approximation
+ *  engine linked to a Strong's number in an `lm-s` span — so the same hover/concordance the KJV & BSB
+ *  enjoy works here too. Guessed links get `.lm-s-guess` (marked approximate); confirmed/edited ones
+ *  render solid. Data comes from the guess sidecar merged with the note's confirm/edit/reject frontmatter. */
+export function registerBibleStrongsOverlay(plugin: Plugin): void {
+    plugin.registerMarkdownPostProcessor(async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+        const path = ctx.sourcePath || "";
+        if (!path.startsWith("bible/")) return;
+        const parts = path.split("/");
+        if (parts.length < 4) return;
+        const book = parts[parts.length - 3].replace(/^\d+-/, "");
+        const version = parts[parts.length - 2];
+        const chapter = parseInt((parts[parts.length - 1].match(/-(\d+)\.md$/) || [])[1] || "", 10);
+        if (!book || !version || !chapter || !BOOK_NUM[book] || isNativelyTagged(version)) return;
+
+        const merged = await mergedTagsForChapter(plugin, book, version, chapter);
+        if (!Object.keys(merged).length) return;
+
+        const paras = Array.from(el.querySelectorAll("p")) as HTMLParagraphElement[];
+        if (el.tagName === "P") paras.push(el as HTMLParagraphElement);
+        for (const p of paras) {
+            const s = p.firstElementChild;
+            if (!(s && s.tagName === "STRONG" && /^\d+$/.test((s.textContent || "").trim()))) continue;
+            if (p.hasAttribute("data-lm-strongs")) continue;
+            p.setAttribute("data-lm-strongs", "1");
+            const verse = (s.textContent || "").trim();
+            const tags = merged[`${book}.${chapter}.${verse}`];
+            if (!tags || !tags.length) continue;
+            if (p.querySelector("span.lm-s")) continue;                 // already has baked/manual tags — don't double up
+            for (const t of [...tags].sort((x, y) => y.w - x.w)) if (t.s) wrapWordSpan(p, t.w, t.s, t.guess, parseInt(verse, 10));
+        }
     });
 }
 
