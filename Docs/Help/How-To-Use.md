@@ -1,4 +1,4 @@
-<!-- help-version: 56 -->
+<!-- help-version: 57 -->
 ---
 tags: [help, user-guide]
 ---
@@ -137,6 +137,11 @@ Strong's-tagged; you can paste any translation you're licensed to use.
   English words supplied for clarity get no link at all.
 - Guesses show a dotted amber underline — tap one to **Confirm**, **Change…** or **Not a match**.
   *Bible: review Strong's guesses* walks the uncertain ones, least confident first.
+- **Connect a word yourself** — select the English and choose *"Connect … to an original word"*
+  (right-click or command); a picker lists the verse's Greek/Hebrew words (manuscript form, parsing, gloss,
+  Strong's) to click. Several English words can link to one original word.
+- **Word popup** — hover/tap any tagged word for its **manuscript form + parsing**, **lemma**, meaning, and
+  **root/derivation**.
 
 **Study and write**
 - **Your commentary** — *Bible: write a note on this verse* / *attach a note to selection*.

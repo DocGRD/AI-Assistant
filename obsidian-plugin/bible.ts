@@ -1364,6 +1364,13 @@ export function registerBibleContextMenu(plugin: Plugin): void {
         const menu = new Menu();
         const sel = window.getSelection()?.toString();
         if (sel) menu.addItem(i => i.setTitle("Copy").setIcon("copy").onClick(() => { void navigator.clipboard?.writeText(sel); }));
+        // Connect the highlighted English to an original word (only for a non-native version — KJV/BSB
+        // are already tagged), shown right at the top when there's a selection.
+        if (sel && sel.trim() && !isNativelyTagged(bible.version)) {
+            const short = sel.trim().length > 24 ? sel.trim().slice(0, 24) + "…" : sel.trim();
+            menu.addItem(i => i.setTitle(`Connect “${short}” to an original word`).setIcon("link")
+                .onClick(() => run("bible-connect-original")));
+        }
         addLoreMasterMenu(menu, bible, false);
         menu.showAtMouseEvent(evt);
     }, { capture: true });

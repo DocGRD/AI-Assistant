@@ -286,35 +286,47 @@ async function writeGuessSidecar(plugin: Plugin, version: string, book: string, 
 
 // ── user decisions (confirm / edit / reject) → note frontmatter (portable) ───
 export type Decisions = {
-    confirmed: Map<string, string>;   // "v:w" -> strong   (accept the guess as-is)
-    edited: Map<string, string>;      // "v:w" -> strong   (replace with a corrected number)
-    rejected: Set<string>;            // "v:w"             (this word has no original / wrong)
+    confirmed: Map<string, string>;                 // "v:w" -> strong   (accept the guess as-is)
+    edited: Map<string, string>;                    // "v:w" -> strong   (replace with a corrected number)
+    rejected: Set<string>;                          // "v:w"             (this word has no original / wrong)
+    linked: Map<string, { n: number; s: string }>;  // "v:w" -> {span, strong}  (a manual English→original link)
 };
 export function readDecisions(fm: any): Decisions {
     const pair = (arr: any): [string, string][] =>
         (Array.isArray(arr) ? arr : []).map(String).map(s => { const m = s.match(/^(\d+:\d+):(.+)$/); return m ? [m[1], m[2]] as [string, string] : null; }).filter(Boolean) as [string, string][];
+    const linked = new Map<string, { n: number; s: string }>();
+    for (const s of Array.isArray(fm?.["bible-strongs-linked"]) ? fm["bible-strongs-linked"] : []) {
+        const m = String(s).match(/^(\d+:\d+):(\d+):(.+)$/);
+        if (m) linked.set(m[1], { n: parseInt(m[2], 10) || 1, s: m[3] });
+    }
     return {
         confirmed: new Map(pair(fm?.["bible-strongs-confirmed"])),
         edited: new Map(pair(fm?.["bible-strongs-edited"])),
         rejected: new Set((Array.isArray(fm?.["bible-strongs-rejected"]) ? fm["bible-strongs-rejected"] : []).map(String)),
+        linked,
     };
 }
-/** Record a decision for verse:word. kind "confirm"/"edit" carry a Strong's; "reject" and "clear" don't. */
+/** Record a decision for verse:word. "confirm"/"edit" carry a Strong's; "link" carries a Strong's + a
+ *  span `n` (a manual English→original link over n words); "reject"/"clear" carry neither. Any prior
+ *  decision on this word is cleared first, so the four lists stay mutually exclusive. */
 export async function writeDecision(plugin: Plugin, notePath: string, verse: number, wordIndex: number,
-                                    kind: "confirm" | "edit" | "reject" | "clear", strong = ""): Promise<void> {
+                                    kind: "confirm" | "edit" | "reject" | "clear" | "link", strong = "", n = 1): Promise<void> {
     const file = plugin.app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile)) return;
     const id = `${verse}:${wordIndex}`;
     await plugin.app.fileManager.processFrontMatter(file, (fm: any) => {
         const list = (k: string): string[] => Array.isArray(fm[k]) ? fm[k].map(String) : [];
-        let conf = list("bible-strongs-confirmed").filter(s => !s.startsWith(`${id}:`));
-        let edit = list("bible-strongs-edited").filter(s => !s.startsWith(`${id}:`));
-        let rej = list("bible-strongs-rejected").filter(s => s !== id);
+        const conf = list("bible-strongs-confirmed").filter(s => !s.startsWith(`${id}:`));
+        const edit = list("bible-strongs-edited").filter(s => !s.startsWith(`${id}:`));
+        const rej = list("bible-strongs-rejected").filter(s => s !== id);
+        const linked = list("bible-strongs-linked").filter(s => !s.startsWith(`${id}:`));
         if (kind === "confirm") conf.push(`${id}:${strong}`);
         else if (kind === "edit") edit.push(`${id}:${strong}`);
         else if (kind === "reject") rej.push(id);
+        else if (kind === "link") linked.push(`${id}:${Math.max(1, n)}:${strong}`);
         const set = (k: string, v: string[]) => { if (v.length) fm[k] = v; else delete fm[k]; };
-        set("bible-strongs-confirmed", conf); set("bible-strongs-edited", edit); set("bible-strongs-rejected", rej);
+        set("bible-strongs-confirmed", conf); set("bible-strongs-edited", edit);
+        set("bible-strongs-rejected", rej); set("bible-strongs-linked", linked);
     });
 }
 
@@ -351,6 +363,13 @@ export async function mergedTagsForChapter(plugin: Plugin, book: string, version
         const spanOf = (w: number) => map.get(w)?.n ?? 1;
         for (const [id, s] of dec.confirmed) { const [v, w] = id.split(":"); if (v === verse) map.set(+w, { s, guess: false, n: spanOf(+w) }); }
         for (const [id, s] of dec.edited) { const [v, w] = id.split(":"); if (v === verse) map.set(+w, { s, guess: false, n: spanOf(+w) }); }
+        // Manual link over a run of words: clear whatever the span covers, then set one solid link.
+        for (const [id, { n, s }] of dec.linked) {
+            const [v, w0] = id.split(":"); if (v !== verse) continue;
+            const w = +w0;
+            for (let k = w; k < w + n; k++) map.delete(k);
+            map.set(w, { s, guess: false, n });
+        }
         for (const id of dec.rejected) { const [v, w] = id.split(":"); if (v === verse) map.delete(+w); }
         const toks = tokensByVerse[key] || [];
         const strip = (t: string) => t.replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, "");

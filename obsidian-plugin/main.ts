@@ -3,7 +3,7 @@ import { ChatView, CHAT_VIEW_TYPE, ComposeModal, ApprovalsView, APPROVALS_VIEW_T
 import { Reader, ReaderSettings } from "./reader";
 import { buildCatalog, executeCommand } from "./commands";
 import { registerBibleHovercards, registerBibleCrossrefs, registerBibleEmbeddingLinks, registerBiblePaste, registerBiblePassageEmbed, registerBibleAnnotations, registerBibleContextMenu, registerMobileModalKeyboardFix, registerBibleSearch, registerBibleReadingPlan, applyBibleLayout, applyBibleFontScale, applyBibleXrefStyles, BibleLayout } from "./bible";
-import { registerBibleStrongs, registerBibleStrongsHover, registerBibleStrongsOverlay } from "./bible-strongs";
+import { registerBibleStrongs, registerBibleStrongsHover, registerBibleStrongsOverlay, registerBibleConnectOriginal } from "./bible-strongs";
 import { registerBibleCommentary } from "./bible-commentary";
 import { registerBibleAlign } from "./bible-align";
 
@@ -87,6 +87,8 @@ export default class AIAssistantPlugin extends Plugin {
         // concordance work); the command (re)runs the alignment; confirm/edit lives in the hover popup.
         registerBibleStrongsOverlay(this);
         registerBibleAlign(this);
+        // Manually connect a selected English word/phrase to a chosen original (Greek/Hebrew) word.
+        registerBibleConnectOriginal(this);
         // Personal commentary — your own verse-attached notes, marked + listed in the reader.
         registerBibleCommentary(this);
         // Register Bible frontmatter property TYPES so Obsidian's Properties editor treats them right:
@@ -100,6 +102,7 @@ export default class AIAssistantPlugin extends Plugin {
                 mtm.setType("bible-strongs-confirmed", "multitext");
                 mtm.setType("bible-strongs-edited", "multitext");
                 mtm.setType("bible-strongs-rejected", "multitext");
+                mtm.setType("bible-strongs-linked", "multitext");
                 mtm.setType("commentary-ref", "text");
                 mtm.setType("bible-version", "text");
                 mtm.setType("bible-book", "text");

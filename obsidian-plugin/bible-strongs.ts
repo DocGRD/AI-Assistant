@@ -8,13 +8,13 @@
 //   _words.json          KJV head-word -> [strongs]   (word-based concordance search)
 //   _lexicon-H/G.json    {strong: {l: lemma, t: translit, g: gloss}}
 
-import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Platform } from "obsidian";
+import { Plugin, TFile, MarkdownView, MarkdownPostProcessorContext, Modal, Setting, Platform, Notice } from "obsidian";
 import { BOOK_NUM, pad2, pad3, bookLabel, wordEdgeInsertPoint, StrongsInputModal, rerenderAfterMetadata } from "./bible";
 import { mergedTagsForChapter, writeDecision, isNativelyTagged } from "./bible-align";
 
 type Interlinear = Record<string, [string, string[]][]>;
 type Concordance = Record<string, string[]>;
-type Lexicon = Record<string, { l: string; t: string; g: string; d?: string }>;
+type Lexicon = Record<string, { l: string; t: string; g: string; d?: string; r?: string }>;   // l=lemma, r=root/derivation
 type SblgntWord = { g: string; l: string; m: string; s: string };
 type SblgntInterlinear = Record<string, SblgntWord[]>;
 type WlcWord = { h: string; m: string; s: string };           // Hebrew word, readable morph, Strong's
@@ -80,6 +80,28 @@ class StrongsData {
     }
     async available(): Promise<boolean> {
         return this.plugin.app.vault.adapter.exists(`${DIR}/_words.json`).catch(() => false);
+    }
+
+    /** Every original-language word of a verse — manuscript form `o`, readable morph `m`, Strong's `s` —
+     *  from the best available interlinear (SBLGNT for the NT, WLC for the OT, else the BSB). This is the
+     *  ordered list of the verse's Greek/Hebrew words, used to show the manuscript form on a word and to
+     *  let you pick which original word an English selection connects to. */
+    async verseOriginals(book: string, chapter: number, verse: number): Promise<{ o: string; m: string; s: string }[]> {
+        const key = `${book}.${chapter}.${verse}`;
+        const isNT = (BOOK_NUM[book] || 0) >= 40;
+        if (isNT && await this.sblgntAvailable()) {
+            const v = (await this.sblgnt(book))[key];
+            if (v?.length) return v.map(w => ({ o: w.g, m: w.m, s: w.s }));
+        }
+        if (!isNT && await this.wlcAvailable()) {
+            const v = (await this.wlc(book))[key];
+            if (v?.length) return v.map(w => ({ o: w.h, m: w.m, s: w.s }));
+        }
+        if (await this.bsbAvailable(book)) {
+            const v = (await this.bsb(book))[key];
+            if (v?.length) return v.filter(w => w.o).map(w => ({ o: w.o, m: w.m, s: w.s }));
+        }
+        return [];
     }
 }
 
@@ -368,6 +390,20 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
         hideT = window.setTimeout(() => { if (!overCard) destroy(); }, 200);
     };
 
+    // The book/chapter/verse of a hovered word, from the active note path + the verse's <p>.
+    const contextOf = (span: HTMLElement): { book: string; chapter: number; verse: number } | null => {
+        const path = plugin.app.workspace.getActiveFile()?.path || "";
+        if (!path.startsWith("bible/")) return null;
+        const pp = path.split("/");
+        const book = pp[pp.length - 3]?.replace(/^\d+-/, "") || "";
+        const chapter = parseInt((pp[pp.length - 1]?.match(/-(\d+)\.md$/) || [])[1] || "", 10);
+        const p = span.closest("p");
+        const num = p?.firstElementChild;
+        const verse = num && num.tagName === "STRONG" && /^\d+$/.test((num.textContent || "").trim())
+            ? parseInt((num.textContent || "").trim(), 10) : 0;
+        return book && chapter && verse ? { book, chapter, verse } : null;
+    };
+
     const build = async (span: HTMLElement) => {
         const codes = (span.getAttribute("data-s") || "").split(/\s+/).filter(Boolean);
         if (!codes.length) return;
@@ -375,19 +411,44 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
         activeSpan = span;
         const c = document.body.createDiv("lm-strongs-pop");
         card = c;
+        const ctx = contextOf(span);
         for (const s of codes) {
             const lex = (await data.lexicon(s))[s];
             if (span !== activeSpan) return;                 // moved away before load
+            // The manuscript (inflected) form + morphology of THIS word in THIS verse.
+            const forms = ctx ? (await data.verseOriginals(ctx.book, ctx.chapter, ctx.verse)).filter(w => w.s === s) : [];
+            if (span !== activeSpan) return;
             const row = c.createDiv("lm-strongs-pop-row");
             const head = row.createDiv("lm-strongs-pop-head");
-            if (lex?.l) head.createSpan({ cls: "lm-strongs-lemma", text: lex.l });
+            // Manuscript form leads (what actually stands in the text); lemma is the dictionary form.
+            const manuscript = forms.map(f => f.o).filter(Boolean).join(" · ");
+            if (manuscript) head.createSpan({ cls: "lm-strongs-lemma", text: manuscript });
+            else if (lex?.l) head.createSpan({ cls: "lm-strongs-lemma", text: lex.l });
             if (lex?.t) head.createSpan({ cls: "lm-strongs-translit", text: ` ${lex.t}` });
             head.createEl("a", { text: ` ${s}`, cls: "lm-strongs-num", href: "#" })
                 .addEventListener("click", (e) => { e.preventDefault(); destroy(); new ConcordanceModal(plugin, data, s).open(); });
+            const morph = forms.map(f => f.m).filter(Boolean).join(" · ");
+            if (morph) row.createDiv({ cls: "lm-strongs-morph", text: morph });
+            if (manuscript && lex?.l && manuscript !== lex.l)
+                row.createDiv({ cls: "lm-strongs-lemma-line", text: `lemma ${lex.l}` });
             // prefer the fuller free-lexicon definition (Dodson/BDB) — it is cleaner and more
             // accurate than the terse Strong's gloss; the full entry is one tap away.
             const meaning = lex?.d || lex?.g;
             if (meaning) row.createDiv({ cls: "lm-strongs-gloss", text: meaning.length > 160 ? meaning.slice(0, 160) + "…" : meaning });
+            if (lex?.r) {
+                const rootEl = row.createDiv("lm-strongs-root");
+                rootEl.createSpan({ cls: "lm-strongs-root-label", text: "root " });
+                // link any Strong's numbers named in the derivation ("from G25 (ἀγαπάω)")
+                let last = 0; const re = /([GH]\d+)/g; let mm: RegExpExecArray | null;
+                while ((mm = re.exec(lex.r))) {
+                    if (mm.index > last) rootEl.appendText(lex.r.slice(last, mm.index));
+                    const num = mm[1];
+                    rootEl.createEl("a", { text: num, cls: "lm-strongs-num", href: "#" })
+                        .addEventListener("click", (e) => { e.preventDefault(); destroy(); new ConcordanceModal(plugin, data, num).open(); });
+                    last = mm.index + num.length;
+                }
+                if (last < lex.r.length) rootEl.appendText(lex.r.slice(last));
+            }
         }
         c.createEl("a", { text: "Open Strong's entry →", cls: "lm-strongs-pop-open", href: "#" })
             .addEventListener("click", (e) => { e.preventDefault(); const s = codes[0]; destroy(); new ConcordanceModal(plugin, data, s).open(); });
@@ -520,6 +581,124 @@ export function registerBibleStrongsOverlay(plugin: Plugin): void {
             for (const t of [...tags].sort((x, y) => y.w - x.w)) if (t.s) wrapWordSpan(p, t.w, t.n, t.s, t.guess, parseInt(verse, 10));
         }
     });
+}
+
+// ── Manually connect an English selection to an original word ────────────────
+export type VerseSelection = { book: string; chapter: number; verse: number; w: number; n: number; text: string; notePath: string };
+
+/** Map the current reading-view selection to a verse + word span, tokenised like the overlay so the word
+ *  indices line up with the guess/decision data. Returns null if the selection isn't inside a Bible verse. */
+function verseWordRangeFromSelection(plugin: Plugin): VerseSelection | null {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+    const range = sel.getRangeAt(0);
+    const startEl = range.startContainer.nodeType === 3 ? range.startContainer.parentElement : (range.startContainer as Element);
+    const p = startEl?.closest("p");
+    if (!p || !p.closest(".markdown-reading-view, .markdown-preview-view")) return null;
+    const numEl = p.firstElementChild;
+    if (!(numEl && numEl.tagName === "STRONG" && /^\d+$/.test((numEl.textContent || "").trim()))) return null;
+    const verse = parseInt((numEl.textContent || "").trim(), 10);
+    const path = plugin.app.workspace.getActiveFile()?.path || "";
+    const pp = path.split("/");
+    const book = pp[pp.length - 3]?.replace(/^\d+-/, "") || "";
+    const chapter = parseInt((pp[pp.length - 1]?.match(/-(\d+)\.md$/) || [])[1] || "", 10);
+    if (!book || !chapter || !BOOK_NUM[book]) return null;
+
+    const nodes: Text[] = []; let combined = "";
+    const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node: Node) => {
+            const el = (node as Text).parentElement;
+            if (!el) return NodeFilter.FILTER_REJECT;
+            if (el.closest("sup")) return NodeFilter.FILTER_REJECT;
+            if (el.tagName === "STRONG" && el === p.firstElementChild) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+        },
+    });
+    for (let tn = walker.nextNode() as Text | null; tn; tn = walker.nextNode() as Text | null) { nodes.push(tn); combined += tn.nodeValue || ""; }
+    const charOf = (node: Node, offset: number): number => {
+        let acc = 0;
+        for (const tn of nodes) { if (tn === node) return acc + offset; acc += (tn.nodeValue || "").length; }
+        return -1;
+    };
+    let startChar = charOf(range.startContainer, range.startOffset);
+    let endChar = charOf(range.endContainer, range.endOffset);
+    if (startChar < 0) startChar = 0;
+    if (endChar < 0) endChar = combined.length;
+    if (endChar <= startChar) return null;
+
+    const toks: { s: number; e: number }[] = []; const re = /\S+/g; let mm: RegExpExecArray | null;
+    while ((mm = re.exec(combined))) toks.push({ s: mm.index, e: mm.index + mm[0].length });
+    if (!toks.length) return null;
+    let startW = toks.findIndex(t => t.e > startChar); if (startW < 0) startW = toks.length - 1;
+    let endW = startW;
+    for (let i = 0; i < toks.length; i++) { if (toks[i].s < endChar) endW = i; else break; }
+    if (endW < startW) endW = startW;
+    const w = startW, n = endW - startW + 1;
+    const text = toks.slice(w, w + n).map(t => combined.slice(t.s, t.e)).join(" ");
+    return { book, chapter, verse, w, n, text, notePath: path };
+}
+
+/** Modal: pick which ORIGINAL (Greek/Hebrew) word of the verse the English selection connects to. Shows
+ *  each original word's manuscript form, morphology, lemma and gloss; picking one writes a manual link. */
+class ConnectOriginalModal extends Modal {
+    constructor(private plugin: Plugin, private data: StrongsData, private sel: VerseSelection) { super(plugin.app); }
+    async onOpen(): Promise<void> {
+        const { contentEl } = this;
+        contentEl.addClass("lm-strongs-modal");
+        const { book, chapter, verse, w, n, text, notePath } = this.sel;
+        contentEl.createEl("h3", { text: "Connect to an original word" });
+        contentEl.createEl("p", { cls: "setting-item-description" })
+            .setText(`Selected “${text}” — ${bookLabel(book)} ${chapter}:${verse}. Choose the Hebrew/Greek word it renders.`);
+
+        const commit = async (strong: string) => {
+            this.close();
+            await writeDecision(this.plugin, notePath, verse, w, "link", strong, n);
+            rerenderAfterMetadata(this.plugin, notePath);
+        };
+
+        const originals = await this.data.verseOriginals(book, chapter, verse);
+        if (originals.length) {
+            const list = contentEl.createDiv("lm-connect-list");
+            for (const o of originals) {
+                const lex = (await this.data.lexicon(o.s))[o.s];
+                const row = list.createEl("button", { cls: "lm-connect-row" });
+                row.createSpan({ cls: "lm-connect-orig", text: o.o });
+                if (o.m) row.createSpan({ cls: "lm-connect-morph", text: ` ${o.m}` });
+                row.createSpan({ cls: "lm-connect-num", text: ` ${o.s}` });
+                const gloss = lex?.g || lex?.d;
+                if (gloss) row.createDiv({ cls: "lm-connect-gloss", text: gloss.length > 90 ? gloss.slice(0, 90) + "…" : gloss });
+                row.addEventListener("click", () => void commit(o.s));
+            }
+        } else {
+            contentEl.createEl("p", { cls: "setting-item-description",
+                text: "No original-language text for this verse in the vault — type the Strong's number instead." });
+        }
+        const foot = contentEl.createDiv("lm-connect-foot");
+        foot.createEl("button", { text: "Type a Strong's number…" })
+            .addEventListener("click", () => new StrongsInputModal(this.plugin, (num) => void commit(num)).open());
+    }
+    onClose(): void { this.contentEl.empty(); }
+}
+
+/** Command + entry point: connect the current reading-view selection to an original word. */
+export function registerBibleConnectOriginal(plugin: Plugin): void {
+    const data = new StrongsData(plugin);
+    plugin.addCommand({
+        id: "bible-connect-original",
+        name: "Bible: connect selection to an original word",
+        callback: () => {
+            const sel = verseWordRangeFromSelection(plugin);
+            if (!sel) { new Notice("Select the English word(s) in a Bible chapter first (reading view)."); return; }
+            new ConnectOriginalModal(plugin, data, sel).open();
+        },
+    });
+}
+/** Used by the right-click menu to know whether to offer "connect selection". */
+export function bibleSelectionForConnect(plugin: Plugin): VerseSelection | null {
+    return verseWordRangeFromSelection(plugin);
+}
+export function openConnectOriginal(plugin: Plugin, sel: VerseSelection): void {
+    new ConnectOriginalModal(plugin, new StrongsData(plugin), sel).open();
 }
 
 // Full grammatical terms → the compact abbreviations the SBLGNT morphology uses (so a user can type

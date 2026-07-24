@@ -1,10 +1,22 @@
-<!-- help-version: 56 -->
+<!-- help-version: 57 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.69**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.70**.*
+
+## Bible: connect English to the original yourself + manuscript/lemma/root in the popup (v1.10.70)
+- **Connect a word yourself.** Select the English word(s) in a chapter and pick *"Connect … to an original
+  word"* (right-click, or the command). A picker lists the verse's actual **Greek/Hebrew words** — the
+  manuscript form, parsing, gloss and Strong's — and you click the one your selection renders. Select
+  several English words to link them all to a single original word. It overrides the guess and is saved in
+  the note.
+- **The word popup now shows manuscript form, lemma and root.** Hover/tap any tagged word and you get the
+  **manuscript form** (the inflected word as it stands in the verse) with its **parsing**, the **lemma**
+  (dictionary form), the meaning, and the **root / derivation** — e.g. *σημεῖα · noun acc pl neut · lemma
+  σημεῖον · a sign, miracle… · root: neuter of a derivative of the base of G4591* — with the Strong's
+  numbers in the derivation clickable.
 
 ## Bible: phrase-level linking, and a cleaner BSB (v1.10.69)
 - **A group of English words can link to ONE original word.** Greek and Hebrew regularly take several

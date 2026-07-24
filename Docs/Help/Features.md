@@ -1,4 +1,4 @@
-<!-- help-version: 56 -->
+<!-- help-version: 57 -->
 ---
 tags: [help, user-guide]
 ---
@@ -103,6 +103,18 @@ supplies them so it can join the lexicon, concordance and interlinear like the K
   link** (one underline, one popup, one decision), not one guess per word.
 - **English words with no original counterpart stay unlinked.** Words supplied for clarity get no link at
   all, rather than being forced onto a neighbouring word's number.
+- **Connect it yourself.** Select the English word(s) in a chapter and choose *"Connect … to an original
+  word"* (right-click, or the command *"Bible: connect selection to an original word"*). A picker lists the
+  verse's actual Greek/Hebrew words — manuscript form, parsing, gloss and Strong's — and you click the one
+  your selection renders. Selecting several English words links them all to that one original word. (Stored
+  in the note's `bible-strongs-linked`; overrides any guess.)
+
+### The word popup — manuscript form, lemma, root
+
+Hover (desktop) or tap (mobile) any tagged word for a popup that now shows, in order: the **manuscript
+form** — the actual inflected Greek/Hebrew word as it stands in this verse — with its **parsing**; the
+**lemma** (dictionary form) when it differs; the **meaning**; and the **root / derivation** (e.g. *"from
+G25 (ἀγαπάω)"*), with any Strong's numbers in it clickable. The number opens the full concordance entry.
 - **Marked approximate, and yours to correct.** Guessed links get a quiet dotted amber underline; the
   word-hover popup offers **Confirm / Change… / Not a match**. *"Bible: review Strong's guesses"* walks the
   uncertain ones lowest-confidence first. Decisions are stored in the note's frontmatter.

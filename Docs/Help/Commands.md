@@ -1,4 +1,4 @@
-<!-- help-version: 56 -->
+<!-- help-version: 57 -->
 ---
 tags: [help, user-guide, commands]
 ---
@@ -88,6 +88,9 @@ not as `vault:` chat commands. The annotation commands act on the **selected tex
 | `Bible: concordance (Strong's number or word)` | Every verse using a Strong's number (`H430`) or English word (`love`) |
 | `Bible: Ask the Bible (semantic search)` | Ask a question in plain words → the verses closest in **meaning** (not keywords), each with its text + your notes. Needs the running service. |
 | `Bible: morphology search (SBLGNT Greek)` | Find NT Greek words by Strong's/lemma **filtered by grammatical form** (e.g. "aorist active", "genitive plural") |
+| `Bible: align this version to the original (approximate)` | Guess each word's Strong's for a **pasted** version by comparing it to the tagged BSB/ULT/KJV (this chapter or the whole book). Also runs automatically after a paste. |
+| `Bible: review Strong's guesses (this chapter)` | Step through the **uncertain** approximate links, least-confident first — Confirm / Change / Not a match |
+| `Bible: connect selection to an original word` | Select English in a chapter → pick the verse's Greek/Hebrew word (manuscript form + parsing + gloss + Strong's) it renders; several words can link to one original (right-click → *Connect …*) |
 | `Bible: create a reading plan` | Build a dated, tick-as-you-go **reading plan** dividing a scope (Whole Bible / OT / NT / Gospels / Psalms & Proverbs) across N days |
 | `LoreMaster: getting started (create a tour note)` | Create a short "start here" tour note to try the main features |
 | `Reload LoreMaster (reload this plugin)` | Reliably reload the plugin from disk (after a BRAT update or rebuild) — Obsidian's Ctrl+R often keeps the old code |

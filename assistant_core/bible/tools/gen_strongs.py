@@ -100,7 +100,11 @@ def load_lexicon(path: pathlib.Path) -> dict:
     out = {}
     for s, d in json.loads(obj).items():
         gloss = (d.get("strongs_def") or d.get("kjv_def") or "").strip()
-        out[s] = {"l": d.get("lemma", ""), "t": d.get("xlit") or d.get("translit") or "", "g": gloss}
+        entry = {"l": d.get("lemma", ""), "t": d.get("xlit") or d.get("translit") or "", "g": gloss}
+        root = (d.get("derivation") or "").strip().rstrip(";").strip()   # etymology/root
+        if root:
+            entry["r"] = root
+        out[s] = entry
     return out
 
 
