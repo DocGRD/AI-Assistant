@@ -1,10 +1,25 @@
-<!-- help-version: 55 -->
+<!-- help-version: 56 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.68**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.69**.*
+
+## Bible: phrase-level linking, and a cleaner BSB (v1.10.69)
+- **A group of English words can link to ONE original word.** Greek and Hebrew regularly take several
+  English words to render a single word — "ἐν ἀρχῇ" → *In the beginning*, "ἔδωκεν" → *he gave*. The
+  approximation engine now joins those into a **single link**: one underline, one popup, one decision to
+  confirm — instead of a separate guess on each word.
+- **Words with no original counterpart are left alone.** English words supplied for clarity simply get no
+  link, rather than being attached to a neighbouring word's number.
+- **The BSB no longer shows stray "vvv".** `vvv` is a marker in the Berean tables meaning *this original
+  word has no separate English word here* (its sense sits inside a neighbouring word, like the negative in
+  "cannot"). It was being printed as if it were text — 4,787 times. It's now dropped from the reading text,
+  and the interlinear shows that original word with an empty English cell, which is what it means.
+- **The How-To guide now covers everything** LoreMaster does, area by area — chat, vault QA, editing,
+  research, documents, read-aloud, the graph, memory and goals, the whole Bible study suite, providers,
+  cross-device and housekeeping.
 
 ## Bible: inserted passages that mix prose and poetry render right (v1.10.68)
 - **A passage that is part prose and part poetry** (many Prophets, Job, a Gospel quoting a hymn) now

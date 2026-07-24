@@ -67,14 +67,20 @@ def norm_strong(raw: str) -> str:
 
 
 def parse_book(text: str) -> dict:
-    """USFM text → {"slug.ch.v": [{"e": word, "s": strong}, …]} (English order)."""
+    """USFM text → {"slug.ch.v": [{"e": word, "s": strong, "g": group}, …]} (English order).
+
+    `g` is the ORIGINAL-WORD group: every English word under the same `\\zaln` milestone shares it, which is
+    how one Greek/Hebrew word that takes several English words ("ἐν ἀρχῇ" → "in the beginning") is kept
+    together. The aligner merges a run of English words sharing a group into a single link.
+    """
     m = re.search(r"\\id\s+(\w+)", text)
     slug = SLUG_BY_CODE.get(m.group(1)) if m else None
     if not slug:
         return {}
     out: dict = {}
     ch = v = 0
-    stack: list[str] = []                       # open alignment Strong's (nested milestones)
+    stack: list[tuple[str, int]] = []           # open alignments (Strong's, group id) — milestones nest
+    group = 0
     for tok in TOKEN.finditer(text):
         if tok.group(1):
             ch, v = int(tok.group(1)), 0
@@ -82,15 +88,17 @@ def parse_book(text: str) -> dict:
             v = int(tok.group(2))
         elif tok.group(3) is not None:
             xs = X_STRONG.search(tok.group(3))
-            stack.append(norm_strong(xs.group(1)) if xs else "")
+            group += 1
+            stack.append((norm_strong(xs.group(1)) if xs else "", group))
         elif tok.group(4):
             if stack:
                 stack.pop()
         elif tok.group(5) is not None and ch and v:
             word = tok.group(5).strip()
-            strong = next((s for s in reversed(stack) if s), "")   # innermost tagged alignment
+            # innermost TAGGED alignment supplies both the Strong's and the original-word group
+            tagged = next(((s, g) for s, g in reversed(stack) if s), ("", 0))
             if word:
-                out.setdefault(f"{slug}.{ch}.{v}", []).append({"e": word, "s": strong})
+                out.setdefault(f"{slug}.{ch}.{v}", []).append({"e": word, "s": tagged[0], "g": tagged[1]})
     return out
 
 

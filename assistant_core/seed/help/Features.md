@@ -1,4 +1,4 @@
-<!-- help-version: 55 -->
+<!-- help-version: 56 -->
 ---
 tags: [help, user-guide]
 ---
@@ -98,6 +98,11 @@ supplies them so it can join the lexicon, concordance and interlinear like the K
   word-alignment (no cloud, no model); agreement across anchors + match quality set a confidence.
 - **Runs automatically** after *"Bible: paste a chapter"*, or on demand via *"Bible: align this version to
   the original (approximate)"* (this chapter or the whole book) and the right-click LoreMaster menu.
+- **A group of English words can link to ONE original word.** Greek and Hebrew routinely take several
+  English words — "ἐν ἀρχῇ" → *In the beginning*, "ἔδωκεν" → *he gave*. Those are joined into a **single
+  link** (one underline, one popup, one decision), not one guess per word.
+- **English words with no original counterpart stay unlinked.** Words supplied for clarity get no link at
+  all, rather than being forced onto a neighbouring word's number.
 - **Marked approximate, and yours to correct.** Guessed links get a quiet dotted amber underline; the
   word-hover popup offers **Confirm / Change… / Not a match**. *"Bible: review Strong's guesses"* walks the
   uncertain ones lowest-confidence first. Decisions are stored in the note's frontmatter.

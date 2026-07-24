@@ -44,6 +44,17 @@ def esc(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+# BSB table placeholders: the original word has NO separate English word at this position ("vvv" — its
+# sense is folded into a neighbouring word, e.g. a negative particle inside "cannot"; "-" — untranslated).
+# They are markers, not text: keep the original word in the interlinear (with an empty gloss) but never
+# emit them into the English reading text.
+PLACEHOLDERS = {"-", "vvv"}
+
+
+def is_placeholder(gloss: str) -> bool:
+    return gloss.strip() in PLACEHOLDERS
+
+
 def nav_line(num: int, slug: str, chapter: int, last: int) -> str:
     base = lambda c: f"bible/{books.pad2(num)}-{slug}/{VERSION}/{slug}-{books.pad3(c)}"
     parts = []
@@ -75,7 +86,7 @@ def write_book(slug: str, num: int, chapters: dict, inter: dict):
             spans = []
             for _sort, gloss, strong, pnc in words:
                 g = gloss.strip()
-                if g and g != "-":
+                if g and not is_placeholder(g):
                     spans.append(f'<span class="lm-s" data-s="{strong}">{esc(g)}</span>' if strong else esc(g))
                 if pnc.strip():
                     spans.append(esc(pnc.strip()))
@@ -155,7 +166,9 @@ def main() -> int:
             except ValueError:
                 osort = 0
             inter.setdefault(key, []).append((osort, {
-                "o": row[C_ORIG].strip(), "e": gloss.strip(), "s": strong,
+                # placeholder gloss → empty: the original word is real, it just has no English word of
+                # its own here (the interlinear shows it with a blank English cell).
+                "o": row[C_ORIG].strip(), "e": "" if is_placeholder(gloss) else gloss.strip(), "s": strong,
                 "m": row[C_MORPH].strip(), "t": row[C_TRANSLIT].strip()}))
             words += 1
     if cur_slug:

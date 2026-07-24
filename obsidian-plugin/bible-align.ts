@@ -15,8 +15,12 @@ import { BOOK_NUM, pad2, pad3, bookLabel } from "./bible";
 
 export const GUESS_DIR = "AI/bible-guess";
 
-export type GuessWord = { w: number; s: string; c: number };   // word index, Strong's, confidence 0..1
-export type GuessChapter = Record<string, GuessWord[]>;          // "book.ch.v" -> words
+// A LINK: the run of `n` English words starting at word index `w` that render ONE original-language word.
+// n is 1 for the common case; it is >1 when a single Greek/Hebrew word takes several English words
+// ("ἐν ἀρχῇ" → "In the beginning"). English words with no original counterpart (supplied for clarity)
+// simply get no link at all.
+export type GuessWord = { w: number; n?: number; s: string; c: number };
+export type GuessChapter = Record<string, GuessWord[]>;          // "book.ch.v" -> links
 
 // ── English light stemmer (symmetric-ish: loved/love → "lov", heavens/heaven, beginning/begin) ──
 function stem(word: string): string {
@@ -66,7 +70,9 @@ function decodeEntities(s: string): string {
 const clean = (t: string): string => t.toLowerCase().replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, "");
 
 // ── anchor loading (cached per book) ────────────────────────────────────────
-type RefWord = { w: string; s: string };
+// `og` identifies the ORIGINAL word this English word renders (anchor-scoped). Several consecutive
+// English words sharing an og came from ONE Greek/Hebrew word, and are merged into one link.
+type RefWord = { w: string; s: string; og: string };
 type RefVerse = RefWord[];
 type Gloss = Record<string, { g?: string; d?: string }>;
 
@@ -78,7 +84,7 @@ class Anchors {
         if (!p) { p = this.plugin.app.vault.adapter.read(path).then(s => JSON.parse(s)).catch(() => fallback); this.cache.set(path, p); }
         return p as Promise<T>;
     }
-    ult(book: string) { return this.read<Record<string, { e: string; s: string }[]>>(`AI/bible-ult/${book}.json`, {}); }
+    ult(book: string) { return this.read<Record<string, { e: string; s: string; g?: number }[]>>(`AI/bible-ult/${book}.json`, {}); }
     kjv(book: string) { return this.read<Record<string, [string, string[]][]>>(`AI/bible-strongs/${book}.json`, {}); }
     words() { return this.read<Record<string, string[]>>(`AI/bible-strongs/_words.json`, {}); }
     glossH() { return this.read<Gloss>(`AI/bible-strongs/_lexicon-H.json`, {}); }
@@ -110,9 +116,15 @@ function parseBsbNote(md: string): Record<string, RefVerse> {
         const words: RefVerse = [];
         const re = /<span class="lm-s" data-s="([^"]+)">([^<]*)<\/span>|([^<]+)/g;
         let mm: RegExpExecArray | null;
+        let span = 0;
         while ((mm = re.exec(m[2]))) {
-            if (mm[1]) { for (const w of decodeEntities(mm[2]).split(/\s+/).filter(Boolean)) words.push({ w, s: mm[1] }); }
-            else { for (const w of decodeEntities(mm[3]).replace(/<[^>]+>/g, "").split(/\s+/).filter(Boolean)) words.push({ w, s: "" }); }
+            if (mm[1]) {
+                // one tagged span = ONE original word, however many English words it took ("Can he")
+                const og = `b${++span}`;
+                for (const w of decodeEntities(mm[2]).split(/\s+/).filter(Boolean)) words.push({ w, s: mm[1], og });
+            } else {
+                for (const w of decodeEntities(mm[3]).replace(/<[^>]+>/g, "").split(/\s+/).filter(Boolean)) words.push({ w, s: "", og: "" });
+            }
         }
         if (words.length) out[`${book}.${chapter}.${verse}`] = words;
     }
@@ -136,8 +148,9 @@ function sim(xStem: string, rWord: string, rStrong: string, gloss: Gloss): numbe
     return 0;
 }
 
-/** Align pasted cleaned tokens X to an anchor reference R; return, per X index, the projected Strong's + sim. */
-function alignTo(X: string[], R: RefVerse, gloss: Gloss): ({ s: string; sim: number } | null)[] {
+/** Align pasted cleaned tokens X to an anchor reference R; return, per X index, the projected Strong's +
+ *  sim + the original-word group it came from (so a run rendering one original word can be merged). */
+function alignTo(X: string[], R: RefVerse, gloss: Gloss): ({ s: string; sim: number; og: string } | null)[] {
     const n = X.length, m = R.length;
     const GAP = -0.3;
     const xStems = X.map(stem);
@@ -148,12 +161,12 @@ function alignTo(X: string[], R: RefVerse, gloss: Gloss): ({ s: string; sim: num
         const d = S[i - 1][j - 1] + sim(xStems[i - 1], R[j - 1].w, R[j - 1].s, gloss);
         S[i][j] = Math.max(d, S[i - 1][j] + GAP, S[i][j - 1] + GAP);
     }
-    const out: ({ s: string; sim: number } | null)[] = new Array(n).fill(null);
+    const out: ({ s: string; sim: number; og: string } | null)[] = new Array(n).fill(null);
     let i = n, j = m;
     while (i > 0 && j > 0) {
         const sm = sim(xStems[i - 1], R[j - 1].w, R[j - 1].s, gloss);
         if (S[i][j] === S[i - 1][j - 1] + sm) {
-            if (sm > 0 && R[j - 1].s) out[i - 1] = { s: R[j - 1].s, sim: sm };
+            if (sm > 0 && R[j - 1].s) out[i - 1] = { s: R[j - 1].s, sim: sm, og: R[j - 1].og };
             i--; j--;
         } else if (S[i][j] === S[i - 1][j] + GAP) { i--; } else { j--; }
     }
@@ -175,13 +188,16 @@ export async function alignChapter(plugin: Plugin, book: string, version: string
 
     const kjvVerse = (key: string): RefVerse => {
         const out: RefVerse = [];
+        let g = 0;
         for (const [phrase, strongs] of kjv[key] || []) {
             const s = (strongs || [])[0] || "";
-            for (const w of String(phrase).split(/\s+/).filter(Boolean)) out.push({ w, s });
+            const og = `k${++g}`;                       // one KJV phrase entry = one original word
+            for (const w of String(phrase).split(/\s+/).filter(Boolean)) out.push({ w, s, og });
         }
         return out;
     };
-    const ultVerse = (key: string): RefVerse => (ult[key] || []).map(x => ({ w: x.e, s: x.s }));
+    const ultVerse = (key: string): RefVerse =>
+        (ult[key] || []).map(x => ({ w: x.e, s: x.s, og: x.g != null ? `u${x.g}` : "" }));
 
     const result: GuessChapter = {};
     for (const { verse, body } of versesFromMd(md)) {
@@ -190,12 +206,15 @@ export async function alignChapter(plugin: Plugin, book: string, version: string
         if (!X.some(Boolean)) continue;
 
         // Each anchor projects a Strong's onto each pasted word; collect the votes.
-        const anchors: { name: string; proj: ({ s: string; sim: number } | null)[] }[] = [];
+        const anchors: { name: string; proj: ({ s: string; sim: number; og: string } | null)[] }[] = [];
         for (const [name, R] of [["ult", ultVerse(key)], ["bsb", bsbNote[key] || []], ["kjv", kjvVerse(key)]] as [string, RefVerse][])
             if (R.length) anchors.push({ name, proj: alignTo(X, R, gloss) });
         if (!anchors.length) continue;
 
-        const words: GuessWord[] = [];
+        // Pass 1 — per English word, the winning Strong's + which original word EACH anchor thinks it
+        // came from (anchors segment phrases differently, so we keep them all and merge on any agreement).
+        type Pick = { s: string; c: number; ogs: Record<string, string> };
+        const picks: (Pick | null)[] = new Array(X.length).fill(null);
         for (let i = 0; i < X.length; i++) {
             if (!X[i]) continue;
             const votes = new Map<string, { simSum: number; names: Set<string> }>();
@@ -205,7 +224,7 @@ export async function alignChapter(plugin: Plugin, book: string, version: string
                 const v = votes.get(p.s) || { simSum: 0, names: new Set() };
                 v.simSum += p.sim; v.names.add(a.name); votes.set(p.s, v);
             }
-            if (!votes.size) continue;
+            if (!votes.size) continue;              // no anchor links this word — supplied for clarity
             let best = ""; let bestScore = -1; let bestAgree = 0; let bestAvg = 0;
             for (const [s, v] of votes) {
                 const score = v.names.size * 10 + v.simSum;
@@ -217,7 +236,33 @@ export async function alignChapter(plugin: Plugin, book: string, version: string
             if (STOP.has(X[i]) && bestAgree < 2) c *= 0.8;                        // be humbler on function words
             c = Math.round(Math.min(1, Math.max(0, c)) * 100) / 100;
             if (c < 0.2) continue;
-            words.push({ w: i, s: best, c });
+            // Record, per anchor that backed the winner, which original word it assigned this English word to.
+            const ogs: Record<string, string> = {};
+            for (const a of anchors) { const p = a.proj[i]; if (p && p.s === best && p.og) ogs[a.name] = p.og; }
+            picks[i] = { s: best, c, ogs };
+        }
+
+        // Pass 2 — merge a RUN of adjacent English words that render the SAME original word into one link
+        // ("In the beginning" → H7225, "he gave" → G1325). Two neighbours belong together when they share a
+        // Strong's AND at least one anchor puts them on the same original word. Chaining across neighbours
+        // lets a 3+ word phrase form even when different anchors segment it differently. Words no anchor
+        // links at all get no link — those are the ones supplied in English for clarity.
+        const sameOriginal = (p: Pick, q: Pick): boolean =>
+            p.s === q.s && Object.keys(p.ogs).some(k => q.ogs[k] && q.ogs[k] === p.ogs[k]);
+        const words: GuessWord[] = [];
+        for (let i = 0; i < picks.length; i++) {
+            const p = picks[i];
+            if (!p) continue;
+            let j = i; const cs = [p.c];
+            while (j + 1 < picks.length) {
+                const q = picks[j + 1];
+                if (!q || !sameOriginal(picks[j]!, q)) break;
+                cs.push(q.c); j++;
+            }
+            const n = j - i + 1;
+            const c = Math.round((cs.reduce((a, b) => a + b, 0) / cs.length) * 100) / 100;
+            words.push(n > 1 ? { w: i, n, s: p.s, c } : { w: i, s: p.s, c });
+            i = j;
         }
         if (words.length) result[key] = words;
     }
@@ -274,7 +319,8 @@ export async function writeDecision(plugin: Plugin, notePath: string, verse: num
 }
 
 // ── merged view: sidecar guesses + the note's confirm/edit/reject decisions ──
-export type MergedTag = { w: number; s: string; guess: boolean; text: string };
+/** One resolved link: `n` English words from index `w` rendering the original word `s`. */
+export type MergedTag = { w: number; n: number; s: string; guess: boolean; text: string };
 
 /** The final per-word Strong's tags for a chapter of an aligned version: sidecar guesses overridden by
  *  the note's frontmatter decisions (edited/confirmed win, rejected removes). Keyed "book.ch.v".
@@ -299,14 +345,18 @@ export async function mergedTagsForChapter(plugin: Plugin, book: string, version
     for (const k of Object.keys(sidecar)) if (k.startsWith(`${book}.${chapter}.`)) verseKeys.add(k);
     for (const key of verseKeys) {
         const verse = key.split(".")[2];
-        const map = new Map<number, { s: string; guess: boolean }>();
-        for (const g of sidecar[key] || []) map.set(g.w, { s: g.s, guess: true });
-        for (const [id, s] of dec.confirmed) { const [v, w] = id.split(":"); if (v === verse) map.set(+w, { s, guess: false }); }
-        for (const [id, s] of dec.edited) { const [v, w] = id.split(":"); if (v === verse) map.set(+w, { s, guess: false }); }
+        const map = new Map<number, { s: string; guess: boolean; n: number }>();
+        for (const g of sidecar[key] || []) map.set(g.w, { s: g.s, guess: true, n: Math.max(1, g.n || 1) });
+        // A decision keeps the link's word-span; it only changes the number (or removes it).
+        const spanOf = (w: number) => map.get(w)?.n ?? 1;
+        for (const [id, s] of dec.confirmed) { const [v, w] = id.split(":"); if (v === verse) map.set(+w, { s, guess: false, n: spanOf(+w) }); }
+        for (const [id, s] of dec.edited) { const [v, w] = id.split(":"); if (v === verse) map.set(+w, { s, guess: false, n: spanOf(+w) }); }
         for (const id of dec.rejected) { const [v, w] = id.split(":"); if (v === verse) map.delete(+w); }
         const toks = tokensByVerse[key] || [];
+        const strip = (t: string) => t.replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, "");
         const arr: MergedTag[] = [];
-        for (const [w, { s, guess }] of map) arr.push({ w, s, guess, text: (toks[w] || "").replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, "") });
+        for (const [w, { s, guess, n }] of map)
+            arr.push({ w, n, s, guess, text: toks.slice(w, w + n).map(strip).filter(Boolean).join(" ") });
         arr.sort((a, b) => a.w - b.w);
         if (arr.length) out[key] = arr;
     }
@@ -380,7 +430,7 @@ export function registerBibleAlign(plugin: Plugin): void {
 
 /** Step through a chapter's still-guessed Strong's links, lowest-confidence first, to confirm / correct /
  *  reject each. The heavy-lift review flow that makes a whole pasted chapter tractable. */
-type ReviewItem = { verse: number; w: number; s: string; c: number; tokens: string[] };
+type ReviewItem = { verse: number; w: number; n: number; s: string; c: number; tokens: string[] };
 class ReviewGuessesModal extends Modal {
     private items: ReviewItem[] = [];
     private idx = 0;
@@ -406,7 +456,8 @@ class ReviewGuessesModal extends Modal {
         for (const [key, ws] of Object.entries(sidecar)) {
             const parts = key.split("."); if (parts[0] !== book || +parts[1] !== chapter) continue;
             const verse = +parts[2];
-            for (const g of ws) if (g.c < REVIEW_MAX_CONF && !decided(verse, g.w)) this.items.push({ verse, w: g.w, s: g.s, c: g.c, tokens: tokensByVerse[verse] || [] });
+            for (const g of ws) if (g.c < REVIEW_MAX_CONF && !decided(verse, g.w))
+                this.items.push({ verse, w: g.w, n: Math.max(1, g.n || 1), s: g.s, c: g.c, tokens: tokensByVerse[verse] || [] });
         }
         this.items.sort((a, b) => a.c - b.c);
         this.lex = await this.plugin.app.vault.adapter
@@ -442,10 +493,13 @@ class ReviewGuessesModal extends Modal {
         // verse text with the target word highlighted
         const verseEl = contentEl.createDiv("lm-review-verse");
         verseEl.createEl("b", { text: `${it.verse} ` });
+        // highlight the whole linked phrase (one original word may take several English words)
         it.tokens.forEach((tok, i) => {
-            if (i === it.w) verseEl.createEl("mark", { text: tok + " " });
+            if (i >= it.w && i < it.w + it.n) verseEl.createEl("mark", { text: tok + " " });
             else verseEl.createSpan({ text: tok + " " });
         });
+        if (it.n > 1) contentEl.createEl("p", { cls: "setting-item-description",
+            text: `These ${it.n} words together render one original word.` });
 
         const lx = this.lex[it.s] || {};
         const card = contentEl.createDiv("lm-review-card");

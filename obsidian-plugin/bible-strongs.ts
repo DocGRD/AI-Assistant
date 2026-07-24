@@ -455,21 +455,37 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
 /** Wrap the (wordIndex)-th word of a verse <p> in a Strong's span (used by the overlay for pasted
  *  versions that have no baked tags). Uses the reader's word tokeniser so indices match the guess data.
  *  Wrapping doesn't change the verse's visible text, so processing words in any order stays consistent. */
-function wrapWordSpan(p: HTMLElement, wordIndex: number, strong: string, guess: boolean, verse: number): boolean {
+function wrapWordSpan(p: HTMLElement, wordIndex: number, count: number, strong: string, guess: boolean, verse: number): boolean {
+    const mark = (b: { node: Text; offset: number }, a: { node: Text; offset: number }): boolean => {
+        if (b.node !== a.node || a.offset <= b.offset) return false;
+        const mid = b.node.splitText(b.offset);
+        mid.splitText(a.offset - b.offset);
+        const span = document.createElement("span");
+        span.className = guess ? "lm-s lm-s-guess" : "lm-s";
+        span.setAttribute("data-s", strong);
+        span.setAttribute("data-lm-verse", String(verse));
+        span.setAttribute("data-lm-widx", String(wordIndex));   // the LINK's start word — its decision key
+        span.setAttribute(guess ? "data-guess" : "data-approx", "1");
+        mid.parentNode!.insertBefore(span, mid);
+        span.appendChild(mid);
+        return true;
+    };
+    const n = Math.max(1, count);
+    // Preferred: one span over the WHOLE phrase, so several English words rendering one original word
+    // read (and hover) as a single link.
     const b = wordEdgeInsertPoint(p, wordIndex, "before");
-    const a = wordEdgeInsertPoint(p, wordIndex, "after");
-    if (!b || !a || b.node !== a.node || a.offset <= b.offset) return false;   // word split across nodes — skip
-    const mid = b.node.splitText(b.offset);
-    mid.splitText(a.offset - b.offset);
-    const span = document.createElement("span");
-    span.className = guess ? "lm-s lm-s-guess" : "lm-s";
-    span.setAttribute("data-s", strong);
-    span.setAttribute("data-lm-verse", String(verse));
-    span.setAttribute("data-lm-widx", String(wordIndex));
-    span.setAttribute(guess ? "data-guess" : "data-approx", "1");
-    mid.parentNode!.insertBefore(span, mid);
-    span.appendChild(mid);
-    return true;
+    const a = wordEdgeInsertPoint(p, wordIndex + n - 1, "after");
+    if (b && a && mark(b, a)) return true;
+    // Fallback (phrase straddles other markup, e.g. a red-letter boundary): tag each word of the phrase
+    // separately with the same number — still correct, just not visually joined. Right-to-left so the
+    // earlier words' offsets stay valid.
+    let any = false;
+    for (let k = n - 1; k >= 0; k--) {
+        const bb = wordEdgeInsertPoint(p, wordIndex + k, "before");
+        const aa = wordEdgeInsertPoint(p, wordIndex + k, "after");
+        if (bb && aa && mark(bb, aa)) any = true;
+    }
+    return any;
 }
 
 /** Reader overlay: for a pasted (non-natively-tagged) version, wrap each word that the approximation
@@ -501,7 +517,7 @@ export function registerBibleStrongsOverlay(plugin: Plugin): void {
             const tags = merged[`${book}.${chapter}.${verse}`];
             if (!tags || !tags.length) continue;
             if (p.querySelector("span.lm-s")) continue;                 // already has baked/manual tags — don't double up
-            for (const t of [...tags].sort((x, y) => y.w - x.w)) if (t.s) wrapWordSpan(p, t.w, t.s, t.guess, parseInt(verse, 10));
+            for (const t of [...tags].sort((x, y) => y.w - x.w)) if (t.s) wrapWordSpan(p, t.w, t.n, t.s, t.guess, parseInt(verse, 10));
         }
     });
 }
