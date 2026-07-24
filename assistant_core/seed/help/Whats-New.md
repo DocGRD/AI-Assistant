@@ -1,10 +1,15 @@
-<!-- help-version: 58 -->
+<!-- help-version: 59 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.71**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.72**.*
+
+## Bible: hover really follows your cursor now (v1.10.72)
+- Moving the mouse **slowly across a line** of tagged words now keeps the word card following along —
+  crossing the small gap between two words no longer cancels it. The card also builds without a flicker
+  when it swaps from one word to the next.
 
 ## Bible: clearer word popup + smoother hover (v1.10.71)
 - **The word popup is laid out properly now:** line 1 is the **manuscript form and its own

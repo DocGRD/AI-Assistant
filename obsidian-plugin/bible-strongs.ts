@@ -391,20 +391,25 @@ class ConcordanceModal extends Modal {
 // with a link to open the full Strong's entry (the concordance modal).
 export function registerBibleStrongsHover(plugin: Plugin): void {
     const data = new StrongsData(plugin);
-    let card: HTMLElement | null = null;
+    let card: HTMLElement | null = null;      // the visible popup, or null
+    let cardSpan: HTMLElement | null = null;  // the word it's showing
     let overCard = false;
-    let dwell: number | null = null;
-    let hideT: number | null = null;
-    let activeSpan: HTMLElement | null = null;
+    let dwell: number | null = null;          // timer: open a word's card after a short hover
+    let hideT: number | null = null;          // timer: hide the card after leaving
+    let pending: HTMLElement | null = null;   // the word `dwell` will open
+    let buildSeq = 0;                         // supersede guard for the async build
 
+    // Remove just the card (leaves the dwell/pending alone, so a card being swapped to the next word
+    // isn't cancelled). `destroy` is the full teardown used on real dismissal.
+    const removeCard = () => { card?.remove(); card = null; cardSpan = null; overCard = false; };
     const destroy = () => {
         if (dwell) { window.clearTimeout(dwell); dwell = null; }
         if (hideT) { window.clearTimeout(hideT); hideT = null; }
-        card?.remove(); card = null; activeSpan = null; overCard = false;
+        pending = null; removeCard();
     };
     const scheduleHide = () => {
         if (hideT) window.clearTimeout(hideT);
-        hideT = window.setTimeout(() => { if (!overCard) destroy(); }, 200);
+        hideT = window.setTimeout(() => { if (!overCard) removeCard(); }, 240);
     };
 
     // The book/chapter/verse of a hovered word, from the active note path + the verse's <p>.
@@ -424,17 +429,19 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
     const build = async (span: HTMLElement) => {
         const codes = (span.getAttribute("data-s") || "").split(/\s+/).filter(Boolean);
         if (!codes.length) return;
-        destroy();
-        activeSpan = span;
-        const c = document.body.createDiv("lm-strongs-pop");
-        card = c;
+        if (span === cardSpan) return;                       // already showing this word
+        const seq = ++buildSeq;                              // newer build supersedes this one
+        // Build into a DETACHED node and only swap it in when ready — so there's never an empty box, and
+        // the current card stays put until the new one is fully built (no flicker while chaining).
+        const c = document.createElement("div");
+        c.className = "lm-strongs-pop";
         const ctx = contextOf(span);
         for (const s of codes) {
             const lex = (await data.lexicon(s))[s];
-            if (span !== activeSpan) return;                 // moved away before load
+            if (seq !== buildSeq) return;                    // superseded by a newer word before load
             // The manuscript (inflected) form + morphology of THIS word in THIS verse.
             const forms = ctx ? (await data.verseOriginals(ctx.book, ctx.chapter, ctx.verse)).filter(w => w.s === s) : [];
-            if (span !== activeSpan) return;
+            if (seq !== buildSeq) return;
             const row = c.createDiv("lm-strongs-pop-row");
             // Line 1 — the MANUSCRIPT form (what actually stands in the text) + its transliteration + parsing.
             const manuscript = forms.map(f => f.o).filter(Boolean).join(" · ");
@@ -509,10 +516,15 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
                     .addEventListener("click", () => act(() => writeDecision(plugin, notePath, verse, widx, "clear")));
             }
         }
+        if (seq !== buildSeq) return;                        // superseded while building — discard
+        // Swap the finished card in (replaces any current card without an in-between empty state).
+        removeCard();
+        card = c; cardSpan = span;
+        document.body.appendChild(c);
         const r = span.getBoundingClientRect();
         c.style.top = `${window.scrollY + r.bottom + 4}px`;
         c.style.left = `${Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 320)}px`;
-        c.addEventListener("mouseenter", () => { overCard = true; });
+        c.addEventListener("mouseenter", () => { overCard = true; if (hideT) { window.clearTimeout(hideT); hideT = null; } });
         c.addEventListener("mouseleave", () => { overCard = false; scheduleHide(); });
     };
 
@@ -523,34 +535,34 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
         if (!s || !s.closest(".markdown-preview-view.bible, .markdown-reading-view.bible")) return null;
         return s;
     };
+    const onCard = (t: EventTarget | null): boolean => !!card && (t === card || card.contains(t as Node));
 
     // Register BOTH — hover for desktop, tap/click for phone (and desktop click as a bonus). We don't
     // gate on Platform.isMobile because it's unreliable across environments; a touch device simply
     // never fires mouseover, and a desktop gets both. Tapping away dismisses.
     plugin.registerDomEvent(document, "click", (evt: MouseEvent) => {
         const s = spanAt(evt.target);
-        if (s) { evt.preventDefault(); evt.stopPropagation(); void build(s); return; }
-        if (card && !card.contains(evt.target as Node)) destroy();
+        if (s) { evt.preventDefault(); evt.stopPropagation(); if (dwell) { window.clearTimeout(dwell); dwell = null; } pending = null; void build(s); return; }
+        if (card && !onCard(evt.target)) destroy();
     });
-    // Hover chaining: moving directly from one tagged word to another swaps the card to the new word.
-    // (The old per-span `mouseleave` cleared the dwell timer the NEW span's mouseover had just set, so the
-    // card cleared and never re-opened until you moved off and back — the clunky behaviour.)
-    let pending: HTMLElement | null = null;
-    plugin.registerDomEvent(document, "mouseover", (evt: MouseEvent) => {
+    // Hover chaining: `mousemove` (not `mouseover`) so we track what's under the cursor CONTINUOUSLY —
+    // crossing the whitespace between two words no longer cancels the card. Over a word → (re)arm a short
+    // dwell to open it; over a gap → do nothing to the pending open (you may be heading to the next word),
+    // just arm a hide; over the card → keep it. Landing on a word cancels the hide.
+    plugin.registerDomEvent(document, "mousemove", (evt: MouseEvent) => {
         const s = spanAt(evt.target);
         if (s) {
-            if (s === activeSpan) { pending = null; if (dwell) { window.clearTimeout(dwell); dwell = null; } return; }  // already shown
-            if (s === pending) return;                                    // already scheduled for this word
+            if (hideT) { window.clearTimeout(hideT); hideT = null; }
+            if (s === cardSpan) { pending = null; if (dwell) { window.clearTimeout(dwell); dwell = null; } return; }
+            if (s === pending) return;                         // already armed for this word
             pending = s;
             if (dwell) window.clearTimeout(dwell);
-            dwell = window.setTimeout(() => { pending = null; void build(s); }, 150);
+            dwell = window.setTimeout(() => { dwell = null; pending = null; void build(s); }, 120);
             return;
         }
-        // Moved onto non-word content: cancel any pending open; hide the card unless the cursor is on it.
-        if (dwell) { window.clearTimeout(dwell); dwell = null; }
-        pending = null;
-        const overCurrent = card?.contains(evt.target as Node);
-        if (!overCard && !overCurrent) scheduleHide();
+        if (onCard(evt.target)) { if (hideT) { window.clearTimeout(hideT); hideT = null; } return; }
+        // A gap or empty space — arm a hide (cancelled if we reach a word), but DON'T cancel a pending open.
+        if (card && !overCard && !hideT) scheduleHide();
     });
 }
 
