@@ -1295,7 +1295,11 @@ body.lm-bible-flow .markdown-preview-view.bible .el-p.lm-bible-nav-block::after 
 .lm-strongs-pop-head .lm-strongs-num { color: var(--text-accent); text-decoration: none; font-weight: 600; }
 .lm-strongs-pop-head .lm-strongs-num:hover { text-decoration: underline; }
 .lm-strongs-pop .lm-strongs-morph { color: var(--text-muted); font-size: 0.82em; font-style: italic; margin-top: 1px; }
-.lm-strongs-pop .lm-strongs-lemma-line { color: var(--text-muted); font-size: 0.85em; }
+.lm-strongs-pop .lm-strongs-lemma-line { margin-top: 2px; }
+.lm-strongs-pop .lm-strongs-lemma-line .lm-strongs-lemma-word { font-size: 1.05em; color: var(--text-normal); }
+.lm-strongs-pop .lm-strongs-num { color: var(--text-accent); text-decoration: none; font-weight: 600; }
+.lm-strongs-pop .lm-strongs-num:hover { text-decoration: underline; }
+.lm-strongs-pop .lm-strongs-num-line { display: inline-block; margin-top: 3px; }
 .lm-strongs-pop .lm-strongs-gloss { color: var(--text-normal); margin-top: 2px; font-size: 0.92em; }
 .lm-strongs-pop .lm-strongs-root { color: var(--text-muted); font-size: 0.85em; margin-top: 3px; }
 .lm-strongs-pop .lm-strongs-root .lm-strongs-root-label { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.9em; }

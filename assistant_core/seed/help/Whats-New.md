@@ -1,10 +1,18 @@
-<!-- help-version: 57 -->
+<!-- help-version: 58 -->
 ---
 tags: [help, user-guide, whats-new]
 ---
 # What's New in LoreMaster
 
-*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.70**.*
+*A capability overview so you can learn everything LoreMaster can do. Current through **v1.10.71**.*
+
+## Bible: clearer word popup + smoother hover (v1.10.71)
+- **The word popup is laid out properly now:** line 1 is the **manuscript form and its own
+  transliteration**, line 2 is the **lemma and its transliteration**, then the **Strong's number**, the
+  meaning, and the root. (Previously it paired the manuscript form with the lemma's transliteration.)
+- The bottom link now reads **"Open Concordance"** (it opens the concordance, not a separate entry).
+- **Hover follows your cursor.** Moving from one tagged word straight to another now swaps the card to the
+  new word — no more moving off the text and back to get it to open.
 
 ## Bible: connect English to the original yourself + manuscript/lemma/root in the popup (v1.10.70)
 - **Connect a word yourself.** Select the English word(s) in a chapter and pick *"Connect … to an original

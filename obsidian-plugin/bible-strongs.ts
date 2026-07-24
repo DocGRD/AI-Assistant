@@ -82,24 +82,41 @@ class StrongsData {
         return this.plugin.app.vault.adapter.exists(`${DIR}/_words.json`).catch(() => false);
     }
 
-    /** Every original-language word of a verse — manuscript form `o`, readable morph `m`, Strong's `s` —
-     *  from the best available interlinear (SBLGNT for the NT, WLC for the OT, else the BSB). This is the
-     *  ordered list of the verse's Greek/Hebrew words, used to show the manuscript form on a word and to
-     *  let you pick which original word an English selection connects to. */
-    async verseOriginals(book: string, chapter: number, verse: number): Promise<{ o: string; m: string; s: string }[]> {
+    /** Every original-language word of a verse — manuscript form `o`, its transliteration `t`, readable
+     *  morph `m`, Strong's `s` — from the best available interlinear (SBLGNT for the NT, WLC for the OT,
+     *  else the BSB). SBLGNT/WLC give the fuller readable morphology; the manuscript transliteration is
+     *  taken from the BSB (which carries it for the whole Bible), matched by Strong's occurrence. Used to
+     *  show a word's manuscript form and to pick which original word an English selection connects to. */
+    async verseOriginals(book: string, chapter: number, verse: number): Promise<{ o: string; t: string; m: string; s: string }[]> {
         const key = `${book}.${chapter}.${verse}`;
         const isNT = (BOOK_NUM[book] || 0) >= 40;
+        // Build a Strong's → [transliteration…] (in order) map from the BSB, to enrich SBLGNT/WLC.
+        const bsbT = new Map<string, string[]>();
+        if (await this.bsbAvailable(book)) {
+            for (const w of (await this.bsb(book))[key] || []) {
+                if (!w.s) continue;
+                if (!bsbT.has(w.s)) bsbT.set(w.s, []);
+                bsbT.get(w.s)!.push(w.t || "");
+            }
+        }
+        const withT = (list: { o: string; m: string; s: string }[]) => {
+            const seen = new Map<string, number>();
+            return list.map(e => {
+                const k = seen.get(e.s) ?? 0; seen.set(e.s, k + 1);
+                return { ...e, t: (bsbT.get(e.s) || [])[k] || "" };
+            });
+        };
         if (isNT && await this.sblgntAvailable()) {
             const v = (await this.sblgnt(book))[key];
-            if (v?.length) return v.map(w => ({ o: w.g, m: w.m, s: w.s }));
+            if (v?.length) return withT(v.map(w => ({ o: w.g, m: w.m, s: w.s })));
         }
         if (!isNT && await this.wlcAvailable()) {
             const v = (await this.wlc(book))[key];
-            if (v?.length) return v.map(w => ({ o: w.h, m: w.m, s: w.s }));
+            if (v?.length) return withT(v.map(w => ({ o: w.h, m: w.m, s: w.s })));
         }
         if (await this.bsbAvailable(book)) {
             const v = (await this.bsb(book))[key];
-            if (v?.length) return v.filter(w => w.o).map(w => ({ o: w.o, m: w.m, s: w.s }));
+            if (v?.length) return v.filter(w => w.o).map(w => ({ o: w.o, t: w.t || "", m: w.m, s: w.s }));
         }
         return [];
     }
@@ -419,18 +436,29 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
             const forms = ctx ? (await data.verseOriginals(ctx.book, ctx.chapter, ctx.verse)).filter(w => w.s === s) : [];
             if (span !== activeSpan) return;
             const row = c.createDiv("lm-strongs-pop-row");
-            const head = row.createDiv("lm-strongs-pop-head");
-            // Manuscript form leads (what actually stands in the text); lemma is the dictionary form.
+            // Line 1 — the MANUSCRIPT form (what actually stands in the text) + its transliteration + parsing.
             const manuscript = forms.map(f => f.o).filter(Boolean).join(" · ");
-            if (manuscript) head.createSpan({ cls: "lm-strongs-lemma", text: manuscript });
-            else if (lex?.l) head.createSpan({ cls: "lm-strongs-lemma", text: lex.l });
-            if (lex?.t) head.createSpan({ cls: "lm-strongs-translit", text: ` ${lex.t}` });
-            head.createEl("a", { text: ` ${s}`, cls: "lm-strongs-num", href: "#" })
-                .addEventListener("click", (e) => { e.preventDefault(); destroy(); new ConcordanceModal(plugin, data, s).open(); });
+            const msTranslit = forms.map(f => f.t).filter(Boolean).join(" · ");
             const morph = forms.map(f => f.m).filter(Boolean).join(" · ");
+            const head = row.createDiv("lm-strongs-pop-head");
+            if (manuscript) {
+                head.createSpan({ cls: "lm-strongs-lemma", text: manuscript });
+                if (msTranslit) head.createSpan({ cls: "lm-strongs-translit", text: ` ${msTranslit}` });
+            } else if (lex?.l) {
+                // no interlinear form for this verse — fall back to the lemma on line 1
+                head.createSpan({ cls: "lm-strongs-lemma", text: lex.l });
+                if (lex?.t) head.createSpan({ cls: "lm-strongs-translit", text: ` ${lex.t}` });
+            }
             if (morph) row.createDiv({ cls: "lm-strongs-morph", text: morph });
-            if (manuscript && lex?.l && manuscript !== lex.l)
-                row.createDiv({ cls: "lm-strongs-lemma-line", text: `lemma ${lex.l}` });
+            // Line 2 — the LEMMA (dictionary form) + its transliteration (shown when we led with a form).
+            if (manuscript && lex?.l) {
+                const lemLine = row.createDiv("lm-strongs-lemma-line");
+                lemLine.createSpan({ cls: "lm-strongs-lemma-word", text: lex.l });
+                if (lex?.t) lemLine.createSpan({ cls: "lm-strongs-translit", text: ` ${lex.t}` });
+            }
+            // Then the Strong's number (opens the concordance).
+            row.createEl("a", { text: s, cls: "lm-strongs-num lm-strongs-num-line", href: "#" })
+                .addEventListener("click", (e) => { e.preventDefault(); destroy(); new ConcordanceModal(plugin, data, s).open(); });
             // prefer the fuller free-lexicon definition (Dodson/BDB) — it is cleaner and more
             // accurate than the terse Strong's gloss; the full entry is one tap away.
             const meaning = lex?.d || lex?.g;
@@ -450,7 +478,7 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
                 if (last < lex.r.length) rootEl.appendText(lex.r.slice(last));
             }
         }
-        c.createEl("a", { text: "Open Strong's entry →", cls: "lm-strongs-pop-open", href: "#" })
+        c.createEl("a", { text: "Open Concordance →", cls: "lm-strongs-pop-open", href: "#" })
             .addEventListener("click", (e) => { e.preventDefault(); const s = codes[0]; destroy(); new ConcordanceModal(plugin, data, s).open(); });
 
         // Approximation controls — for guessed tags (overlay) and the user's own confirmed/edited ones,
@@ -504,12 +532,25 @@ export function registerBibleStrongsHover(plugin: Plugin): void {
         if (s) { evt.preventDefault(); evt.stopPropagation(); void build(s); return; }
         if (card && !card.contains(evt.target as Node)) destroy();
     });
+    // Hover chaining: moving directly from one tagged word to another swaps the card to the new word.
+    // (The old per-span `mouseleave` cleared the dwell timer the NEW span's mouseover had just set, so the
+    // card cleared and never re-opened until you moved off and back — the clunky behaviour.)
+    let pending: HTMLElement | null = null;
     plugin.registerDomEvent(document, "mouseover", (evt: MouseEvent) => {
         const s = spanAt(evt.target);
-        if (!s || s === activeSpan) return;
-        if (dwell) window.clearTimeout(dwell);
-        dwell = window.setTimeout(() => void build(s), 220);
-        s.addEventListener("mouseleave", () => { if (dwell) { window.clearTimeout(dwell); dwell = null; } scheduleHide(); }, { once: true });
+        if (s) {
+            if (s === activeSpan) { pending = null; if (dwell) { window.clearTimeout(dwell); dwell = null; } return; }  // already shown
+            if (s === pending) return;                                    // already scheduled for this word
+            pending = s;
+            if (dwell) window.clearTimeout(dwell);
+            dwell = window.setTimeout(() => { pending = null; void build(s); }, 150);
+            return;
+        }
+        // Moved onto non-word content: cancel any pending open; hide the card unless the cursor is on it.
+        if (dwell) { window.clearTimeout(dwell); dwell = null; }
+        pending = null;
+        const overCurrent = card?.contains(evt.target as Node);
+        if (!overCard && !overCurrent) scheduleHide();
     });
 }
 
