@@ -169,7 +169,10 @@ web entirely; only the query string ever leaves the machine. Gated by `web_resea
 true); `web_max_results` / `web_max_fetches` bound the cost. The manual `vault:research` paste round-trip
 remains as a fallback.
 
-`vault:discover-providers` (terminal or plugin) triggers discovery on demand. Sample crontab (if you
+`vault:discover-providers` (terminal or plugin) triggers discovery on demand and probes up to
+`discovery_probe_max` models (default 30). Only a successful probe promotes a model to `active`,
+for every provider. The weekly scheduler only lists models — set `discovery_probe_on_schedule: true`
+if that night job should probe too (each probe is a free-tier completion). Sample crontab (if you
 prefer OS scheduling — set `auto_consolidate_enabled: false` to avoid double runs):
 `0 4 * * *  cd /path/to/repo && python -m assistant_core --consolidate`.
 

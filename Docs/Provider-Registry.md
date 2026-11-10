@@ -30,6 +30,15 @@ The Obsidian plugin's **provider dropdown** is also populated from this list (vi
 > `vault:models` to query each provider's own `/models` endpoint **with your keys** and see exactly
 > which models your accounts can use (★ = already in this registry; ⚠ = a registry row no longer
 > available to you). That is the source of truth for promoting a `candidate` to `active`.
+>
+> **`vault:discover-providers` does not auto-activate a listed id.** New chat rows are written as
+> `candidate`, and a leading `models/` is stripped from Google ids before they are stored. The only
+> promotion to `active` is a successful completion probe, and that rule is the same for every
+> provider. Probes are capped (`discovery_probe_max`, default 30). `discovery_probe_providers`
+> (default Groq, Cerebras, Google) is probed first so a large catalogue cannot spend the whole
+> budget; any provider still in the budget can be promoted if its probe returns text. A 404 or
+> `model_not_found` marks the row `deprecated`. The weekly scheduler lists models without probing
+> unless `discovery_probe_on_schedule` is true, so a night run does not spend free-tier completions.
 
 > **Curated upstream lists** (also stored in settings as `provider_sources`, editable from the plugin
 > control panel — maintain them yourself or let the assistant refresh from them):

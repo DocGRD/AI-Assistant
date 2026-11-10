@@ -155,7 +155,11 @@ class MaintenanceScheduler:
     def _fire_discovery(self) -> None:
         from assistant_core.providers.discovery_job import run_discovery_proposal
         logger.info("[Scheduler] Running weekly provider discovery...")
-        ok, msg = run_discovery_proposal(self._vault_path, self._config)
+        # Probes spend free-tier completions. The night job only lists models unless
+        # discovery_probe_on_schedule is turned on; vault:discover-providers still probes.
+        probe = (bool(self._config.get("discovery_probe_enabled", True))
+                 and bool(self._config.get("discovery_probe_on_schedule", False)))
+        ok, msg = run_discovery_proposal(self._vault_path, self._config, probe=probe)
         _write_last_run(datetime.now())   # record even on no-op, so we don't retry all night
         logger.info(f"[Scheduler] Discovery {'wrote proposal' if ok else 'skipped'}: {msg}")
 

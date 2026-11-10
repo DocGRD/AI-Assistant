@@ -3,8 +3,10 @@
 import unittest
 from types import SimpleNamespace
 
+from assistant_core.providers.model_probe import ProbeResult
 from assistant_core.providers.registry_proposer import (
     is_chat_model, classify_strengths, classify_non_chat, build_proposed_registry,
+    resolve_status,
 )
 
 
@@ -38,7 +40,7 @@ class ClassifyStrengthsTests(unittest.TestCase):
 
 
 class BuildProposedRegistryTests(unittest.TestCase):
-    def test_filters_preserves_and_new_models_active(self):
+    def test_filters_preserves_and_new_models_are_candidates(self):
         discovered = {"groq": {"models": ["llama-3.3-70b-versatile", "whisper-large-v3",
                                           "openai/gpt-oss-20b"], "error": None}}
         existing = [_spec("groq", "llama-3.3-70b-versatile", status="active", notes="my note")]
@@ -46,8 +48,10 @@ class BuildProposedRegistryTests(unittest.TestCase):
         self.assertIn("llama-3.3-70b-versatile", md)
         self.assertIn("openai/gpt-oss-20b", md)           # new model included
         self.assertIn("my note", md)                      # existing note preserved
-        self.assertIn("| active |", md)                   # status preserved
-        self.assertNotIn("| candidate |", md)             # new chat models are ACTIVE now, not candidate
+        self.assertIn("| active |", md)                   # curated status preserved
+        new = [ln for ln in md.splitlines() if "openai/gpt-oss-20b" in ln][0]
+        self.assertIn("| candidate |", new)               # unprobed chat models stay candidate
+        self.assertIn("candidate until probed", new)
 
     def test_merge_carries_curated_limits_not_clobbered(self):
         # The clobber bug: tpm/rpm/tpd were hard-written '?' even for a KNOWN model.
@@ -71,6 +75,7 @@ class BuildProposedRegistryTests(unittest.TestCase):
         self.assertIn("| active |", row)                  # NOT demoted to candidate
         self.assertIn("| 250000 |", row)                  # curated tpm carried across the prefix drift
         self.assertIn("curated", row)                     # curated note kept
+        self.assertNotIn("models/", row)                  # written id is bare
 
     def test_generative_media_not_chat_activated(self):
         discovered = {"google": {"models": ["imagen-4.0-generate-001", "veo-3.1-fast",
@@ -81,7 +86,9 @@ class BuildProposedRegistryTests(unittest.TestCase):
         for media in ("imagen", "veo", "lyria"):
             self.assertNotIn(media, chat_section, f"{media} must not be a chat row")
             self.assertIn(media, nonchat_section, f"{media} should be in the non-chat table")
-        self.assertIn("gemini-2.5-flash", chat_section)   # real chat model still active
+        self.assertIn("gemini-2.5-flash", chat_section)
+        flash = [ln for ln in chat_section.splitlines() if "gemini-2.5-flash" in ln][0]
+        self.assertIn("| candidate |", flash)             # unprobed, so not active
 
     def test_non_chat_models_kept_in_second_table(self):
         discovered = {"groq": {"models": ["llama-3.3-70b-versatile", "whisper-large-v3",
@@ -98,6 +105,37 @@ class BuildProposedRegistryTests(unittest.TestCase):
         self.assertEqual(classify_non_chat("text-embedding-3-small"), "embedding")
         self.assertEqual(classify_non_chat("llama-guard-4-12b"), "safety")
         self.assertEqual(classify_non_chat("playai-tts"), "text-to-speech")
+
+    def test_probe_ok_promotes_any_provider(self):
+        for provider in ("groq", "google", "nvidia", "openrouter"):
+            discovered = {provider: {"models": ["chat-model"], "error": None}}
+            md = build_proposed_registry(
+                discovered, [], {provider: "https://x"},
+                probe_results={(provider, "chat-model"): ProbeResult("ok")},
+                today="2026-11-07",
+            )
+            row = [ln for ln in md.splitlines() if "chat-model" in ln][0]
+            self.assertIn("| active |", row, provider)
+            self.assertIn("probed OK 2026-11-07", row)
+
+    def test_probe_404_is_not_active(self):
+        discovered = {"groq": {"models": ["gone-model"], "error": None}}
+        md = build_proposed_registry(
+            discovered, [], {"groq": "https://x"},
+            probe_results={("groq", "gone-model"): ProbeResult("not_found", "404")},
+        )
+        row = [ln for ln in md.splitlines() if "gone-model" in ln][0]
+        self.assertIn("| deprecated |", row)
+        self.assertNotIn("| active |", row)
+
+    def test_probe_failure_and_rate_limit_do_not_promote(self):
+        self.assertEqual(resolve_status(None, "failed", auto_promote=True), "candidate")
+        self.assertEqual(resolve_status(None, "rate_limited", auto_promote=True), "candidate")
+        self.assertEqual(resolve_status("active", "rate_limited", auto_promote=True), "active")
+        self.assertEqual(resolve_status("active", "failed", auto_promote=True), "candidate")
+        self.assertEqual(resolve_status(None, "auth", auto_promote=True), "candidate")
+        self.assertEqual(resolve_status("active", "auth", auto_promote=True), "active")
+        self.assertEqual(resolve_status(None, "ok", auto_promote=False), "candidate")
 
     def test_skips_provider_with_error(self):
         discovered = {"bad": {"models": [], "error": "401 unauthorized"}}

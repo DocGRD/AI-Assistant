@@ -58,7 +58,7 @@ class DiscoveryJobTests(unittest.TestCase):
             def fake_list(base_url, api_key):
                 return ["llama-3.3-70b-versatile", "text-embedding-3-small"]
 
-            ok, msg = run_discovery_proposal(vault, {"groq_api_key": "x"}, list_fn=fake_list)
+            ok, msg = run_discovery_proposal(vault, {"groq_api_key": "x"}, list_fn=fake_list, probe=False)
             self.assertTrue(ok, msg)
             proposed = (vault / "AI" / "System" / "Provider-Registry-proposed.md").read_text(encoding="utf-8")
             self.assertIn("llama-3.3-70b-versatile", proposed)

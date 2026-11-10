@@ -140,7 +140,7 @@ a **🔊** button. Fully offline/on-device/private.*
 | Command | What it does |
 |---|---|
 | `vault:models` | List models your keys actually unlock |
-| `vault:discover-providers` | Build a proposed registry from each provider's live `/models` |
+| `vault:discover-providers` | Propose a registry from each provider's live `/models`. A new chat model stays `candidate` until a completion probe succeeds — that is the only promotion, for every provider. The weekly job lists models without probing unless `discovery_probe_on_schedule` is true, because probes spend free-tier quota |
 | `vault:update-providers [apply]` | Refresh the provider registry (propose, then apply) |
 | `vault:reindex [full]` | Rebuild the Vault QA index (incremental; `full` = clean rebuild) |
 | `vault:logs [N\|errors\|today]` | **Read Loremaster's own logs** (`logs/assistant.log`, outside the vault) for self-diagnosis — last N lines, recent `errors`, or `today` |
